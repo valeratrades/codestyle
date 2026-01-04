@@ -8,6 +8,10 @@ pub fn check_instrument(file_info: &FileInfo) -> Vec<Violation> {
 	let path_str = file_info.path.display().to_string();
 
 	for func in &file_info.fn_items {
+		// Only check async functions
+		if func.sig.asyncness.is_none() {
+			continue;
+		}
 		if has_instrument_attr(func) {
 			continue;
 		}
@@ -21,7 +25,7 @@ pub fn check_instrument(file_info: &FileInfo) -> Vec<Violation> {
 			file: path_str.clone(),
 			line: span_start.line,
 			column: span_start.column,
-			message: format!("No #[instrument] on `{}`", func.sig.ident),
+			message: format!("No #[instrument] on async fn `{}`", func.sig.ident),
 			fix: None,
 		});
 	}

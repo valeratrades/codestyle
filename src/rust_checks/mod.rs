@@ -10,8 +10,28 @@ use std::{
 	path::{Path, PathBuf},
 };
 
+use smart_default::SmartDefault;
 use syn::{ItemFn, parse_file};
 use walkdir::WalkDir;
+
+#[derive(Clone, SmartDefault)]
+pub struct RustCheckOptions {
+	/// Check for #[instrument] on async functions (default: false)
+	#[default = false]
+	pub instrument: bool,
+	/// Check for //LOOP comments on endless loops (default: true)
+	#[default = true]
+	pub loops: bool,
+	/// Check that impl blocks follow type definitions (default: true)
+	#[default = true]
+	pub impl_follows_type: bool,
+	/// Check for simple vars that should be embedded in format strings (default: true)
+	#[default = true]
+	pub embed_simple_vars: bool,
+	/// Check that insta snapshots use inline @"" syntax (default: true)
+	#[default = true]
+	pub insta_inline_snapshot: bool,
+}
 
 #[derive(Clone, Default, derive_new::new)]
 pub struct FileInfo {
@@ -38,7 +58,7 @@ pub struct Fix {
 	pub replacement: String,
 }
 
-pub fn run_assert(target_dir: &Path) -> i32 {
+pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 	if !target_dir.exists() {
 		eprintln!("Target directory does not exist: {:?}", target_dir);
 		return 1;
@@ -55,12 +75,22 @@ pub fn run_assert(target_dir: &Path) -> i32 {
 	for src_dir in src_dirs {
 		let file_infos = collect_rust_files(&src_dir);
 		for info in &file_infos {
-			all_violations.extend(instrument::check_instrument(info));
-			all_violations.extend(loops::check_loops(info));
+			if opts.instrument {
+				all_violations.extend(instrument::check_instrument(info));
+			}
+			if opts.loops {
+				all_violations.extend(loops::check_loops(info));
+			}
 			if let Some(ref tree) = info.syntax_tree {
-				all_violations.extend(impl_follows_type::check(&info.path, tree));
-				all_violations.extend(embed_simple_vars::check(&info.path, &info.contents, tree));
-				all_violations.extend(insta_snapshots::check(&info.path, &info.contents, tree, false));
+				if opts.impl_follows_type {
+					all_violations.extend(impl_follows_type::check(&info.path, tree));
+				}
+				if opts.embed_simple_vars {
+					all_violations.extend(embed_simple_vars::check(&info.path, &info.contents, tree));
+				}
+				if opts.insta_inline_snapshot {
+					all_violations.extend(insta_snapshots::check(&info.path, &info.contents, tree, false));
+				}
 			}
 		}
 	}
@@ -77,7 +107,7 @@ pub fn run_assert(target_dir: &Path) -> i32 {
 	}
 }
 
-pub fn run_format(target_dir: &Path) -> i32 {
+pub fn run_format(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 	if !target_dir.exists() {
 		eprintln!("Target directory does not exist: {:?}", target_dir);
 		return 1;
@@ -94,18 +124,30 @@ pub fn run_format(target_dir: &Path) -> i32 {
 	for src_dir in src_dirs {
 		let file_infos = collect_rust_files(&src_dir);
 		for info in &file_infos {
-			all_violations.extend(instrument::check_instrument(info));
-			all_violations.extend(loops::check_loops(info));
+			if opts.instrument {
+				all_violations.extend(instrument::check_instrument(info));
+			}
+			if opts.loops {
+				all_violations.extend(loops::check_loops(info));
+			}
 			if let Some(ref tree) = info.syntax_tree {
-				all_violations.extend(impl_follows_type::check(&info.path, tree));
-				all_violations.extend(embed_simple_vars::check(&info.path, &info.contents, tree));
-				all_violations.extend(insta_snapshots::check(&info.path, &info.contents, tree, true));
+				if opts.impl_follows_type {
+					all_violations.extend(impl_follows_type::check(&info.path, tree));
+				}
+				if opts.embed_simple_vars {
+					all_violations.extend(embed_simple_vars::check(&info.path, &info.contents, tree));
+				}
+				if opts.insta_inline_snapshot {
+					all_violations.extend(insta_snapshots::check(&info.path, &info.contents, tree, true));
+				}
 			}
 		}
 	}
 
-	// Delete any .pending-snap files in the target directory
-	delete_pending_snap_files(target_dir);
+	// Delete any .pending-snap files in the target directory (only if insta check is enabled)
+	if opts.insta_inline_snapshot {
+		delete_pending_snap_files(target_dir);
+	}
 
 	if all_violations.is_empty() {
 		println!("codestyle: all checks passed, nothing to format");

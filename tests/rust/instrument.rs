@@ -29,42 +29,52 @@ fn check_code_in_file(code: &str, filename: &str) -> Vec<String> {
 }
 
 fn main() {
-	// Test: function without #[instrument] triggers violation
+	// Test: sync function without #[instrument] passes (only async is checked)
 	let violations = check_code(
 		r#"
-fn no_instrument() {
+fn sync_no_instrument() {
     println!("hello");
 }
 "#,
 	);
-	assert_eq!(violations.len(), 1);
-	assert!(violations[0].contains("no_instrument"));
+	assert!(violations.is_empty(), "sync fn should not require instrument: {violations:?}");
 
-	// Test: function with #[instrument] passes
+	// Test: async function without #[instrument] triggers violation
+	let violations = check_code(
+		r#"
+async fn async_no_instrument() {
+    println!("hello");
+}
+"#,
+	);
+	assert_eq!(violations.len(), 1, "async fn should require instrument: {violations:?}");
+	assert!(violations[0].contains("async_no_instrument"));
+
+	// Test: async function with #[instrument] passes
 	let violations = check_code(
 		r#"
 #[instrument]
-fn with_instrument() {
+async fn with_instrument() {
     println!("hello");
 }
 "#,
 	);
-	assert!(violations.is_empty(), "instrumented fn should pass: {violations:?}");
+	assert!(violations.is_empty(), "instrumented async fn should pass: {violations:?}");
 
-	// Test: main function is exempt
+	// Test: main function is exempt (even if async)
 	let violations = check_code(
 		r#"
-fn main() {
+async fn main() {
     println!("hello");
 }
 "#,
 	);
 	assert!(violations.is_empty(), "main should be exempt: {violations:?}");
 
-	// Test: functions in utils.rs are exempt
+	// Test: async functions in utils.rs are exempt
 	let violations = check_code_in_file(
 		r#"
-fn helper() {
+async fn helper() {
     println!("hello");
 }
 "#,
@@ -72,16 +82,17 @@ fn helper() {
 	);
 	assert!(violations.is_empty(), "utils.rs should be exempt: {violations:?}");
 
-	// Test: multiple functions
+	// Test: multiple functions - only async without instrument are caught
 	let violations = check_code(
 		r#"
-fn one() {}
-fn two() {}
+fn sync_one() {}
+async fn async_one() {}
+async fn async_two() {}
 #[instrument]
-fn three() {}
+async fn async_three() {}
 "#,
 	);
-	assert_eq!(violations.len(), 2, "should catch 2 missing instruments: {violations:?}");
+	assert_eq!(violations.len(), 2, "should catch 2 async fns missing instruments: {violations:?}");
 
 	println!("All instrument tests passed!");
 }
