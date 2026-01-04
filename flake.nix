@@ -81,10 +81,10 @@
               openssl
               pkg-config
               rust
-            ] ++ pre-commit-check.enabledPackages ++ github.enabledPackages + rs.enabledPackages;
+            ] ++ pre-commit-check.enabledPackages ++ github.enabledPackages ++ rs.enabledPackages;
 
-						env.RUST_BACKTRACE = 1;
-						env.RUST_LIB_BACKTRACE = 0;
+            env.RUST_BACKTRACE = 1;
+            env.RUST_LIB_BACKTRACE = 0;
           };
       }
     );
