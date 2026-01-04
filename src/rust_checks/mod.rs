@@ -196,16 +196,16 @@ fn find_src_dirs(root: &Path) -> Vec<PathBuf> {
 			in_workspace = true;
 		} else if trimmed.starts_with('[') && trimmed != "[workspace]" {
 			in_workspace = false;
-		} else if in_workspace && trimmed.starts_with("members") {
-			if let Some(start) = line.find('[') {
-				if let Some(end) = line.find(']') {
-					let list = &line[start + 1..end];
-					for member in list.split(',') {
-						let member = member.trim().trim_matches('"').trim_matches('\'');
-						if !member.is_empty() && !member.contains('*') {
-							members.push(member.to_string());
-						}
-					}
+		} else if in_workspace
+			&& trimmed.starts_with("members")
+			&& let Some(start) = line.find('[')
+			&& let Some(end) = line.find(']')
+		{
+			let list = &line[start + 1..end];
+			for member in list.split(',') {
+				let member = member.trim().trim_matches('"').trim_matches('\'');
+				if !member.is_empty() && !member.contains('*') {
+					members.push(member.to_string());
 				}
 			}
 		}
@@ -238,10 +238,10 @@ pub fn collect_rust_files(target_dir: &Path) -> Vec<FileInfo> {
 
 	for entry in walker.filter_map(Result::ok) {
 		let path = entry.path().to_path_buf();
-		if path.extension().is_some_and(|ext| ext == "rs") {
-			if let Some(info) = parse_rust_file(path) {
-				file_infos.push(info);
-			}
+		if path.extension().is_some_and(|ext| ext == "rs")
+			&& let Some(info) = parse_rust_file(path)
+		{
+			file_infos.push(info);
 		}
 	}
 	file_infos

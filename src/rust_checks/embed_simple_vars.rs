@@ -87,11 +87,11 @@ impl<'a> FormatMacroVisitor<'a> {
 		let mut i = fmt_idx + 1;
 
 		while i < tokens.len() {
-			if let TokenTree::Punct(p) = &tokens[i] {
-				if p.as_char() == ',' {
-					i += 1;
-					continue;
-				}
+			if let TokenTree::Punct(p) = &tokens[i]
+				&& p.as_char() == ','
+			{
+				i += 1;
+				continue;
 			}
 
 			if let Some((arg_str, arg_span, next_i)) = collect_argument(&tokens, i) {
@@ -166,18 +166,18 @@ fn count_empty_placeholders(format_str: &str) -> usize {
 	let mut chars = format_str.chars().peekable();
 
 	while let Some(c) = chars.next() {
-		if c == '{' {
-			if let Some(&next) = chars.peek() {
-				if next == '{' {
-					chars.next();
-				} else if next == '}' {
-					count += 1;
-					chars.next();
-				} else {
-					while let Some(c) = chars.next() {
-						if c == '}' {
-							break;
-						}
+		if c == '{'
+			&& let Some(&next) = chars.peek()
+		{
+			if next == '{' {
+				chars.next();
+			} else if next == '}' {
+				count += 1;
+				chars.next();
+			} else {
+				for c in chars.by_ref() {
+					if c == '}' {
+						break;
 					}
 				}
 			}
@@ -192,18 +192,18 @@ fn find_empty_placeholder_positions(format_str: &str) -> Vec<usize> {
 	let mut chars = format_str.char_indices().peekable();
 
 	while let Some((idx, c)) = chars.next() {
-		if c == '{' {
-			if let Some(&(_, next)) = chars.peek() {
-				if next == '{' {
-					chars.next();
-				} else if next == '}' {
-					positions.push(idx);
-					chars.next();
-				} else {
-					while let Some((_, c)) = chars.next() {
-						if c == '}' {
-							break;
-						}
+		if c == '{'
+			&& let Some(&(_, next)) = chars.peek()
+		{
+			if next == '{' {
+				chars.next();
+			} else if next == '}' {
+				positions.push(idx);
+				chars.next();
+			} else {
+				for (_, c) in chars.by_ref() {
+					if c == '}' {
+						break;
 					}
 				}
 			}
@@ -236,12 +236,12 @@ fn collect_argument(tokens: &[TokenTree], start: usize) -> Option<(String, Span,
 	let first = &tokens[start];
 
 	if let TokenTree::Ident(ident) = first {
-		if start + 1 < tokens.len() {
-			if let TokenTree::Punct(p) = &tokens[start + 1] {
-				let ch = p.as_char();
-				if ch == '.' || ch == ':' {
-					return collect_complex_argument(tokens, start);
-				}
+		if start + 1 < tokens.len()
+			&& let TokenTree::Punct(p) = &tokens[start + 1]
+		{
+			let ch = p.as_char();
+			if ch == '.' || ch == ':' {
+				return collect_complex_argument(tokens, start);
 			}
 		}
 		return Some((ident.to_string(), ident.span(), start + 1));

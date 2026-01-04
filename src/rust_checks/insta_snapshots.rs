@@ -132,17 +132,15 @@ fn start_column(span: Span) -> usize {
 /// Returns (span of @ through string, content of string, is_empty)
 fn find_inline_snapshot(tokens: &[TokenTree]) -> Option<(Span, String, bool)> {
 	for (i, token) in tokens.iter().enumerate() {
-		if let TokenTree::Punct(p) = token {
-			if p.as_char() == '@' {
-				// Next token should be a string literal
-				if let Some(TokenTree::Literal(lit)) = tokens.get(i + 1) {
-					let lit_str = lit.to_string();
-					if lit_str.starts_with('"') || lit_str.starts_with("r#") || lit_str.starts_with("r\"") {
-						let content = extract_string_content(&lit_str);
-						let is_empty = content.trim().is_empty();
-						return Some((lit.span(), content, is_empty));
-					}
-				}
+		if let TokenTree::Punct(p) = token
+			&& p.as_char() == '@'
+			&& let Some(TokenTree::Literal(lit)) = tokens.get(i + 1)
+		{
+			let lit_str = lit.to_string();
+			if lit_str.starts_with('"') || lit_str.starts_with("r#") || lit_str.starts_with("r\"") {
+				let content = extract_string_content(&lit_str);
+				let is_empty = content.trim().is_empty();
+				return Some((lit.span(), content, is_empty));
 			}
 		}
 	}
