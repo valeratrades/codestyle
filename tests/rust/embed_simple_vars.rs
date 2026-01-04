@@ -1,17 +1,20 @@
-use codestyle::rust_checks::{self, embed_simple_vars};
+use codestyle::rust_checks::{self, Violation, embed_simple_vars};
 
 fn check_code(code: &str) -> Vec<String> {
+	check_code_full(code).into_iter().map(|v| v.message).collect()
+}
+
+fn check_code_full(code: &str) -> Vec<Violation> {
 	let temp_dir = std::env::temp_dir().join("codestyle_test_embed_vars");
 	std::fs::create_dir_all(&temp_dir).unwrap();
 	let test_file = temp_dir.join("test.rs");
 	std::fs::write(&test_file, code).unwrap();
 
 	let file_infos = rust_checks::collect_rust_files(&temp_dir);
-	let violations: Vec<String> = file_infos
+	let violations: Vec<Violation> = file_infos
 		.iter()
 		.filter_map(|info| info.syntax_tree.as_ref().map(|tree| (info, tree)))
 		.flat_map(|(info, tree)| embed_simple_vars::check(&info.path, &info.contents, tree))
-		.map(|v| v.message)
 		.collect();
 
 	std::fs::remove_file(&test_file).ok();
@@ -138,6 +141,44 @@ fn test() {
 "#,
 	);
 	assert!(violations.is_empty(), "named placeholder should pass: {violations:?}");
+
+	// Test: multi-line format macro should be detected
+	let violations = check_code(
+		r#"
+fn test() {
+    let name = "world";
+    let count = 42;
+    println!(
+        "Hello {}, you have {} messages",
+        name,
+        count
+    );
+}
+"#,
+	);
+	assert_eq!(violations.len(), 2, "should catch multi-line simple vars: {violations:?}");
+
+	// Test: multi-line format macro fix should be generated
+	let violations = check_code_full(
+		r#"
+fn test() {
+    let name = "world";
+    let count = 42;
+    println!(
+        "Hello {}, you have {} messages",
+        name,
+        count
+    );
+}
+"#,
+	);
+	assert!(violations[0].fix.is_some(), "multi-line format should have a fix");
+	let fix = violations[0].fix.as_ref().unwrap();
+	assert_eq!(
+		fix.replacement, r#""Hello {name}, you have {count} messages""#,
+		"fix should embed vars: got {:?}",
+		fix.replacement
+	);
 
 	println!("All embed_simple_vars tests passed!");
 }

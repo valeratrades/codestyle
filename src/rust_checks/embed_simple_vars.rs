@@ -130,7 +130,8 @@ impl<'a> FormatMacroVisitor<'a> {
 				let end_pos = pos + 2;
 				new_fmt.replace_range(*pos..end_pos, &format!("{{{arg_str}}}"));
 			}
-			create_full_macro_fix(&format_string_content, &new_fmt, fmt_span, self.content)
+			let last_arg_span = args.last().map(|(_, span)| *span);
+			create_full_macro_fix(&new_fmt, fmt_span, last_arg_span, self.content)
 		} else {
 			None
 		};
@@ -278,74 +279,49 @@ fn collect_complex_argument(tokens: &[TokenTree], start: usize) -> Option<(Strin
 	if result.is_empty() { None } else { Some((result.trim().to_string(), start_span, i)) }
 }
 
-fn create_full_macro_fix(old_fmt: &str, new_fmt: &str, fmt_span: Span, content: &str) -> Option<Fix> {
-	if fmt_span.start().line != fmt_span.end().line {
-		return None;
-	}
+/// Convert a proc_macro2 line/column position to byte offset in content.
+/// Lines are 1-indexed, columns are 0-indexed (byte offset within line).
+fn span_position_to_byte(content: &str, line: usize, column: usize) -> Option<usize> {
+	let mut current_line = 1;
+	let mut line_start = 0;
 
-	let lines: Vec<&str> = content.lines().collect();
-	let line_idx = fmt_span.start().line - 1;
-	if line_idx >= lines.len() {
-		return None;
-	}
-	let line = lines[line_idx];
-
-	let fmt_pos = line.find(old_fmt)?;
-
-	let after_fmt = &line[fmt_pos + old_fmt.len()..];
-
-	let old_placeholder_count = count_empty_placeholders(old_fmt);
-
-	let mut depth = 0;
-	let mut args_end = None;
-	let mut comma_count = 0;
-	let mut in_string = false;
-	let mut escape_next = false;
-
-	for (i, ch) in after_fmt.char_indices() {
-		if escape_next {
-			escape_next = false;
-			continue;
+	for (i, ch) in content.char_indices() {
+		if current_line == line {
+			// Found the line, add column offset
+			// Column is byte offset, not char offset
+			return Some(line_start + column);
 		}
-		match ch {
-			'\\' if in_string => escape_next = true,
-			'"' => in_string = !in_string,
-			'(' | '[' | '{' if !in_string => depth += 1,
-			')' if !in_string => {
-				if depth == 0 {
-					args_end = Some(i);
-					break;
-				}
-				depth -= 1;
-			}
-			']' | '}' if !in_string && depth > 0 => depth -= 1,
-			',' if !in_string && depth == 0 => comma_count += 1,
-			_ => {}
+		if ch == '\n' {
+			current_line += 1;
+			line_start = i + 1;
 		}
 	}
 
-	let args_end_pos = args_end?;
-
-	if comma_count != old_placeholder_count {
-		return None;
+	// Handle last line (no trailing newline)
+	if current_line == line {
+		return Some(line_start + column);
 	}
 
-	let before_fmt = &line[..fmt_pos];
-	let after_args = &after_fmt[args_end_pos..];
+	None
+}
 
-	let new_line = format!("{before_fmt}{new_fmt}{after_args}");
+fn create_full_macro_fix(new_fmt: &str, fmt_span: Span, last_arg_span: Option<Span>, content: &str) -> Option<Fix> {
+	let last_arg_span = last_arg_span?;
 
-	let mut line_start_byte = 0;
-	for (i, l) in lines.iter().enumerate() {
-		if i == line_idx {
-			break;
-		}
-		line_start_byte += l.len() + 1;
+	// Get byte position of format string start
+	let fmt_start = span_position_to_byte(content, fmt_span.start().line, fmt_span.start().column)?;
+
+	// Get byte position after the last argument
+	let last_arg_end = span_position_to_byte(content, last_arg_span.end().line, last_arg_span.end().column)?;
+
+	// Verify the format string is where we expect
+	if !content[fmt_start..].starts_with('"') && !content[fmt_start..].starts_with("r#") && !content[fmt_start..].starts_with("r\"") {
+		return None;
 	}
 
 	Some(Fix {
-		start_byte: line_start_byte,
-		end_byte: line_start_byte + line.len(),
-		replacement: new_line,
+		start_byte: fmt_start,
+		end_byte: last_arg_end,
+		replacement: new_fmt.to_string(),
 	})
 }
