@@ -49,6 +49,10 @@ struct RustCheckOptionsArgs {
 	#[arg(long)]
 	loops: Option<bool>,
 
+	/// Join split impl blocks for the same type [default: true]
+	#[arg(long)]
+	join_split_impls: Option<bool>,
+
 	/// Check that impl blocks follow type definitions [default: true]
 	#[arg(long)]
 	impl_follows_type: Option<bool>,
@@ -68,6 +72,7 @@ impl From<RustCheckOptionsArgs> for RustCheckOptions {
 		Self {
 			instrument: args.instrument.unwrap_or(defaults.instrument),
 			loops: args.loops.unwrap_or(defaults.loops),
+			join_split_impls: args.join_split_impls.unwrap_or(defaults.join_split_impls),
 			impl_follows_type: args.impl_follows_type.unwrap_or(defaults.impl_follows_type),
 			embed_simple_vars: args.embed_simple_vars.unwrap_or(defaults.embed_simple_vars),
 			insta_inline_snapshot: args.insta_inline_snapshot.unwrap_or(defaults.insta_inline_snapshot),

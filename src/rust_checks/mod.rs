@@ -2,6 +2,7 @@ pub mod embed_simple_vars;
 pub mod impl_follows_type;
 pub mod insta_snapshots;
 pub mod instrument;
+pub mod join_split_impls;
 pub mod loops;
 
 use std::{
@@ -22,6 +23,9 @@ pub struct RustCheckOptions {
 	/// Check for //LOOP comments on endless loops (default: true)
 	#[default = true]
 	pub loops: bool,
+	/// Join split impl blocks for the same type (default: true)
+	#[default = true]
+	pub join_split_impls: bool,
 	/// Check that impl blocks follow type definitions (default: true)
 	#[default = true]
 	pub impl_follows_type: bool,
@@ -82,8 +86,12 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 				all_violations.extend(loops::check_loops(info));
 			}
 			if let Some(ref tree) = info.syntax_tree {
+				// join_split_impls should run before impl_follows_type
+				if opts.join_split_impls {
+					all_violations.extend(join_split_impls::check(&info.path, &info.contents, tree));
+				}
 				if opts.impl_follows_type {
-					all_violations.extend(impl_follows_type::check(&info.path, tree));
+					all_violations.extend(impl_follows_type::check(&info.path, &info.contents, tree));
 				}
 				if opts.embed_simple_vars {
 					all_violations.extend(embed_simple_vars::check(&info.path, &info.contents, tree));
@@ -131,8 +139,12 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 				all_violations.extend(loops::check_loops(info));
 			}
 			if let Some(ref tree) = info.syntax_tree {
+				// join_split_impls should run before impl_follows_type
+				if opts.join_split_impls {
+					all_violations.extend(join_split_impls::check(&info.path, &info.contents, tree));
+				}
 				if opts.impl_follows_type {
-					all_violations.extend(impl_follows_type::check(&info.path, tree));
+					all_violations.extend(impl_follows_type::check(&info.path, &info.contents, tree));
 				}
 				if opts.embed_simple_vars {
 					all_violations.extend(embed_simple_vars::check(&info.path, &info.contents, tree));
