@@ -1,1 +1,8 @@
-//TODO!!!: This. Should be the entry point to all integration tests of rust projects, following https://matklad.github.io/2021/02/27/delete-cargo-integration-tests.html
+#[test]
+fn rust_checks() {
+	let t = trybuild::TestCases::new();
+	t.pass("tests/rust/loops.rs");
+	t.pass("tests/rust/instrument.rs");
+	t.pass("tests/rust/impl_follows_type.rs");
+	t.pass("tests/rust/embed_simple_vars.rs");
+}

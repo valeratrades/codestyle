@@ -1,7 +1,7 @@
-mod embed_simple_vars;
-mod impl_follows_type;
-mod instrument;
-mod loops;
+pub mod embed_simple_vars;
+pub mod impl_follows_type;
+pub mod instrument;
+pub mod loops;
 
 use std::{
 	collections::HashMap,
@@ -180,7 +180,7 @@ fn find_src_dirs(root: &Path) -> Vec<PathBuf> {
 		.collect()
 }
 
-fn collect_rust_files(target_dir: &Path) -> Vec<FileInfo> {
+pub fn collect_rust_files(target_dir: &Path) -> Vec<FileInfo> {
 	let mut file_infos = Vec::new();
 
 	let walker = WalkDir::new(target_dir).into_iter().filter_entry(|e| {
