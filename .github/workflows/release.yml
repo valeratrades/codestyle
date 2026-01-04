@@ -10,6 +10,9 @@ jobs:
     - uses: dtolnay/rust-toolchain@nightly
       with:
         targets: ${{ matrix.target }}
+    - if: runner.os == 'Linux'
+      name: Install mold
+      uses: rui314/setup-mold@v1
     - name: Build release binary
       run: cargo build --release --target ${{ matrix.target }} ${{ matrix.cargo_flags
         }}
