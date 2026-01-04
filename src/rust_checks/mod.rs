@@ -1,5 +1,6 @@
 pub mod embed_simple_vars;
 pub mod impl_follows_type;
+pub mod insta_snapshots;
 pub mod instrument;
 pub mod loops;
 
@@ -59,6 +60,7 @@ pub fn run_assert(target_dir: &Path) -> i32 {
 			if let Some(ref tree) = info.syntax_tree {
 				all_violations.extend(impl_follows_type::check(&info.path, tree));
 				all_violations.extend(embed_simple_vars::check(&info.path, &info.contents, tree));
+				all_violations.extend(insta_snapshots::check(&info.path, &info.contents, tree, false));
 			}
 		}
 	}
@@ -97,9 +99,13 @@ pub fn run_format(target_dir: &Path) -> i32 {
 			if let Some(ref tree) = info.syntax_tree {
 				all_violations.extend(impl_follows_type::check(&info.path, tree));
 				all_violations.extend(embed_simple_vars::check(&info.path, &info.contents, tree));
+				all_violations.extend(insta_snapshots::check(&info.path, &info.contents, tree, true));
 			}
 		}
 	}
+
+	// Delete any .pending-snap files in the target directory
+	delete_pending_snap_files(target_dir);
 
 	if all_violations.is_empty() {
 		println!("codestyle: all checks passed, nothing to format");
@@ -108,11 +114,11 @@ pub fn run_format(target_dir: &Path) -> i32 {
 		let (fixed, unfixable) = apply_fixes(&all_violations);
 
 		if fixed > 0 {
-			println!("codestyle: fixed {} violation(s)", fixed);
+			println!("codestyle: fixed {fixed} violation(s)");
 		}
 
 		if unfixable > 0 {
-			eprintln!("codestyle: {} violation(s) need manual fixing:\n", unfixable);
+			eprintln!("codestyle: {unfixable} violation(s) need manual fixing:\n");
 			for v in &all_violations {
 				if v.fix.is_none() {
 					eprintln!("  [{}] {}:{}:{}: {}", v.rule, v.file, v.line, v.column, v.message);
@@ -239,7 +245,7 @@ fn apply_fixes(violations: &[Violation]) -> (usize, usize) {
 		let content = match fs::read_to_string(&file_path) {
 			Ok(c) => c,
 			Err(e) => {
-				eprintln!("Warning: Failed to read {} for fixing: {}", file_path, e);
+				eprintln!("Warning: Failed to read {file_path} for fixing: {e}");
 				unfixable_count += fixes.len();
 				continue;
 			}
@@ -271,7 +277,7 @@ fn apply_fixes(violations: &[Violation]) -> (usize, usize) {
 		}
 
 		if let Err(e) = fs::write(&file_path, new_content) {
-			eprintln!("Warning: Failed to write {}: {}", file_path, e);
+			eprintln!("Warning: Failed to write {file_path}: {e}");
 		}
 	}
 
@@ -282,4 +288,22 @@ fn apply_fixes(violations: &[Violation]) -> (usize, usize) {
 	}
 
 	(fixed_count, unfixable_count)
+}
+
+fn delete_pending_snap_files(target_dir: &Path) {
+	let walker = WalkDir::new(target_dir).into_iter().filter_entry(|e| {
+		let name = e.file_name().to_string_lossy();
+		!name.starts_with('.') && name != "target"
+	});
+
+	for entry in walker.filter_map(Result::ok) {
+		let path = entry.path();
+		if path.extension().is_some_and(|ext| ext == "pending-snap") {
+			if let Err(e) = fs::remove_file(path) {
+				eprintln!("Warning: Failed to delete pending snap file {:?}: {}", path, e);
+			} else {
+				println!("codestyle: deleted pending snap file {:?}", path);
+			}
+		}
+	}
 }

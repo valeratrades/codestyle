@@ -5,4 +5,5 @@ fn rust_checks() {
 	t.pass("tests/rust/instrument.rs");
 	t.pass("tests/rust/impl_follows_type.rs");
 	t.pass("tests/rust/embed_simple_vars.rs");
+	t.pass("tests/rust/insta_snapshots.rs");
 }
