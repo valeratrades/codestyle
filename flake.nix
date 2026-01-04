@@ -31,7 +31,7 @@
           jobs.default = true;
           release.default = true;
         };
-        rs = v-utils.rs { inherit pkgs; };
+        rs = v-utils.rs { inherit pkgs rust; };
         readme = v-utils.readme-fw {
           inherit pkgs pname;
           defaults = true;
