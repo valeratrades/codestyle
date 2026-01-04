@@ -41,7 +41,7 @@ pub struct FileInfo {
 	pub path: PathBuf,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Violation {
 	pub rule: &'static str,
 	pub file: String,
@@ -51,7 +51,7 @@ pub struct Violation {
 	pub fix: Option<Fix>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Fix {
 	pub start_byte: usize,
 	pub end_byte: usize,

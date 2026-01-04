@@ -1,17 +1,16 @@
-use codestyle::rust_checks::{self, impl_follows_type};
+use codestyle::rust_checks::{self, Violation, impl_follows_type};
 
-fn check_code(code: &str) -> Vec<String> {
+fn check_code(code: &str) -> Vec<Violation> {
 	let temp_dir = std::env::temp_dir().join("codestyle_test_impl_follows");
 	std::fs::create_dir_all(&temp_dir).unwrap();
 	let test_file = temp_dir.join("test.rs");
 	std::fs::write(&test_file, code).unwrap();
 
 	let file_infos = rust_checks::collect_rust_files(&temp_dir);
-	let violations: Vec<String> = file_infos
+	let violations: Vec<Violation> = file_infos
 		.iter()
 		.filter_map(|info| info.syntax_tree.as_ref().map(|tree| (info, tree)))
 		.flat_map(|(info, tree)| impl_follows_type::check(&info.path, tree))
-		.map(|v| v.message)
 		.collect();
 
 	std::fs::remove_file(&test_file).ok();
@@ -19,9 +18,17 @@ fn check_code(code: &str) -> Vec<String> {
 	violations
 }
 
+fn snapshot_violations(violations: &[Violation]) -> String {
+	if violations.is_empty() {
+		"(no violations)".to_string()
+	} else {
+		violations.iter().map(|v| &v.message).cloned().collect::<Vec<_>>().join("\n")
+	}
+}
+
 fn main() {
 	// Test: impl immediately after struct passes
-	let violations = check_code(
+	insta::assert_snapshot!(snapshot_violations(&check_code(
 		r#"
 struct Foo {
     x: i32,
@@ -30,11 +37,10 @@ impl Foo {
     fn new() -> Self { Self { x: 0 } }
 }
 "#,
-	);
-	assert!(violations.is_empty(), "immediate impl should pass: {violations:?}");
+	)), @"(no violations)");
 
 	// Test: impl with gap triggers violation
-	let violations = check_code(
+	insta::assert_snapshot!(snapshot_violations(&check_code(
 		r#"
 struct Foo {
     x: i32,
@@ -45,12 +51,10 @@ impl Foo {
     fn new() -> Self { Self { x: 0 } }
 }
 "#,
-	);
-	assert_eq!(violations.len(), 1, "gap should trigger: {violations:?}");
-	assert!(violations[0].contains("blank line"));
+	)), @"`impl Foo` should follow type definition (line 4), but has 2 blank line(s)");
 
 	// Test: trait impl is exempt (can be anywhere)
-	let violations = check_code(
+	insta::assert_snapshot!(snapshot_violations(&check_code(
 		r#"
 struct Foo;
 
@@ -59,11 +63,10 @@ impl Default for Foo {
     fn default() -> Self { Foo }
 }
 "#,
-	);
-	assert!(violations.is_empty(), "trait impl should be exempt: {violations:?}");
+	)), @"(no violations)");
 
 	// Test: enum works same as struct
-	let violations = check_code(
+	insta::assert_snapshot!(snapshot_violations(&check_code(
 		r#"
 enum Bar {
     A,
@@ -75,11 +78,10 @@ impl Bar {
     fn is_a(&self) -> bool { matches!(self, Self::A) }
 }
 "#,
-	);
-	assert_eq!(violations.len(), 1, "enum gap should trigger: {violations:?}");
+	)), @"`impl Bar` should follow type definition (line 5), but has 2 blank line(s)");
 
 	// Test: chained impls (multiple impl blocks)
-	let violations = check_code(
+	insta::assert_snapshot!(snapshot_violations(&check_code(
 		r#"
 struct Foo;
 impl Foo {
@@ -89,11 +91,10 @@ impl Foo {
     fn two() {}
 }
 "#,
-	);
-	assert!(violations.is_empty(), "chained impls should pass: {violations:?}");
+	)), @"(no violations)");
 
 	// Test: impl for type not defined in file is ignored
-	let violations = check_code(
+	insta::assert_snapshot!(snapshot_violations(&check_code(
 		r#"
 
 
@@ -101,8 +102,7 @@ impl String {
     fn custom() {}
 }
 "#,
-	);
-	assert!(violations.is_empty(), "external type impl should be ignored: {violations:?}");
+	)), @"(no violations)");
 
 	println!("All impl_follows_type tests passed!");
 }

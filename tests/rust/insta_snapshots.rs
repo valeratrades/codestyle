@@ -1,17 +1,16 @@
-use codestyle::rust_checks::{self, insta_snapshots};
+use codestyle::rust_checks::{self, Violation, insta_snapshots};
 
-fn check_code(code: &str, is_format_mode: bool) -> Vec<String> {
+fn check_code(code: &str, is_format_mode: bool) -> Vec<Violation> {
 	let temp_dir = std::env::temp_dir().join("codestyle_test_insta_snapshots");
 	std::fs::create_dir_all(&temp_dir).unwrap();
 	let test_file = temp_dir.join("test.rs");
 	std::fs::write(&test_file, code).unwrap();
 
 	let file_infos = rust_checks::collect_rust_files(&temp_dir);
-	let violations: Vec<String> = file_infos
+	let violations: Vec<Violation> = file_infos
 		.iter()
 		.filter_map(|info| info.syntax_tree.as_ref().map(|tree| (info, tree)))
 		.flat_map(|(info, tree)| insta_snapshots::check(&info.path, &info.contents, tree, is_format_mode))
-		.map(|v| v.message)
 		.collect();
 
 	std::fs::remove_file(&test_file).ok();
@@ -19,9 +18,17 @@ fn check_code(code: &str, is_format_mode: bool) -> Vec<String> {
 	violations
 }
 
+fn snapshot_violations(violations: &[Violation]) -> String {
+	if violations.is_empty() {
+		"(no violations)".to_string()
+	} else {
+		violations.iter().map(|v| &v.message).cloned().collect::<Vec<_>>().join("\n")
+	}
+}
+
 fn main() {
 	// Test: assert_snapshot without inline snapshot is a violation
-	let violations = check_code(
+	insta::assert_snapshot!(snapshot_violations(&check_code(
 		r#"
 fn test() {
     let output = "hello";
@@ -29,12 +36,10 @@ fn test() {
 }
 "#,
 		false,
-	);
-	assert_eq!(violations.len(), 1, "should catch missing inline snapshot: {violations:?}");
-	assert!(violations[0].contains("must use inline snapshot"));
+	)), @r###"`assert_snapshot!` must use inline snapshot with `@r""` or `@""`"###);
 
 	// Test: assert_snapshot with inline snapshot passes in assert mode
-	let violations = check_code(
+	insta::assert_snapshot!(snapshot_violations(&check_code(
 		r#"
 fn test() {
     let output = "hello";
@@ -42,11 +47,10 @@ fn test() {
 }
 "#,
 		false,
-	);
-	assert!(violations.is_empty(), "inline snapshot should pass: {violations:?}");
+	)), @"(no violations)");
 
 	// Test: assert_snapshot with empty inline snapshot passes
-	let violations = check_code(
+	insta::assert_snapshot!(snapshot_violations(&check_code(
 		r#"
 fn test() {
     let output = "hello";
@@ -54,11 +58,10 @@ fn test() {
 }
 "#,
 		false,
-	);
-	assert!(violations.is_empty(), "empty inline snapshot should pass: {violations:?}");
+	)), @"(no violations)");
 
 	// Test: assert_snapshot with raw string inline snapshot passes
-	let violations = check_code(
+	insta::assert_snapshot!(snapshot_violations(&check_code(
 		r##"
 fn test() {
     let output = "hello";
@@ -66,11 +69,10 @@ fn test() {
 }
 "##,
 		false,
-	);
-	assert!(violations.is_empty(), "raw string inline snapshot should pass: {violations:?}");
+	)), @"(no violations)");
 
 	// Test: assert_debug_snapshot variant works
-	let violations = check_code(
+	insta::assert_snapshot!(snapshot_violations(&check_code(
 		r#"
 fn test() {
     let output = vec![1, 2, 3];
@@ -78,11 +80,10 @@ fn test() {
 }
 "#,
 		false,
-	);
-	assert_eq!(violations.len(), 1, "should catch assert_debug_snapshot: {violations:?}");
+	)), @r###"`assert_debug_snapshot!` must use inline snapshot with `@r""` or `@""`"###);
 
 	// Test: assert_json_snapshot variant works
-	let violations = check_code(
+	insta::assert_snapshot!(snapshot_violations(&check_code(
 		r#"
 fn test() {
     let output = serde_json::json!({"key": "value"});
@@ -90,12 +91,10 @@ fn test() {
 }
 "#,
 		false,
-	);
-	assert_eq!(violations.len(), 1, "should catch assert_json_snapshot: {violations:?}");
+	)), @r###"`assert_json_snapshot!` must use inline snapshot with `@r""` or `@""`"###);
 
 	// Test: format mode should NOT touch snapshots that already have inline strings
-	// This was a bug - format mode was clearing existing snapshot content
-	let violations = check_code(
+	insta::assert_snapshot!(snapshot_violations(&check_code(
 		r#"
 fn test() {
     let output = "hello";
@@ -103,11 +102,10 @@ fn test() {
 }
 "#,
 		true,
-	);
-	assert!(violations.is_empty(), "format mode should NOT touch existing inline snapshots: {violations:?}");
+	)), @"(no violations)");
 
 	// Test: format mode with empty inline snapshot passes (no change needed)
-	let violations = check_code(
+	insta::assert_snapshot!(snapshot_violations(&check_code(
 		r#"
 fn test() {
     let output = "hello";
@@ -115,12 +113,10 @@ fn test() {
 }
 "#,
 		true,
-	);
-	assert!(violations.is_empty(), "format mode with empty snapshot should pass: {violations:?}");
+	)), @"(no violations)");
 
 	// Test: format mode should NOT touch multiline snapshots with content
-	// Bug case from ~/s/todo - multiline snapshots were being cleared
-	let violations = check_code(
+	insta::assert_snapshot!(snapshot_violations(&check_code(
 		r#"
 fn test() {
     assert_snapshot!(extract_blockers_section(content).unwrap(), @"
@@ -130,51 +126,30 @@ fn test() {
 }
 "#,
 		true,
-	);
-	assert!(violations.is_empty(), "format mode should NOT touch multiline snapshots: {violations:?}");
+	)), @"(no violations)");
 
 	// Test: format mode should NOT touch single-line non-empty snapshots
-	// Bug case from ~/s/todo
-	let violations = check_code(
+	insta::assert_snapshot!(snapshot_violations(&check_code(
 		r#"
 fn test() {
     assert_snapshot!(get_current_blocker_from_content(blockers_content).unwrap(), @"- Third task");
 }
 "#,
 		true,
-	);
-	assert!(violations.is_empty(), "format mode should NOT touch single-line non-empty snapshots: {violations:?}");
+	)), @"(no violations)");
 
 	// Test: format mode should NOT touch raw string snapshots with content
-	// Bug case from ~/s/todo
-	let violations = check_code(
+	insta::assert_snapshot!(snapshot_violations(&check_code(
 		r##"
 fn test() {
     assert_snapshot!(format!("{:?}", items), @r#"[("Phase 1", true, false), ("Completed task", false, true)]"#);
 }
 "##,
 		true,
-	);
-	assert!(violations.is_empty(), "format mode should NOT touch raw string snapshots: {violations:?}");
-
-	// Test: non-insta macro with similar name - we still catch it since it uses the same macro name
-	// This is acceptable behavior - if users define their own assert_snapshot they should use different name
-	let violations = check_code(
-		r#"
-macro_rules! assert_snapshot {
-    ($x:expr) => {};
-}
-fn test() {
-    assert_snapshot!("test");
-}
-"#,
-		false,
-	);
-	// User-defined macros with same name will trigger - acceptable tradeoff
-	assert!(violations.len() <= 1, "non-insta macro handling: {violations:?}");
+	)), @"(no violations)");
 
 	// Test: multiple snapshots in one file
-	let violations = check_code(
+	insta::assert_snapshot!(snapshot_violations(&check_code(
 		r#"
 fn test() {
     insta::assert_snapshot!("a");
@@ -183,8 +158,10 @@ fn test() {
 }
 "#,
 		false,
-	);
-	assert_eq!(violations.len(), 2, "should catch 2 missing inline snapshots: {violations:?}");
+	)), @r###"
+	`assert_snapshot!` must use inline snapshot with `@r""` or `@""`
+	`assert_debug_snapshot!` must use inline snapshot with `@r""` or `@""`
+	"###);
 
 	println!("All insta_snapshots tests passed!");
 }

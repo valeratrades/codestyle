@@ -122,18 +122,39 @@ impl<'a> FormatMacroVisitor<'a> {
 			return;
 		}
 
-		let all_simple = simple_args.len() == args.len();
+		// Build set of indices for simple args
+		let simple_indices: std::collections::HashSet<usize> = placeholder_positions
+			.iter()
+			.zip(args.iter())
+			.enumerate()
+			.filter_map(|(idx, (_, (arg_str, _)))| if is_simple_identifier(arg_str) { Some(idx) } else { None })
+			.collect();
 
-		let fix = if all_simple {
-			let mut new_fmt = format_string_content.clone();
-			for (pos, arg_str, _) in simple_args.iter().rev() {
-				let end_pos = pos + 2;
-				new_fmt.replace_range(*pos..end_pos, &format!("{{{arg_str}}}"));
-			}
+		// Build new format string with simple vars embedded
+		let mut new_fmt = format_string_content.clone();
+		for (pos, arg_str, _) in simple_args.iter().rev() {
+			let end_pos = pos + 2;
+			new_fmt.replace_range(*pos..end_pos, &format!("{{{arg_str}}}"));
+		}
+
+		// Build remaining args (non-simple ones only)
+		let remaining_args: Vec<&str> = args
+			.iter()
+			.enumerate()
+			.filter_map(|(idx, (arg_str, _))| if simple_indices.contains(&idx) { None } else { Some(arg_str.as_str()) })
+			.collect();
+
+		// Create fix
+		let fix = if remaining_args.is_empty() {
+			// All args were simple, just replace format string through last arg
 			let last_arg_span = args.last().map(|(_, span)| *span);
 			create_full_macro_fix(&new_fmt, fmt_span, last_arg_span, self.content)
 		} else {
-			None
+			// Some args remain, need to build "new_fmt", remaining_args...
+			let remaining_args_str = remaining_args.join(", ");
+			let replacement = format!("{new_fmt}, {remaining_args_str}");
+			let last_arg_span = args.last().map(|(_, span)| *span);
+			create_full_macro_fix(&replacement, fmt_span, last_arg_span, self.content)
 		};
 
 		for (_, arg_str, arg_span) in &simple_args {
@@ -254,6 +275,7 @@ fn collect_complex_argument(tokens: &[TokenTree], start: usize) -> Option<(Strin
 	let mut result = String::new();
 	let mut i = start;
 	let start_span = tokens.get(start)?.span();
+	let mut last_span = start_span;
 	let mut depth = 0;
 
 	while i < tokens.len() {
@@ -266,17 +288,20 @@ fn collect_complex_argument(tokens: &[TokenTree], start: usize) -> Option<(Strin
 			TokenTree::Group(g) => {
 				depth += 1;
 				result.push_str(&g.to_string());
+				last_span = g.span();
 				depth -= 1;
 			}
 			_ => {
 				result.push_str(&token.to_string());
+				last_span = token.span();
 			}
 		}
 
 		i += 1;
 	}
 
-	if result.is_empty() { None } else { Some((result.trim().to_string(), start_span, i)) }
+	// Return last_span so that the end position covers the whole argument
+	if result.is_empty() { None } else { Some((result.trim().to_string(), last_span, i)) }
 }
 
 /// Convert a proc_macro2 line/column position to byte offset in content.
