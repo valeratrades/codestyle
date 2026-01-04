@@ -192,6 +192,7 @@ dependencies = [
  "color-eyre",
  "derive-new",
  "proc-macro2",
+ "quote",
  "syn",
  "v_utils",
  "walkdir",

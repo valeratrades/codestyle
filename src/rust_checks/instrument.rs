@@ -1,10 +1,11 @@
 use syn::ItemFn;
 
-use super::FileInfo;
+use super::{FileInfo, Violation};
 
-pub fn check_instrument(file_info: &FileInfo) -> Vec<String> {
-	let mut issues = Vec::new();
+pub fn check_instrument(file_info: &FileInfo) -> Vec<Violation> {
+	let mut violations = Vec::new();
 	let filename = file_info.path.file_name().and_then(|f| f.to_str()).unwrap_or("");
+	let path_str = file_info.path.display().to_string();
 
 	for func in &file_info.fn_items {
 		if has_instrument_attr(func) {
@@ -15,15 +16,16 @@ pub fn check_instrument(file_info: &FileInfo) -> Vec<String> {
 		}
 
 		let span_start = func.sig.ident.span().start();
-		issues.push(format!(
-			"No #[instrument] on `{}` in {}:{}:{}",
-			func.sig.ident,
-			file_info.path.display(),
-			span_start.line,
-			span_start.column
-		));
+		violations.push(Violation {
+			rule: "instrument",
+			file: path_str.clone(),
+			line: span_start.line,
+			column: span_start.column,
+			message: format!("No #[instrument] on `{}`", func.sig.ident),
+			fix: None,
+		});
 	}
-	issues
+	violations
 }
 
 fn has_instrument_attr(func: &ItemFn) -> bool {

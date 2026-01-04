@@ -12,7 +12,8 @@ clap = { version = "^4.5.4", features = ["derive"] }
 color-eyre = "^0.6.3"
 derive-new = "^0"
 proc-macro2 = { version = "^1", features = ["span-locations"] }
-syn = { version = "^2", features = ["full", "parsing", "extra-traits"] }
+quote = "^1"
+syn = { version = "^2", features = ["full", "parsing", "extra-traits", "visit"] }
 v_utils = { version = "^2.15.0", features = ["io", "macros", "cli"] }
 walkdir = "^2"
 
