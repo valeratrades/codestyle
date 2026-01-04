@@ -93,7 +93,8 @@ fn test() {
 	);
 	assert_eq!(violations.len(), 1, "should catch assert_json_snapshot: {violations:?}");
 
-	// Test: format mode with non-empty inline snapshot creates violation
+	// Test: format mode should NOT touch snapshots that already have inline strings
+	// This was a bug - format mode was clearing existing snapshot content
 	let violations = check_code(
 		r#"
 fn test() {
@@ -103,10 +104,9 @@ fn test() {
 "#,
 		true,
 	);
-	assert_eq!(violations.len(), 1, "format mode should flag non-empty snapshot: {violations:?}");
-	assert!(violations[0].contains("will be cleared"));
+	assert!(violations.is_empty(), "format mode should NOT touch existing inline snapshots: {violations:?}");
 
-	// Test: format mode with empty inline snapshot passes
+	// Test: format mode with empty inline snapshot passes (no change needed)
 	let violations = check_code(
 		r#"
 fn test() {
@@ -117,6 +117,45 @@ fn test() {
 		true,
 	);
 	assert!(violations.is_empty(), "format mode with empty snapshot should pass: {violations:?}");
+
+	// Test: format mode should NOT touch multiline snapshots with content
+	// Bug case from ~/s/todo - multiline snapshots were being cleared
+	let violations = check_code(
+		r#"
+fn test() {
+    assert_snapshot!(extract_blockers_section(content).unwrap(), @"
+        # Phase 1
+        - First task
+        ");
+}
+"#,
+		true,
+	);
+	assert!(violations.is_empty(), "format mode should NOT touch multiline snapshots: {violations:?}");
+
+	// Test: format mode should NOT touch single-line non-empty snapshots
+	// Bug case from ~/s/todo
+	let violations = check_code(
+		r#"
+fn test() {
+    assert_snapshot!(get_current_blocker_from_content(blockers_content).unwrap(), @"- Third task");
+}
+"#,
+		true,
+	);
+	assert!(violations.is_empty(), "format mode should NOT touch single-line non-empty snapshots: {violations:?}");
+
+	// Test: format mode should NOT touch raw string snapshots with content
+	// Bug case from ~/s/todo
+	let violations = check_code(
+		r##"
+fn test() {
+    assert_snapshot!(format!("{:?}", items), @r#"[("Phase 1", true, false), ("Completed task", false, true)]"#);
+}
+"##,
+		true,
+	);
+	assert!(violations.is_empty(), "format mode should NOT touch raw string snapshots: {violations:?}");
 
 	// Test: non-insta macro with similar name - we still catch it since it uses the same macro name
 	// This is acceptable behavior - if users define their own assert_snapshot they should use different name
