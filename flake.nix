@@ -29,6 +29,7 @@
           lastSupportedVersion = "nightly-2026-01-03";
           langs = [ "rs" ];
           jobs.default = true;
+          release.default = true;
         };
         rs = v-utils.rs { inherit pkgs; };
         readme = v-utils.readme-fw {
