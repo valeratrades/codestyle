@@ -49,7 +49,7 @@
 use std::{fs, path::PathBuf};
 
 /// A single file in a fixture
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FixtureFile {
 	/// Path relative to fixture root (e.g., "/main.rs" or "/tests/test.rs")
 	pub path: String,
@@ -58,7 +58,7 @@ pub struct FixtureFile {
 }
 
 /// Parsed fixture containing multiple files
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Fixture {
 	pub files: Vec<FixtureFile>,
 }
