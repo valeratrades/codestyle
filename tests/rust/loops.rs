@@ -1,17 +1,9 @@
-use codestyle::{
-	rust_checks::RustCheckOptions,
-	test_fixture::{assert_check_passing, simulate_check},
-};
+use codestyle::test_fixture::{assert_check_passing, simulate_check};
 
-fn opts() -> RustCheckOptions {
-	RustCheckOptions {
-		loops: true,
-		join_split_impls: false,
-		impl_follows_type: false,
-		embed_simple_vars: false,
-		insta_inline_snapshot: false,
-		instrument: false,
-	}
+use crate::utils::opts_for;
+
+fn opts() -> codestyle::rust_checks::RustCheckOptions {
+	opts_for("loops")
 }
 
 #[test]
