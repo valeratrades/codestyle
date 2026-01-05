@@ -350,7 +350,7 @@ pub fn simulate_format(fixture_str: &str, opts: &RustCheckOptions) -> String {
 
 /// Collect all violations from a directory using the given options.
 fn collect_violations(root: &PathBuf, opts: &RustCheckOptions, is_format_mode: bool) -> Vec<Violation> {
-	use crate::rust_checks::{embed_simple_vars, impl_follows_type, insta_snapshots, instrument, join_split_impls, loops};
+	use crate::rust_checks::{embed_simple_vars, impl_follows_type, insta_snapshots, instrument, join_split_impls, loops, no_chrono, no_tokio_spawn};
 
 	let file_infos = rust_checks::collect_rust_files(root);
 	let mut violations = Vec::new();
@@ -374,6 +374,12 @@ fn collect_violations(root: &PathBuf, opts: &RustCheckOptions, is_format_mode: b
 			}
 			if opts.insta_inline_snapshot {
 				violations.extend(insta_snapshots::check(&info.path, &info.contents, tree, is_format_mode));
+			}
+			if opts.no_chrono {
+				violations.extend(no_chrono::check(&info.path, &info.contents, tree));
+			}
+			if opts.no_tokio_spawn {
+				violations.extend(no_tokio_spawn::check(&info.path, &info.contents, tree));
 			}
 		}
 	}

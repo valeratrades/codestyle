@@ -4,6 +4,8 @@ pub mod insta_snapshots;
 pub mod instrument;
 pub mod join_split_impls;
 pub mod loops;
+pub mod no_chrono;
+pub mod no_tokio_spawn;
 
 use std::{
 	collections::HashMap,
@@ -35,6 +37,12 @@ pub struct RustCheckOptions {
 	/// Check that insta snapshots use inline @"" syntax (default: true)
 	#[default = true]
 	pub insta_inline_snapshot: bool,
+	/// Disallow usage of chrono crate (use jiff instead) (default: true)
+	#[default = true]
+	pub no_chrono: bool,
+	/// Disallow usage of tokio::spawn (default: true)
+	#[default = true]
+	pub no_tokio_spawn: bool,
 }
 
 #[derive(Clone, Default, derive_new::new)]
@@ -99,6 +107,12 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 				if opts.insta_inline_snapshot {
 					all_violations.extend(insta_snapshots::check(&info.path, &info.contents, tree, false));
 				}
+				if opts.no_chrono {
+					all_violations.extend(no_chrono::check(&info.path, &info.contents, tree));
+				}
+				if opts.no_tokio_spawn {
+					all_violations.extend(no_tokio_spawn::check(&info.path, &info.contents, tree));
+				}
 			}
 		}
 	}
@@ -151,6 +165,12 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 				}
 				if opts.insta_inline_snapshot {
 					all_violations.extend(insta_snapshots::check(&info.path, &info.contents, tree, true));
+				}
+				if opts.no_chrono {
+					all_violations.extend(no_chrono::check(&info.path, &info.contents, tree));
+				}
+				if opts.no_tokio_spawn {
+					all_violations.extend(no_tokio_spawn::check(&info.path, &info.contents, tree));
 				}
 			}
 		}

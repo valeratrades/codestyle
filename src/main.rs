@@ -64,6 +64,14 @@ struct RustCheckOptionsArgs {
 	/// Check that insta snapshots use inline @"" syntax [default: true]
 	#[arg(long)]
 	insta_inline_snapshot: Option<bool>,
+
+	/// Disallow usage of chrono crate (use jiff instead) [default: true]
+	#[arg(long)]
+	no_chrono: Option<bool>,
+
+	/// Disallow usage of tokio::spawn [default: true]
+	#[arg(long)]
+	no_tokio_spawn: Option<bool>,
 }
 
 impl From<RustCheckOptionsArgs> for RustCheckOptions {
@@ -76,6 +84,8 @@ impl From<RustCheckOptionsArgs> for RustCheckOptions {
 			impl_follows_type: args.impl_follows_type.unwrap_or(defaults.impl_follows_type),
 			embed_simple_vars: args.embed_simple_vars.unwrap_or(defaults.embed_simple_vars),
 			insta_inline_snapshot: args.insta_inline_snapshot.unwrap_or(defaults.insta_inline_snapshot),
+			no_chrono: args.no_chrono.unwrap_or(defaults.no_chrono),
+			no_tokio_spawn: args.no_tokio_spawn.unwrap_or(defaults.no_tokio_spawn),
 		}
 	}
 }

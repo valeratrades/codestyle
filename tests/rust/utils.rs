@@ -8,5 +8,7 @@ pub fn opts_for(check: &str) -> RustCheckOptions {
 		loops: check == "loops",
 		embed_simple_vars: check == "embed_simple_vars",
 		insta_inline_snapshot: check == "insta_inline_snapshot",
+		no_chrono: check == "no_chrono",
+		no_tokio_spawn: check == "no_tokio_spawn",
 	}
 }

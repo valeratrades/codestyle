@@ -22,6 +22,7 @@ pkg-fmt = "tgz"
 clap = { version = "^4.5.4", features = ["derive"] }
 color-eyre = "^0.6.3"
 derive-new = "^0"
+miette = { version = "^7", features = ["fancy"] }
 proc-macro2 = { version = "^1", features = ["span-locations"] }
 quote = "^1"
 smart-default = "^0.7"

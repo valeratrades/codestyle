@@ -9,4 +9,6 @@ mod insta_snapshots;
 mod instrument;
 mod join_split_impls;
 mod loops;
+mod no_chrono;
+mod no_tokio_spawn;
 mod utils;
