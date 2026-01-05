@@ -1,4 +1,7 @@
-use codestyle::{rust_checks::RustCheckOptions, test_fixture::simulate_check};
+use codestyle::{
+	rust_checks::RustCheckOptions,
+	test_fixture::{simulate_check, simulate_format},
+};
 
 fn opts() -> RustCheckOptions {
 	RustCheckOptions {
@@ -161,4 +164,56 @@ fn run_assert_scans_tests_directory() {
 		"#,
 		&opts(),
 	), @r#"[insta-inline-snapshot] /tests/test.rs:2: `assert_snapshot!` must use inline snapshot with `@r""` or `@""`"#);
+}
+
+#[test]
+fn integration_test_file_with_rstest_detected() {
+	insta::assert_snapshot!(simulate_check(
+		r#"
+		//- /Cargo.toml
+		[package]
+		name = "test"
+		version = "0.1.0"
+
+		//- /tests/integration/a.rs
+		#[rstest]
+		fn test_with_invalid_snapshot_usage_pattern() {
+			let s = "123";
+			insta::assert_snapshot!(s);
+		}
+		"#,
+		&opts(),
+	), @r#"[insta-inline-snapshot] /tests/integration/a.rs:4: `assert_snapshot!` must use inline snapshot with `@r""` or `@""`"#);
+}
+
+#[test]
+fn integration_test_file_autofix() {
+	insta::assert_snapshot!(simulate_format(
+		r#"
+		//- /Cargo.toml
+		[package]
+		name = "test"
+		version = "0.1.0"
+
+		//- /tests/integration/a.rs
+		#[rstest]
+		fn test_with_invalid_snapshot_usage_pattern() {
+			let s = "123";
+			insta::assert_snapshot!(s);
+		}
+		"#,
+		&opts(),
+	), @r#"
+	//- /Cargo.toml
+	[package]
+	name = "test"
+	version = "0.1.0"
+
+	//- /tests/integration/a.rs
+	#[rstest]
+	fn test_with_invalid_snapshot_usage_pattern() {
+		let s = "123";
+		insta::assert_snapshot!(s, @"");
+	}
+	"#);
 }

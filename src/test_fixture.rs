@@ -275,7 +275,7 @@ pub fn simulate_check(fixture_str: &str, opts: &RustCheckOptions) -> String {
 	let fixture = Fixture::parse(fixture_str);
 	let temp = fixture.write_to_tempdir();
 
-	let violations = collect_violations(&temp.root, opts);
+	let violations = collect_violations(&temp.root, opts, false);
 
 	if violations.is_empty() {
 		return "(no violations)".to_string();
@@ -301,7 +301,7 @@ pub fn simulate_format(fixture_str: &str, opts: &RustCheckOptions) -> String {
 	let fixture = Fixture::parse(fixture_str);
 	let temp = fixture.write_to_tempdir();
 
-	let violations = collect_violations(&temp.root, opts);
+	let violations = collect_violations(&temp.root, opts, true);
 
 	// Group fixes by file, deduplicating by (start_byte, end_byte)
 	let mut fixes_by_file: HashMap<String, Vec<&Fix>> = HashMap::new();
@@ -342,7 +342,7 @@ pub fn simulate_format(fixture_str: &str, opts: &RustCheckOptions) -> String {
 }
 
 /// Collect all violations from a directory using the given options.
-fn collect_violations(root: &PathBuf, opts: &RustCheckOptions) -> Vec<Violation> {
+fn collect_violations(root: &PathBuf, opts: &RustCheckOptions, is_format_mode: bool) -> Vec<Violation> {
 	use crate::rust_checks::{embed_simple_vars, impl_follows_type, insta_snapshots, instrument, join_split_impls, loops};
 
 	let file_infos = rust_checks::collect_rust_files(root);
@@ -366,7 +366,7 @@ fn collect_violations(root: &PathBuf, opts: &RustCheckOptions) -> Vec<Violation>
 				violations.extend(embed_simple_vars::check(&info.path, &info.contents, tree));
 			}
 			if opts.insta_inline_snapshot {
-				violations.extend(insta_snapshots::check(&info.path, &info.contents, tree, false));
+				violations.extend(insta_snapshots::check(&info.path, &info.contents, tree, is_format_mode));
 			}
 		}
 	}
