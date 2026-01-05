@@ -46,9 +46,9 @@
 //! "#, &opts), @"...");
 //! ```
 
-use std::{collections::HashMap, fs, path::PathBuf};
+use std::{fs, path::PathBuf};
 
-use crate::rust_checks::{self, Fix, RustCheckOptions, Violation};
+use crate::rust_checks::{self, RustCheckOptions, Violation};
 
 /// A single file in a fixture
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -180,6 +180,29 @@ impl TempFixture {
 			.collect();
 		Fixture { files }
 	}
+
+	/// Read all files from disk (discovering any new files or noting deleted ones)
+	/// Returns files sorted by path for deterministic output
+	pub fn read_all_from_disk(&self) -> Fixture {
+		use walkdir::WalkDir;
+
+		let mut files: Vec<FixtureFile> = Vec::new();
+
+		for entry in WalkDir::new(&self.root).into_iter().filter_map(Result::ok) {
+			let path = entry.path();
+			if path.is_file() {
+				let relative_path = path.strip_prefix(&self.root).expect("path should be under root");
+				let relative_str = format!("/{}", relative_path.to_string_lossy());
+				if let Ok(text) = fs::read_to_string(path) {
+					files.push(FixtureFile { path: relative_str, text });
+				}
+			}
+		}
+
+		// Sort by path for deterministic output
+		files.sort_by(|a, b| a.path.cmp(&b.path));
+		Fixture { files }
+	}
 }
 
 impl Drop for TempFixture {
@@ -265,21 +288,45 @@ pub fn render_fixture(fixture: &Fixture) -> String {
 	result
 }
 
+/// Assert that a fixture passes all enabled checks (no violations).
+///
+/// Use this for tests that verify code is valid/correct.
+/// For tests that verify violations are detected, use `simulate_check` instead.
+///
+/// Panics with a helpful message showing any violations found.
+#[track_caller]
+pub fn assert_check_passing(fixture_str: &str, opts: &RustCheckOptions) {
+	let fixture = Fixture::parse(fixture_str);
+	let temp = fixture.write_to_tempdir();
+	let violations = collect_violations(&temp.root, opts, false);
+
+	if !violations.is_empty() {
+		let violation_msgs: Vec<String> = violations
+			.iter()
+			.map(|v| {
+				let relative_path = v.file.strip_prefix(temp.root.to_str().unwrap_or("")).unwrap_or(&v.file);
+				let relative_path = relative_path.trim_start_matches('/');
+				format!("[{}] /{relative_path}:{}: {}", v.rule, v.line, v.message)
+			})
+			.collect();
+		panic!("expected no violations, but found {}:\n{}", violations.len(), violation_msgs.join("\n"));
+	}
+}
+
 /// Simulate running `codestyle rust assert` on a fixture.
 ///
 /// Returns a string representation of violations suitable for snapshot testing.
 /// Format: one violation per line as `[rule] /path:line: message`
 ///
-/// If no violations, returns `(no violations)`
+/// Use this for tests that verify specific violations are detected.
+/// For tests that just need to verify code passes, use `is_check_passing` instead.
 pub fn simulate_check(fixture_str: &str, opts: &RustCheckOptions) -> String {
 	let fixture = Fixture::parse(fixture_str);
 	let temp = fixture.write_to_tempdir();
 
 	let violations = collect_violations(&temp.root, opts, false);
 
-	if violations.is_empty() {
-		return "(no violations)".to_string();
-	}
+	assert!(!violations.is_empty(), "simulate_check called but no violations found - use is_check_passing instead");
 
 	// Format violations relative to fixture root
 	violations
@@ -301,43 +348,11 @@ pub fn simulate_format(fixture_str: &str, opts: &RustCheckOptions) -> String {
 	let fixture = Fixture::parse(fixture_str);
 	let temp = fixture.write_to_tempdir();
 
-	let violations = collect_violations(&temp.root, opts, true);
+	// Call the actual format function - no mocking
+	rust_checks::run_format(&temp.root, opts);
 
-	// Group fixes by file, deduplicating by (start_byte, end_byte)
-	let mut fixes_by_file: HashMap<String, Vec<&Fix>> = HashMap::new();
-	for v in &violations {
-		if let Some(ref fix) = v.fix {
-			let fixes = fixes_by_file.entry(v.file.clone()).or_default();
-			// Deduplicate fixes with same byte range
-			if !fixes.iter().any(|f| f.start_byte == fix.start_byte && f.end_byte == fix.end_byte) {
-				fixes.push(fix);
-			}
-		}
-	}
-
-	// Apply fixes to each file
-	for (file_path, fixes) in fixes_by_file {
-		let content = match fs::read_to_string(&file_path) {
-			Ok(c) => c,
-			Err(_) => continue,
-		};
-
-		// Sort fixes by position (descending) to apply from end to start
-		let mut fixes = fixes;
-		fixes.sort_by(|a, b| b.start_byte.cmp(&a.start_byte));
-
-		let mut new_content = content;
-		for fix in fixes {
-			if fix.start_byte <= new_content.len() && fix.end_byte <= new_content.len() {
-				new_content.replace_range(fix.start_byte..fix.end_byte, &fix.replacement);
-			}
-		}
-
-		let _ = fs::write(&file_path, new_content);
-	}
-
-	// Read back all files and render as fixture
-	let result = temp.read_all();
+	// Read back all files from disk (discovers deleted/added files)
+	let result = temp.read_all_from_disk();
 	render_fixture(&result)
 }
 

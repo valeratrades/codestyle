@@ -1,6 +1,6 @@
 use codestyle::{
 	rust_checks::RustCheckOptions,
-	test_fixture::{simulate_check, simulate_format},
+	test_fixture::{assert_check_passing, simulate_check, simulate_format},
 };
 
 fn opts() -> RustCheckOptions {
@@ -16,7 +16,7 @@ fn opts() -> RustCheckOptions {
 
 #[test]
 fn single_impl_block_passes() {
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r#"
 		struct Foo {
 			x: i32,
@@ -27,7 +27,7 @@ fn single_impl_block_passes() {
 		}
 		"#,
 		&opts(),
-	), @"(no violations)");
+	);
 }
 
 #[test]
@@ -48,7 +48,7 @@ fn two_impl_blocks_for_same_type_should_be_joined() {
 
 #[test]
 fn trait_impl_not_joined_with_inherent_impl() {
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r#"
 		struct Foo;
 		impl Foo {
@@ -59,12 +59,12 @@ fn trait_impl_not_joined_with_inherent_impl() {
 		}
 		"#,
 		&opts(),
-	), @"(no violations)");
+	);
 }
 
 #[test]
 fn different_trait_impls_not_joined() {
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r#"
 		struct Foo;
 		impl Default for Foo {
@@ -75,12 +75,12 @@ fn different_trait_impls_not_joined() {
 		}
 		"#,
 		&opts(),
-	), @"(no violations)");
+	);
 }
 
 #[test]
 fn impl_blocks_for_different_types_not_joined() {
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r#"
 		struct Foo;
 		struct Bar;
@@ -92,7 +92,7 @@ fn impl_blocks_for_different_types_not_joined() {
 		}
 		"#,
 		&opts(),
-	), @"(no violations)");
+	);
 }
 
 #[test]
@@ -173,7 +173,7 @@ fn autofix_joins_three_impl_blocks() {
 #[test]
 fn cross_file_impl_blocks_not_detected() {
 	// Currently NOT detected (single-file scope)
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r#"
 		//- /src/first.rs
 		pub struct Foo;
@@ -190,5 +190,5 @@ fn cross_file_impl_blocks_not_detected() {
 		}
 		"#,
 		&opts(),
-	), @"(no violations)");
+	);
 }

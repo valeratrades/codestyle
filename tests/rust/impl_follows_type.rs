@@ -1,6 +1,6 @@
 use codestyle::{
 	rust_checks::RustCheckOptions,
-	test_fixture::{simulate_check, simulate_format},
+	test_fixture::{assert_check_passing, simulate_check, simulate_format},
 };
 
 fn opts() -> RustCheckOptions {
@@ -16,7 +16,7 @@ fn opts() -> RustCheckOptions {
 
 #[test]
 fn impl_immediately_after_struct_passes() {
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r#"
 		struct Foo {
 			x: i32,
@@ -26,7 +26,7 @@ fn impl_immediately_after_struct_passes() {
 		}
 		"#,
 		&opts(),
-	), @"(no violations)");
+	);
 }
 
 #[test]
@@ -48,7 +48,7 @@ fn impl_with_gap_triggers_violation() {
 
 #[test]
 fn trait_impl_is_exempt() {
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r#"
 		struct Foo;
 
@@ -58,7 +58,7 @@ fn trait_impl_is_exempt() {
 		}
 		"#,
 		&opts(),
-	), @"(no violations)");
+	);
 }
 
 #[test]
@@ -81,7 +81,7 @@ fn enum_works_same_as_struct() {
 
 #[test]
 fn chained_impls_pass() {
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r#"
 		struct Foo;
 		impl Foo {
@@ -92,12 +92,12 @@ fn chained_impls_pass() {
 		}
 		"#,
 		&opts(),
-	), @"(no violations)");
+	);
 }
 
 #[test]
 fn impl_for_type_not_defined_in_file_is_ignored() {
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r#"
 
 
@@ -106,7 +106,7 @@ fn impl_for_type_not_defined_in_file_is_ignored() {
 		}
 		"#,
 		&opts(),
-	), @"(no violations)");
+	);
 }
 
 #[test]

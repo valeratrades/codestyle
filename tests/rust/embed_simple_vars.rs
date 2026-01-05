@@ -1,6 +1,6 @@
 use codestyle::{
 	rust_checks::RustCheckOptions,
-	test_fixture::{simulate_check, simulate_format},
+	test_fixture::{assert_check_passing, simulate_check, simulate_format},
 };
 
 fn opts() -> RustCheckOptions {
@@ -29,7 +29,7 @@ fn simple_var_in_println_should_embed() {
 
 #[test]
 fn already_embedded_var_passes() {
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r#"
 		fn test() {
 			let name = "world";
@@ -37,12 +37,12 @@ fn already_embedded_var_passes() {
 		}
 		"#,
 		&opts(),
-	), @"(no violations)");
+	);
 }
 
 #[test]
 fn complex_expression_method_call_is_fine() {
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r#"
 		fn test() {
 			let s = String::new();
@@ -50,12 +50,12 @@ fn complex_expression_method_call_is_fine() {
 		}
 		"#,
 		&opts(),
-	), @"(no violations)");
+	);
 }
 
 #[test]
 fn field_access_is_fine() {
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r#"
 		struct Foo { x: i32 }
 		fn test() {
@@ -64,7 +64,7 @@ fn field_access_is_fine() {
 		}
 		"#,
 		&opts(),
-	), @"(no violations)");
+	);
 }
 
 #[test]
@@ -133,19 +133,19 @@ fn write_macro() {
 
 #[test]
 fn no_placeholder_no_violation() {
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r#"
 		fn test() {
 			println!("Hello, world!");
 		}
 		"#,
 		&opts(),
-	), @"(no violations)");
+	);
 }
 
 #[test]
 fn named_placeholder_is_fine() {
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r#"
 		fn test() {
 			let width = 5;
@@ -153,7 +153,7 @@ fn named_placeholder_is_fine() {
 		}
 		"#,
 		&opts(),
-	), @"(no violations)");
+	);
 }
 
 #[test]

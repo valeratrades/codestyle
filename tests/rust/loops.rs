@@ -1,4 +1,7 @@
-use codestyle::{rust_checks::RustCheckOptions, test_fixture::simulate_check};
+use codestyle::{
+	rust_checks::RustCheckOptions,
+	test_fixture::{assert_check_passing, simulate_check},
+};
 
 fn opts() -> RustCheckOptions {
 	RustCheckOptions {
@@ -27,7 +30,7 @@ fn loop_without_comment_triggers_violation() {
 
 #[test]
 fn loop_with_inline_comment_passes() {
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r#"
 		fn good() {
 			loop { //LOOP: justified reason
@@ -36,12 +39,12 @@ fn loop_with_inline_comment_passes() {
 		}
 		"#,
 		&opts(),
-	), @"(no violations)");
+	);
 }
 
 #[test]
 fn loop_with_comment_on_line_above_passes() {
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r#"
 		fn good() {
 			//LOOP: justified reason
@@ -51,7 +54,7 @@ fn loop_with_comment_on_line_above_passes() {
 		}
 		"#,
 		&opts(),
-	), @"(no violations)");
+	);
 }
 
 #[test]
@@ -72,7 +75,7 @@ fn nested_loop_without_comment() {
 
 #[test]
 fn while_and_for_loops_dont_trigger() {
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r#"
 		fn other_loops() {
 			while true { break; }
@@ -80,7 +83,7 @@ fn while_and_for_loops_dont_trigger() {
 		}
 		"#,
 		&opts(),
-	), @"(no violations)");
+	);
 }
 
 #[test]

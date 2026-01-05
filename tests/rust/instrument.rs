@@ -1,4 +1,7 @@
-use codestyle::{rust_checks::RustCheckOptions, test_fixture::simulate_check};
+use codestyle::{
+	rust_checks::RustCheckOptions,
+	test_fixture::{assert_check_passing, simulate_check},
+};
 
 fn opts() -> RustCheckOptions {
 	RustCheckOptions {
@@ -13,14 +16,14 @@ fn opts() -> RustCheckOptions {
 
 #[test]
 fn sync_function_without_instrument_passes() {
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r#"
 		fn sync_no_instrument() {
 			println!("hello");
 		}
 		"#,
 		&opts(),
-	), @"(no violations)");
+	);
 }
 
 #[test]
@@ -37,7 +40,7 @@ fn async_function_without_instrument_triggers_violation() {
 
 #[test]
 fn async_function_with_instrument_passes() {
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r#"
 		#[instrument]
 		async fn with_instrument() {
@@ -45,24 +48,24 @@ fn async_function_with_instrument_passes() {
 		}
 		"#,
 		&opts(),
-	), @"(no violations)");
+	);
 }
 
 #[test]
 fn main_function_is_exempt() {
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r#"
 		async fn main() {
 			println!("hello");
 		}
 		"#,
 		&opts(),
-	), @"(no violations)");
+	);
 }
 
 #[test]
 fn async_functions_in_utils_rs_are_exempt() {
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r#"
 		//- /utils.rs
 		async fn helper() {
@@ -70,7 +73,7 @@ fn async_functions_in_utils_rs_are_exempt() {
 		}
 		"#,
 		&opts(),
-	), @"(no violations)");
+	);
 }
 
 #[test]

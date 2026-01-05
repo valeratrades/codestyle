@@ -1,6 +1,6 @@
 use codestyle::{
 	rust_checks::RustCheckOptions,
-	test_fixture::{simulate_check, simulate_format},
+	test_fixture::{assert_check_passing, simulate_check, simulate_format},
 };
 
 fn opts() -> RustCheckOptions {
@@ -29,7 +29,7 @@ fn snapshot_without_inline_is_violation() {
 
 #[test]
 fn snapshot_with_inline_passes() {
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r#"
 		fn test() {
 			let output = "hello";
@@ -37,12 +37,12 @@ fn snapshot_with_inline_passes() {
 		}
 		"#,
 		&opts(),
-	), @"(no violations)");
+	);
 }
 
 #[test]
 fn snapshot_with_empty_inline_passes() {
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r#"
 		fn test() {
 			let output = "hello";
@@ -50,12 +50,12 @@ fn snapshot_with_empty_inline_passes() {
 		}
 		"#,
 		&opts(),
-	), @"(no violations)");
+	);
 }
 
 #[test]
 fn raw_string_inline_passes() {
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r##"
 		fn test() {
 			let output = "hello";
@@ -63,7 +63,7 @@ fn raw_string_inline_passes() {
 		}
 		"##,
 		&opts(),
-	), @"(no violations)");
+	);
 }
 
 #[test]
@@ -94,7 +94,7 @@ fn assert_json_snapshot_variant() {
 
 #[test]
 fn multiline_snapshot_with_content_passes() {
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r#"
 		fn test() {
 			assert_snapshot!(extract_blockers_section(content).unwrap(), @"
@@ -104,31 +104,31 @@ fn multiline_snapshot_with_content_passes() {
 		}
 		"#,
 		&opts(),
-	), @"(no violations)");
+	);
 }
 
 #[test]
 fn single_line_non_empty_snapshot_passes() {
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r#"
 		fn test() {
 			assert_snapshot!(get_current_blocker_from_content(blockers_content).unwrap(), @"- Third task");
 		}
 		"#,
 		&opts(),
-	), @"(no violations)");
+	);
 }
 
 #[test]
 fn raw_string_snapshot_with_content_passes() {
-	insta::assert_snapshot!(simulate_check(
+	assert_check_passing(
 		r##"
 		fn test() {
 			assert_snapshot!(format!("{:?}", items), @r#"[("Phase 1", true, false)]"#);
 		}
 		"##,
 		&opts(),
-	), @"(no violations)");
+	);
 }
 
 #[test]
@@ -215,5 +215,73 @@ fn integration_test_file_autofix() {
 		let s = "123";
 		insta::assert_snapshot!(s, @"");
 	}
+	"#);
+}
+
+#[test]
+fn format_deletes_snap_files() {
+	// Verifies that .snap files are deleted during format when insta check is enabled
+	insta::assert_snapshot!(simulate_format(
+		r#"
+		//- /Cargo.toml
+		[package]
+		name = "test"
+		version = "0.1.0"
+
+		//- /tests/test.rs
+		fn test() {
+			insta::assert_snapshot!(output, @"");
+		}
+
+		//- /tests/snapshots/test__some_test.snap
+		---
+		source: tests/test.rs
+		expression: output
+		---
+		hello
+		"#,
+		&opts(),
+	), @r#"
+	//- /Cargo.toml
+	[package]
+	name = "test"
+	version = "0.1.0"
+
+	//- /tests/test.rs
+	fn test() {
+		insta::assert_snapshot!(output, @"");
+	}
+	"#);
+}
+
+#[test]
+fn format_deletes_pending_snap_files() {
+	// Verifies that .pending-snap files are also deleted
+	insta::assert_snapshot!(simulate_format(
+		r#"
+		//- /Cargo.toml
+		[package]
+		name = "test"
+		version = "0.1.0"
+
+		//- /src/lib.rs
+		fn foo() {}
+
+		//- /tests/snapshots/test__foo.snap.pending-snap
+		---
+		source: tests/test.rs
+		expression: result
+		---
+		pending content
+		"#,
+		&opts(),
+	), @r#"
+	//- /Cargo.toml
+	[package]
+	name = "test"
+	version = "0.1.0"
+
+	//- /src/lib.rs
+	fn foo() {}
 	"#);
 }
