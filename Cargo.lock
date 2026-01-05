@@ -196,6 +196,7 @@ dependencies = [
  "quote",
  "smart-default",
  "syn",
+ "tempfile",
  "trybuild",
  "v_utils",
  "walkdir",

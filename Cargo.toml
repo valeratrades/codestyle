@@ -26,6 +26,7 @@ proc-macro2 = { version = "^1", features = ["span-locations"] }
 quote = "^1"
 smart-default = "^0.7"
 syn = { version = "^2", features = ["full", "parsing", "extra-traits", "visit"] }
+tempfile = "^3"
 v_utils = { version = "^2.15.19", features = ["io", "macros", "cli", "xdg"] }
 walkdir = "^2"
 

@@ -119,14 +119,10 @@ impl Fixture {
 
 	/// Write fixture files to a temporary directory and return the path
 	pub fn write_to_tempdir(&self) -> TempFixture {
-		use std::sync::atomic::{AtomicU64, Ordering};
-		static COUNTER: AtomicU64 = AtomicU64::new(0);
-		let unique_id = COUNTER.fetch_add(1, Ordering::SeqCst);
-		let temp_dir = std::env::temp_dir().join(format!("codestyle_fixture_{}_{unique_id}", std::process::id()));
-		fs::create_dir_all(&temp_dir).expect("failed to create temp dir");
+		let temp_dir = tempfile::Builder::new().prefix("codestyle_fixture_").tempdir().expect("failed to create temp dir");
 
 		for file in &self.files {
-			let path = temp_dir.join(file.path.trim_start_matches('/'));
+			let path = temp_dir.path().join(file.path.trim_start_matches('/'));
 			if let Some(parent) = path.parent() {
 				fs::create_dir_all(parent).expect("failed to create parent dirs");
 			}
@@ -134,7 +130,8 @@ impl Fixture {
 		}
 
 		TempFixture {
-			root: temp_dir,
+			root: temp_dir.path().to_path_buf(),
+			_temp_dir: temp_dir,
 			files: self.files.clone(),
 		}
 	}
@@ -154,6 +151,7 @@ impl Fixture {
 /// A fixture written to a temporary directory
 pub struct TempFixture {
 	pub root: PathBuf,
+	_temp_dir: tempfile::TempDir,
 	pub files: Vec<FixtureFile>,
 }
 
@@ -202,12 +200,6 @@ impl TempFixture {
 		// Sort by path for deterministic output
 		files.sort_by(|a, b| a.path.cmp(&b.path));
 		Fixture { files }
-	}
-}
-
-impl Drop for TempFixture {
-	fn drop(&mut self) {
-		let _ = fs::remove_dir_all(&self.root);
 	}
 }
 
