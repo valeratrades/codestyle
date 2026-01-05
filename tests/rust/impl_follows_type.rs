@@ -1,216 +1,214 @@
-use codestyle::rust_checks::{self, Fix, Violation, impl_follows_type};
+use codestyle::{
+	rust_checks::{self, Fix, Violation, impl_follows_type},
+	test_fixture::Fixture,
+};
 
-fn check_code(code: &str) -> Vec<Violation> {
-	let temp_dir = std::env::temp_dir().join("codestyle_test_impl_follows");
-	std::fs::create_dir_all(&temp_dir).unwrap();
-	let test_file = temp_dir.join("test.rs");
-	std::fs::write(&test_file, code).unwrap();
+fn check_violations(code: &str, expected: &[&str]) {
+	let fixture = Fixture::parse(code);
+	let temp = fixture.write_to_tempdir();
 
-	let file_infos = rust_checks::collect_rust_files(&temp_dir);
+	let file_infos = rust_checks::collect_rust_files(&temp.root);
+	let violations: Vec<Violation> = file_infos
+		.iter()
+		.filter_map(|info| info.syntax_tree.as_ref().map(|tree| (info, tree)))
+		.flat_map(|(info, tree)| impl_follows_type::check(&info.path, &info.contents, tree))
+		.collect();
+	let messages: Vec<&str> = violations.iter().map(|v| v.message.as_str()).collect();
+
+	assert_eq!(messages, expected, "Violations mismatch for fixture:\n{code}");
+}
+
+fn check_ok(code: &str) {
+	check_violations(code, &[]);
+}
+
+/// Check that applying fix produces expected result
+fn check_fix(before: &str, after: &str) {
+	let before_fixture = Fixture::parse(before);
+	let after_fixture = Fixture::parse(after);
+
+	let before_temp = before_fixture.write_to_tempdir();
+
+	let file_infos = rust_checks::collect_rust_files(&before_temp.root);
 	let violations: Vec<Violation> = file_infos
 		.iter()
 		.filter_map(|info| info.syntax_tree.as_ref().map(|tree| (info, tree)))
 		.flat_map(|(info, tree)| impl_follows_type::check(&info.path, &info.contents, tree))
 		.collect();
 
-	std::fs::remove_file(&test_file).ok();
-	std::fs::remove_dir(&temp_dir).ok();
-	violations
-}
+	assert!(!violations.is_empty(), "Expected violations to fix, found none");
 
-fn snapshot_violations(violations: &[Violation]) -> String {
-	if violations.is_empty() {
-		"(no violations)".to_string()
-	} else {
-		violations.iter().map(|v| &v.message).cloned().collect::<Vec<_>>().join("\n")
-	}
-}
-
-fn apply_fix(code: &str, fix: &Fix) -> String {
-	let mut result = code.to_string();
-	result.replace_range(fix.start_byte..fix.end_byte, &fix.replacement);
-	result
-}
-
-fn apply_all_fixes(code: &str, violations: &[Violation]) -> String {
+	// Apply fixes in reverse order
 	let mut fixes: Vec<&Fix> = violations.iter().filter_map(|v| v.fix.as_ref()).collect();
 	fixes.sort_by(|a, b| b.start_byte.cmp(&a.start_byte));
-	let mut result = code.to_string();
+
+	let content = before_fixture.single_file().text.clone();
+	let mut result = content.clone();
 	for fix in fixes {
 		if fix.start_byte <= result.len() && fix.end_byte <= result.len() {
 			result.replace_range(fix.start_byte..fix.end_byte, &fix.replacement);
 		}
 	}
-	result
+
+	let expected = after_fixture.single_file().text.as_str();
+	assert_eq!(result, expected, "Fix result mismatch");
 }
 
 fn main() {
-	// Test: impl immediately after struct passes
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// impl immediately after struct passes
+	check_ok(
 		r#"
-struct Foo {
-    x: i32,
-}
-impl Foo {
-    fn new() -> Self { Self { x: 0 } }
-}
-"#,
-	)), @"(no violations)");
+		struct Foo {
+			x: i32,
+		}
+		impl Foo {
+			fn new() -> Self { Self { x: 0 } }
+		}
+		"#,
+	);
 
-	// Test: impl with gap triggers violation
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// impl with gap triggers violation
+	check_violations(
 		r#"
-struct Foo {
-    x: i32,
-}
+		struct Foo {
+			x: i32,
+		}
 
 
-impl Foo {
-    fn new() -> Self { Self { x: 0 } }
-}
-"#,
-	)), @"`impl Foo` should follow type definition (line 4), but has 2 blank line(s)");
+		impl Foo {
+			fn new() -> Self { Self { x: 0 } }
+		}
+		"#,
+		&["`impl Foo` should follow type definition (line 3), but has 2 blank line(s)"],
+	);
 
-	// Test: trait impl is exempt (can be anywhere)
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// trait impl is exempt (can be anywhere)
+	check_ok(
 		r#"
-struct Foo;
+		struct Foo;
 
 
-impl Default for Foo {
-    fn default() -> Self { Foo }
-}
-"#,
-	)), @"(no violations)");
+		impl Default for Foo {
+			fn default() -> Self { Foo }
+		}
+		"#,
+	);
 
-	// Test: enum works same as struct
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// enum works same as struct
+	check_violations(
 		r#"
-enum Bar {
-    A,
-    B,
-}
+		enum Bar {
+			A,
+			B,
+		}
 
 
-impl Bar {
-    fn is_a(&self) -> bool { matches!(self, Self::A) }
-}
-"#,
-	)), @"`impl Bar` should follow type definition (line 5), but has 2 blank line(s)");
+		impl Bar {
+			fn is_a(&self) -> bool { matches!(self, Self::A) }
+		}
+		"#,
+		&["`impl Bar` should follow type definition (line 4), but has 2 blank line(s)"],
+	);
 
-	// Test: chained impls (multiple impl blocks)
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// chained impls (multiple impl blocks)
+	check_ok(
 		r#"
-struct Foo;
-impl Foo {
-    fn one() {}
-}
-impl Foo {
-    fn two() {}
-}
-"#,
-	)), @"(no violations)");
+		struct Foo;
+		impl Foo {
+			fn one() {}
+		}
+		impl Foo {
+			fn two() {}
+		}
+		"#,
+	);
 
-	// Test: impl for type not defined in file is ignored
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// impl for type not defined in file is ignored
+	check_ok(
 		r#"
 
 
-impl String {
-    fn custom() {}
-}
-"#,
-	)), @"(no violations)");
+		impl String {
+			fn custom() {}
+		}
+		"#,
+	);
 
-	// Test: auto-fix relocates impl block immediately after struct (blank lines only)
-	{
-		let code = r#"
-struct Foo {
-    x: i32,
-}
+	// auto-fix relocates impl block immediately after struct (blank lines only)
+	check_fix(
+		r#"
+		struct Foo {
+			x: i32,
+		}
 
 
-impl Foo {
-    fn new() -> Self { Self { x: 0 } }
-}
-"#;
-		let violations = check_code(code);
-		assert!(violations.len() == 1, "expected 1 violation");
-		assert!(violations[0].fix.is_some(), "expected fix to be present");
-		let fixed = apply_fix(code, violations[0].fix.as_ref().unwrap());
-		insta::assert_snapshot!(fixed, @r"
-struct Foo {
-    x: i32,
-}
-impl Foo {
-    fn new() -> Self { Self { x: 0 } }
-}
-");
-	}
+		impl Foo {
+			fn new() -> Self { Self { x: 0 } }
+		}
+		"#,
+		r#"
+		struct Foo {
+			x: i32,
+		}
+		impl Foo {
+			fn new() -> Self { Self { x: 0 } }
+		}
+		"#,
+	);
 
-	// Test: auto-fix relocates impl block when other code is in between
-	{
-		let code = r#"
-struct Foo {
-    x: i32,
-}
+	// auto-fix relocates impl block when other code is in between
+	check_fix(
+		r#"
+		struct Foo {
+			x: i32,
+		}
 
-fn unrelated() {}
+		fn unrelated() {}
 
-impl Foo {
-    fn new() -> Self { Self { x: 0 } }
-}
-"#;
-		let violations = check_code(code);
-		assert!(violations.len() == 1, "expected 1 violation");
-		assert!(violations[0].fix.is_some(), "expected fix to be present");
-		let fixed = apply_fix(code, violations[0].fix.as_ref().unwrap());
-		insta::assert_snapshot!(fixed, @r"
-struct Foo {
-    x: i32,
-}
-impl Foo {
-    fn new() -> Self { Self { x: 0 } }
-}
+		impl Foo {
+			fn new() -> Self { Self { x: 0 } }
+		}
+		"#,
+		r#"
+		struct Foo {
+			x: i32,
+		}
+		impl Foo {
+			fn new() -> Self { Self { x: 0 } }
+		}
 
-fn unrelated() {}
-");
-	}
+		fn unrelated() {}
+		"#,
+	);
 
-	// Test: auto-fix with multiple impl blocks for same struct
-	// When first impl is moved, second impl may still be out of place
-	// This requires running the fix multiple times to fully resolve
-	{
-		let code = r#"
-struct Foo;
+	// auto-fix with multiple impl blocks for same struct
+	check_fix(
+		r#"
+		struct Foo;
 
-fn other() {}
+		fn other() {}
 
-impl Foo {
-    fn one() {}
-}
+		impl Foo {
+			fn one() {}
+		}
 
-impl Foo {
-    fn two() {}
-}
-"#;
-		let violations = check_code(code);
-		assert!(violations.len() == 1, "expected 1 violation for first impl (second chains)");
-		let fixed = apply_all_fixes(code, &violations);
-		// After first fix: first impl moves after struct, but second impl is still after fn other()
-		insta::assert_snapshot!(fixed, @r"
-struct Foo;
-impl Foo {
-    fn one() {}
-}
+		impl Foo {
+			fn two() {}
+		}
+		"#,
+		r#"
+		struct Foo;
+		impl Foo {
+			fn one() {}
+		}
 
-fn other() {}
+		fn other() {}
 
-impl Foo {
-    fn two() {}
-}
-");
-	}
+		impl Foo {
+			fn two() {}
+		}
+		"#,
+	);
 
 	println!("All impl_follows_type tests passed!");
 }

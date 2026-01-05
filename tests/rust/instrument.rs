@@ -1,102 +1,84 @@
-use codestyle::rust_checks::{self, Violation, instrument};
+use codestyle::{
+	rust_checks::{self, Violation, instrument},
+	test_fixture::Fixture,
+};
 
-fn check_code(code: &str) -> Vec<Violation> {
-	let temp_dir = std::env::temp_dir().join("codestyle_test_instrument");
-	std::fs::create_dir_all(&temp_dir).unwrap();
-	let test_file = temp_dir.join("test.rs");
-	std::fs::write(&test_file, code).unwrap();
+fn check_violations(code: &str, expected: &[&str]) {
+	let fixture = Fixture::parse(code);
+	let temp = fixture.write_to_tempdir();
 
-	let file_infos = rust_checks::collect_rust_files(&temp_dir);
+	let file_infos = rust_checks::collect_rust_files(&temp.root);
 	let violations: Vec<Violation> = file_infos.iter().flat_map(|info| instrument::check_instrument(info)).collect();
+	let messages: Vec<&str> = violations.iter().map(|v| v.message.as_str()).collect();
 
-	std::fs::remove_file(&test_file).ok();
-	std::fs::remove_dir(&temp_dir).ok();
-	violations
+	assert_eq!(messages, expected, "Violations mismatch for fixture:\n{code}");
 }
 
-fn check_code_in_file(code: &str, filename: &str) -> Vec<Violation> {
-	let temp_dir = std::env::temp_dir().join("codestyle_test_instrument_named");
-	std::fs::create_dir_all(&temp_dir).unwrap();
-	let test_file = temp_dir.join(filename);
-	std::fs::write(&test_file, code).unwrap();
-
-	let file_infos = rust_checks::collect_rust_files(&temp_dir);
-	let violations: Vec<Violation> = file_infos.iter().flat_map(|info| instrument::check_instrument(info)).collect();
-
-	std::fs::remove_file(&test_file).ok();
-	std::fs::remove_dir(&temp_dir).ok();
-	violations
-}
-
-fn snapshot_violations(violations: &[Violation]) -> String {
-	if violations.is_empty() {
-		"(no violations)".to_string()
-	} else {
-		violations.iter().map(|v| &v.message).cloned().collect::<Vec<_>>().join("\n")
-	}
+fn check_ok(code: &str) {
+	check_violations(code, &[]);
 }
 
 fn main() {
-	// Test: sync function without #[instrument] passes (only async is checked)
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// sync function without #[instrument] passes (only async is checked)
+	check_ok(
 		r#"
-fn sync_no_instrument() {
-    println!("hello");
-}
-"#,
-	)), @"(no violations)");
+		fn sync_no_instrument() {
+			println!("hello");
+		}
+		"#,
+	);
 
-	// Test: async function without #[instrument] triggers violation
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// async function without #[instrument] triggers violation
+	check_violations(
 		r#"
-async fn async_no_instrument() {
-    println!("hello");
-}
-"#,
-	)), @"No #[instrument] on async fn `async_no_instrument`");
+		async fn async_no_instrument() {
+			println!("hello");
+		}
+		"#,
+		&["No #[instrument] on async fn `async_no_instrument`"],
+	);
 
-	// Test: async function with #[instrument] passes
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// async function with #[instrument] passes
+	check_ok(
 		r#"
-#[instrument]
-async fn with_instrument() {
-    println!("hello");
-}
-"#,
-	)), @"(no violations)");
+		#[instrument]
+		async fn with_instrument() {
+			println!("hello");
+		}
+		"#,
+	);
 
-	// Test: main function is exempt (even if async)
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// main function is exempt (even if async)
+	check_ok(
 		r#"
-async fn main() {
-    println!("hello");
-}
-"#,
-	)), @"(no violations)");
+		async fn main() {
+			println!("hello");
+		}
+		"#,
+	);
 
-	// Test: async functions in utils.rs are exempt
-	insta::assert_snapshot!(snapshot_violations(&check_code_in_file(
+	// async functions in utils.rs are exempt
+	check_violations(
 		r#"
-async fn helper() {
-    println!("hello");
-}
-"#,
-		"utils.rs",
-	)), @"(no violations)");
+		//- /utils.rs
+		async fn helper() {
+			println!("hello");
+		}
+		"#,
+		&[], // exempt in utils.rs
+	);
 
-	// Test: multiple functions - only async without instrument are caught
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// multiple functions - only async without instrument are caught
+	check_violations(
 		r#"
-fn sync_one() {}
-async fn async_one() {}
-async fn async_two() {}
-#[instrument]
-async fn async_three() {}
-"#,
-	)), @r"
-	No #[instrument] on async fn `async_one`
-	No #[instrument] on async fn `async_two`
-	");
+		fn sync_one() {}
+		async fn async_one() {}
+		async fn async_two() {}
+		#[instrument]
+		async fn async_three() {}
+		"#,
+		&["No #[instrument] on async fn `async_one`", "No #[instrument] on async fn `async_two`"],
+	);
 
 	println!("All instrument tests passed!");
 }

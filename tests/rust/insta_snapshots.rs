@@ -1,193 +1,166 @@
-use codestyle::rust_checks::{self, RustCheckOptions, Violation, insta_snapshots, run_assert};
+use codestyle::{
+	rust_checks::{self, RustCheckOptions, Violation, insta_snapshots, run_assert},
+	test_fixture::Fixture,
+};
 
-fn check_code(code: &str, is_format_mode: bool) -> Vec<Violation> {
-	let temp_dir = std::env::temp_dir().join("codestyle_test_insta_snapshots");
-	std::fs::create_dir_all(&temp_dir).unwrap();
-	let test_file = temp_dir.join("test.rs");
-	std::fs::write(&test_file, code).unwrap();
+/// Check that given code produces expected violations
+fn check_violations(code: &str, expected: &[&str]) {
+	let fixture = Fixture::parse(code);
+	let temp = fixture.write_to_tempdir();
 
-	let file_infos = rust_checks::collect_rust_files(&temp_dir);
+	let file_infos = rust_checks::collect_rust_files(&temp.root);
 	let violations: Vec<Violation> = file_infos
 		.iter()
 		.filter_map(|info| info.syntax_tree.as_ref().map(|tree| (info, tree)))
-		.flat_map(|(info, tree)| insta_snapshots::check(&info.path, &info.contents, tree, is_format_mode))
+		.flat_map(|(info, tree)| insta_snapshots::check(&info.path, &info.contents, tree, false))
 		.collect();
 
-	std::fs::remove_file(&test_file).ok();
-	std::fs::remove_dir(&temp_dir).ok();
-	violations
+	let messages: Vec<&str> = violations.iter().map(|v| v.message.as_str()).collect();
+
+	assert_eq!(messages, expected, "Violations mismatch for fixture:\n{code}");
 }
 
-fn snapshot_violations(violations: &[Violation]) -> String {
-	if violations.is_empty() {
-		"(no violations)".to_string()
-	} else {
-		violations.iter().map(|v| &v.message).cloned().collect::<Vec<_>>().join("\n")
-	}
+/// Check that given code produces no violations
+fn check_ok(code: &str) {
+	check_violations(code, &[]);
 }
 
 fn main() {
-	// Test: assert_snapshot without inline snapshot is a violation
-	insta::assert_snapshot!(snapshot_violations(&check_code(
-		r#"
-fn test() {
-    let output = "hello";
-    insta::assert_snapshot!(output);
-}
-"#,
-		false,
-	)), @r###"`assert_snapshot!` must use inline snapshot with `@r""` or `@""`"###);
+	// === Detection tests ===
 
-	// Test: assert_snapshot with inline snapshot passes in assert mode
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// Snapshot without inline @"" is violation
+	check_violations(
 		r#"
-fn test() {
-    let output = "hello";
-    insta::assert_snapshot!(output, @"hello");
-}
-"#,
-		false,
-	)), @"(no violations)");
+		fn test() {
+			let output = "hello";
+			insta::assert_snapshot!(output);
+		}
+		"#,
+		&[r#"`assert_snapshot!` must use inline snapshot with `@r""` or `@""`"#],
+	);
 
-	// Test: assert_snapshot with empty inline snapshot passes
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// Snapshot with inline passes
+	check_ok(
 		r#"
-fn test() {
-    let output = "hello";
-    insta::assert_snapshot!(output, @"");
-}
-"#,
-		false,
-	)), @"(no violations)");
+		fn test() {
+			let output = "hello";
+			insta::assert_snapshot!(output, @"hello");
+		}
+		"#,
+	);
 
-	// Test: assert_snapshot with raw string inline snapshot passes
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// Snapshot with empty inline passes
+	check_ok(
+		r#"
+		fn test() {
+			let output = "hello";
+			insta::assert_snapshot!(output, @"");
+		}
+		"#,
+	);
+
+	// Raw string inline passes
+	check_ok(
 		r##"
-fn test() {
-    let output = "hello";
-    insta::assert_snapshot!(output, @r#"hello"#);
-}
-"##,
-		false,
-	)), @"(no violations)");
+		fn test() {
+			let output = "hello";
+			insta::assert_snapshot!(output, @r#"hello"#);
+		}
+		"##,
+	);
 
-	// Test: assert_debug_snapshot variant works
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// assert_debug_snapshot variant
+	check_violations(
 		r#"
-fn test() {
-    let output = vec![1, 2, 3];
-    insta::assert_debug_snapshot!(output);
-}
-"#,
-		false,
-	)), @r###"`assert_debug_snapshot!` must use inline snapshot with `@r""` or `@""`"###);
+		fn test() {
+			let output = vec![1, 2, 3];
+			insta::assert_debug_snapshot!(output);
+		}
+		"#,
+		&[r#"`assert_debug_snapshot!` must use inline snapshot with `@r""` or `@""`"#],
+	);
 
-	// Test: assert_json_snapshot variant works
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// assert_json_snapshot variant
+	check_violations(
 		r#"
-fn test() {
-    let output = serde_json::json!({"key": "value"});
-    insta::assert_json_snapshot!(output);
-}
-"#,
-		false,
-	)), @r###"`assert_json_snapshot!` must use inline snapshot with `@r""` or `@""`"###);
+		fn test() {
+			let output = serde_json::json!({"key": "value"});
+			insta::assert_json_snapshot!(output);
+		}
+		"#,
+		&[r#"`assert_json_snapshot!` must use inline snapshot with `@r""` or `@""`"#],
+	);
 
-	// Test: format mode should NOT touch snapshots that already have inline strings
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// Multiline snapshot with content passes
+	check_ok(
 		r#"
-fn test() {
-    let output = "hello";
-    insta::assert_snapshot!(output, @"hello");
-}
-"#,
-		true,
-	)), @"(no violations)");
+		fn test() {
+			assert_snapshot!(extract_blockers_section(content).unwrap(), @"
+				# Phase 1
+				- First task
+				");
+		}
+		"#,
+	);
 
-	// Test: format mode with empty inline snapshot passes (no change needed)
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// Single-line non-empty snapshot passes
+	check_ok(
 		r#"
-fn test() {
-    let output = "hello";
-    insta::assert_snapshot!(output, @"");
-}
-"#,
-		true,
-	)), @"(no violations)");
+		fn test() {
+			assert_snapshot!(get_current_blocker_from_content(blockers_content).unwrap(), @"- Third task");
+		}
+		"#,
+	);
 
-	// Test: format mode should NOT touch multiline snapshots with content
-	insta::assert_snapshot!(snapshot_violations(&check_code(
-		r#"
-fn test() {
-    assert_snapshot!(extract_blockers_section(content).unwrap(), @"
-        # Phase 1
-        - First task
-        ");
-}
-"#,
-		true,
-	)), @"(no violations)");
-
-	// Test: format mode should NOT touch single-line non-empty snapshots
-	insta::assert_snapshot!(snapshot_violations(&check_code(
-		r#"
-fn test() {
-    assert_snapshot!(get_current_blocker_from_content(blockers_content).unwrap(), @"- Third task");
-}
-"#,
-		true,
-	)), @"(no violations)");
-
-	// Test: format mode should NOT touch raw string snapshots with content
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// Raw string snapshot with content passes
+	check_ok(
 		r##"
-fn test() {
-    assert_snapshot!(format!("{:?}", items), @r#"[("Phase 1", true, false), ("Completed task", false, true)]"#);
-}
-"##,
-		true,
-	)), @"(no violations)");
+		fn test() {
+			assert_snapshot!(format!("{:?}", items), @r#"[("Phase 1", true, false)]"#);
+		}
+		"##,
+	);
 
-	// Test: multiple snapshots in one file
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// Multiple snapshots in one file
+	check_violations(
 		r#"
-fn test() {
-    insta::assert_snapshot!("a");
-    insta::assert_snapshot!("b", @"");
-    insta::assert_debug_snapshot!(vec![1]);
-}
-"#,
-		false,
-	)), @r###"
-	`assert_snapshot!` must use inline snapshot with `@r""` or `@""`
-	`assert_debug_snapshot!` must use inline snapshot with `@r""` or `@""`
-	"###);
+		fn test() {
+			insta::assert_snapshot!("a");
+			insta::assert_snapshot!("b", @"");
+			insta::assert_debug_snapshot!(vec![1]);
+		}
+		"#,
+		&[
+			r#"`assert_snapshot!` must use inline snapshot with `@r""` or `@""`"#,
+			r#"`assert_debug_snapshot!` must use inline snapshot with `@r""` or `@""`"#,
+		],
+	);
 
-	// Test: run_assert scans tests/ directory (not just src/)
-	// This is a regression test for when tests/ directory was not being scanned
+	// === Directory scanning tests ===
+
+	// run_assert should scan tests/ directory (not just src/)
 	{
-		let temp_dir = std::env::temp_dir().join("codestyle_test_insta_tests_dir");
-		std::fs::create_dir_all(temp_dir.join("tests")).unwrap();
-		std::fs::write(temp_dir.join("Cargo.toml"), "[package]\nname = \"test\"\nversion = \"0.1.0\"\n").unwrap();
-		std::fs::write(
-			temp_dir.join("tests/test.rs"),
+		let fixture = Fixture::parse(
 			r#"
-fn test() {
-    insta::assert_snapshot!(output);
-}
-"#,
-		)
-		.unwrap();
+			//- /Cargo.toml
+			[package]
+			name = "test"
+			version = "0.1.0"
 
-		// Should return exit code 1 due to violation in tests/
+			//- /tests/test.rs
+			fn test() {
+				insta::assert_snapshot!(output);
+			}
+			"#,
+		);
+		let temp = fixture.write_to_tempdir();
+
 		let opts = RustCheckOptions {
 			insta_inline_snapshot: true,
 			..Default::default()
 		};
-		let exit_code = run_assert(&temp_dir, &opts);
+		let exit_code = run_assert(&temp.root, &opts);
 		assert_eq!(exit_code, 1, "Should detect violations in tests/ directory");
-
-		std::fs::remove_dir_all(&temp_dir).ok();
 	}
 
 	println!("All insta_snapshots tests passed!");

@@ -68,7 +68,7 @@ codestyle rust --loops=false --embed-simple-vars=false assert ./my-project
 
 Format mode will:
 1. Automatically fix violations where possible
-2. Delete any `.pending-snap` files (when insta check enabled)
+2. Delete any `.snap` and `.pending-snap` files (when insta check enabled)
 3. Report violations that require manual fixing
 
 ```sh

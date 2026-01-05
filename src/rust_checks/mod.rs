@@ -156,9 +156,9 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 		}
 	}
 
-	// Delete any .pending-snap files in the target directory (only if insta check is enabled)
+	// Delete any .snap and .pending-snap files in the target directory (only if insta check is enabled)
 	if opts.insta_inline_snapshot {
-		delete_pending_snap_files(target_dir);
+		delete_snap_files(target_dir);
 	}
 
 	if all_violations.is_empty() {
@@ -345,7 +345,7 @@ fn apply_fixes(violations: &[Violation]) -> (usize, usize) {
 	(fixed_count, unfixable_count)
 }
 
-fn delete_pending_snap_files(target_dir: &Path) {
+fn delete_snap_files(target_dir: &Path) {
 	let walker = WalkDir::new(target_dir).into_iter().filter_entry(|e| {
 		let name = e.file_name().to_string_lossy();
 		!name.starts_with('.') && name != "target"
@@ -353,11 +353,12 @@ fn delete_pending_snap_files(target_dir: &Path) {
 
 	for entry in walker.filter_map(Result::ok) {
 		let path = entry.path();
-		if path.extension().is_some_and(|ext| ext == "pending-snap") {
+		let is_snap = path.extension().is_some_and(|ext| ext == "snap" || ext == "pending-snap");
+		if is_snap {
 			if let Err(e) = fs::remove_file(path) {
-				eprintln!("Warning: Failed to delete pending snap file {:?}: {}", path, e);
+				eprintln!("Warning: Failed to delete snap file {:?}: {}", path, e);
 			} else {
-				println!("codestyle: deleted pending snap file {:?}", path);
+				println!("codestyle: deleted snap file {:?}", path);
 			}
 		}
 	}

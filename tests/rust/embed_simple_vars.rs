@@ -1,241 +1,255 @@
-use codestyle::rust_checks::{self, Violation, embed_simple_vars};
+use codestyle::{
+	rust_checks::{self, Violation, embed_simple_vars},
+	test_fixture::Fixture,
+};
 
-fn check_code(code: &str) -> Vec<Violation> {
-	let temp_dir = std::env::temp_dir().join("codestyle_test_embed_vars");
-	std::fs::create_dir_all(&temp_dir).unwrap();
-	let test_file = temp_dir.join("test.rs");
-	std::fs::write(&test_file, code).unwrap();
+fn check_violations(code: &str, expected: &[&str]) {
+	let fixture = Fixture::parse(code);
+	let temp = fixture.write_to_tempdir();
 
-	let file_infos = rust_checks::collect_rust_files(&temp_dir);
+	let file_infos = rust_checks::collect_rust_files(&temp.root);
+	let violations: Vec<Violation> = file_infos
+		.iter()
+		.filter_map(|info| info.syntax_tree.as_ref().map(|tree| (info, tree)))
+		.flat_map(|(info, tree)| embed_simple_vars::check(&info.path, &info.contents, tree))
+		.collect();
+	let messages: Vec<&str> = violations.iter().map(|v| v.message.as_str()).collect();
+
+	assert_eq!(messages, expected, "Violations mismatch for fixture:\n{code}");
+}
+
+fn check_ok(code: &str) {
+	check_violations(code, &[]);
+}
+
+fn check_fix(code: &str, expected_fix: &str) {
+	let fixture = Fixture::parse(code);
+	let temp = fixture.write_to_tempdir();
+
+	let file_infos = rust_checks::collect_rust_files(&temp.root);
 	let violations: Vec<Violation> = file_infos
 		.iter()
 		.filter_map(|info| info.syntax_tree.as_ref().map(|tree| (info, tree)))
 		.flat_map(|(info, tree)| embed_simple_vars::check(&info.path, &info.contents, tree))
 		.collect();
 
-	std::fs::remove_file(&test_file).ok();
-	std::fs::remove_dir(&temp_dir).ok();
-	violations
-}
+	let fix = violations.first().and_then(|v| v.fix.as_ref()).map(|f| f.replacement.as_str()).unwrap_or("(no fix)");
 
-fn snapshot_violations(violations: &[Violation]) -> String {
-	if violations.is_empty() {
-		"(no violations)".to_string()
-	} else {
-		violations.iter().map(|v| &v.message).cloned().collect::<Vec<_>>().join("\n")
-	}
-}
-
-fn snapshot_fix(violations: &[Violation]) -> String {
-	violations
-		.first()
-		.and_then(|v| v.fix.as_ref())
-		.map(|f| f.replacement.clone())
-		.unwrap_or_else(|| "(no fix)".to_string())
+	assert_eq!(fix, expected_fix, "Fix mismatch for fixture:\n{code}");
 }
 
 fn main() {
-	// Test: simple var in println should embed
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// simple var in println should embed
+	check_violations(
 		r#"
-fn test() {
-    let name = "world";
-    println!("Hello, {}", name);
-}
-"#,
-	)), @"variable `name` should be embedded in format string: use `{name}` instead of `{}, name`");
+		fn test() {
+			let name = "world";
+			println!("Hello, {}", name);
+		}
+		"#,
+		&["variable `name` should be embedded in format string: use `{name}` instead of `{}, name`"],
+	);
 
-	// Test: already embedded var passes
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// already embedded var passes
+	check_ok(
 		r#"
-fn test() {
-    let name = "world";
-    println!("Hello, {name}");
-}
-"#,
-	)), @"(no violations)");
+		fn test() {
+			let name = "world";
+			println!("Hello, {name}");
+		}
+		"#,
+	);
 
-	// Test: complex expression is fine (method call)
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// complex expression is fine (method call)
+	check_ok(
 		r#"
-fn test() {
-    let s = String::new();
-    println!("len: {}", s.len());
-}
-"#,
-	)), @"(no violations)");
+		fn test() {
+			let s = String::new();
+			println!("len: {}", s.len());
+		}
+		"#,
+	);
 
-	// Test: field access is fine
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// field access is fine
+	check_ok(
 		r#"
-struct Foo { x: i32 }
-fn test() {
-    let f = Foo { x: 1 };
-    println!("x: {}", f.x);
-}
-"#,
-	)), @"(no violations)");
+		struct Foo { x: i32 }
+		fn test() {
+			let f = Foo { x: 1 };
+			println!("x: {}", f.x);
+		}
+		"#,
+	);
 
-	// Test: all simple vars
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// all simple vars
+	check_violations(
 		r#"
-fn test() {
-    let a = 1;
-    let b = 2;
-    println!("{} + {}", a, b);
-}
-"#,
-	)), @r"
-	variable `a` should be embedded in format string: use `{a}` instead of `{}, a`
-	variable `b` should be embedded in format string: use `{b}` instead of `{}, b`
-	");
+		fn test() {
+			let a = 1;
+			let b = 2;
+			println!("{} + {}", a, b);
+		}
+		"#,
+		&[
+			"variable `a` should be embedded in format string: use `{a}` instead of `{}, a`",
+			"variable `b` should be embedded in format string: use `{b}` instead of `{}, b`",
+		],
+	);
 
-	// Test: mixed simple and complex - all simple vars reported
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// mixed simple and complex - all simple vars reported
+	check_violations(
 		r#"
-fn test() {
-    let a = 1;
-    let b = 2;
-    let sum = a + b;
-    println!("{} + {} = {}", a, b, sum);
-}
-"#,
-	)), @r"
-	variable `a` should be embedded in format string: use `{a}` instead of `{}, a`
-	variable `b` should be embedded in format string: use `{b}` instead of `{}, b`
-	variable `sum` should be embedded in format string: use `{sum}` instead of `{}, sum`
-	");
+		fn test() {
+			let a = 1;
+			let b = 2;
+			let sum = a + b;
+			println!("{} + {} = {}", a, b, sum);
+		}
+		"#,
+		&[
+			"variable `a` should be embedded in format string: use `{a}` instead of `{}, a`",
+			"variable `b` should be embedded in format string: use `{b}` instead of `{}, b`",
+			"variable `sum` should be embedded in format string: use `{sum}` instead of `{}, sum`",
+		],
+	);
 
-	// Test: format! macro works too
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// format! macro works too
+	check_violations(
 		r#"
-fn test() {
-    let x = 42;
-    let s = format!("value: {}", x);
-}
-"#,
-	)), @"variable `x` should be embedded in format string: use `{x}` instead of `{}, x`");
+		fn test() {
+			let x = 42;
+			let s = format!("value: {}", x);
+		}
+		"#,
+		&["variable `x` should be embedded in format string: use `{x}` instead of `{}, x`"],
+	);
 
-	// Test: write! macro
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// write! macro
+	check_violations(
 		r#"
-use std::io::Write;
-fn test() {
-    let x = 42;
-    let mut buf = Vec::new();
-    write!(buf, "{}", x).unwrap();
-}
-"#,
-	)), @"variable `x` should be embedded in format string: use `{x}` instead of `{}, x`");
+		use std::io::Write;
+		fn test() {
+			let x = 42;
+			let mut buf = Vec::new();
+			write!(buf, "{}", x).unwrap();
+		}
+		"#,
+		&["variable `x` should be embedded in format string: use `{x}` instead of `{}, x`"],
+	);
 
-	// Test: no placeholder = no violation
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// no placeholder = no violation
+	check_ok(
 		r#"
-fn test() {
-    println!("Hello, world!");
-}
-"#,
-	)), @"(no violations)");
+		fn test() {
+			println!("Hello, world!");
+		}
+		"#,
+	);
 
-	// Test: named placeholder is fine
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// named placeholder is fine
+	check_ok(
 		r#"
-fn test() {
-    let width = 5;
-    println!("{:width$}", "hi");
-}
-"#,
-	)), @"(no violations)");
+		fn test() {
+			let width = 5;
+			println!("{:width$}", "hi");
+		}
+		"#,
+	);
 
-	// Test: multi-line format macro should be detected
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// multi-line format macro should be detected
+	check_violations(
 		r#"
-fn test() {
-    let name = "world";
-    let count = 42;
-    println!(
-        "Hello {}, you have {} messages",
-        name,
-        count
-    );
-}
-"#,
-	)), @r"
-	variable `name` should be embedded in format string: use `{name}` instead of `{}, name`
-	variable `count` should be embedded in format string: use `{count}` instead of `{}, count`
-	");
+		fn test() {
+			let name = "world";
+			let count = 42;
+			println!(
+				"Hello {}, you have {} messages",
+				name,
+				count
+			);
+		}
+		"#,
+		&[
+			"variable `name` should be embedded in format string: use `{name}` instead of `{}, name`",
+			"variable `count` should be embedded in format string: use `{count}` instead of `{}, count`",
+		],
+	);
 
-	// Test: multi-line format macro fix should be generated
-	insta::assert_snapshot!(snapshot_fix(&check_code(
+	// multi-line format macro fix should be generated
+	check_fix(
 		r#"
-fn test() {
-    let name = "world";
-    let count = 42;
-    println!(
-        "Hello {}, you have {} messages",
-        name,
-        count
-    );
-}
-"#,
-	)), @r#""Hello {name}, you have {count} messages""#);
+		fn test() {
+			let name = "world";
+			let count = 42;
+			println!(
+				"Hello {}, you have {} messages",
+				name,
+				count
+			);
+		}
+		"#,
+		r#""Hello {name}, you have {count} messages""#,
+	);
 
-	// Test: mixed simple and complex args should still fix the simple ones
-	// Bug: previously only fixed when ALL args were simple
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// mixed simple and complex args should still fix the simple ones
+	check_violations(
 		r#"
-fn test() {
-    let tf = "1d";
-    let s = format!("{}_{}", Utc::now().format("%Y/%m/%d"), tf);
-}
-"#,
-	)), @"variable `tf` should be embedded in format string: use `{tf}` instead of `{}, tf`");
+		fn test() {
+			let tf = "1d";
+			let s = format!("{}_{}", Utc::now().format("%Y/%m/%d"), tf);
+		}
+		"#,
+		&["variable `tf` should be embedded in format string: use `{tf}` instead of `{}, tf`"],
+	);
 
 	// Verify fix is generated for mixed args
-	insta::assert_snapshot!(snapshot_fix(&check_code(
+	check_fix(
 		r#"
-fn test() {
-    let tf = "1d";
-    let s = format!("{}_{}", Utc::now().format("%Y/%m/%d"), tf);
-}
-"#,
-	)), @r#""{}_{tf}", Utc::now().format("%Y/%m/%d")"#);
+		fn test() {
+			let tf = "1d";
+			let s = format!("{}_{}", Utc::now().format("%Y/%m/%d"), tf);
+		}
+		"#,
+		r#""{}_{tf}", Utc::now().format("%Y/%m/%d")"#,
+	);
 
-	// Test: multiple simple vars mixed with complex should fix all simple ones
-	insta::assert_snapshot!(snapshot_violations(&check_code(
+	// multiple simple vars mixed with complex should fix all simple ones
+	check_violations(
 		r#"
-fn test() {
-    let issue_number = 123;
-    let sanitized = "foo";
-    let s = format!("{}_-_{}.{}", issue_number, sanitized, extension.as_str());
-}
-"#,
-	)), @r"
-	variable `issue_number` should be embedded in format string: use `{issue_number}` instead of `{}, issue_number`
-	variable `sanitized` should be embedded in format string: use `{sanitized}` instead of `{}, sanitized`
-	");
+		fn test() {
+			let issue_number = 123;
+			let sanitized = "foo";
+			let s = format!("{}_-_{}.{}", issue_number, sanitized, extension.as_str());
+		}
+		"#,
+		&[
+			"variable `issue_number` should be embedded in format string: use `{issue_number}` instead of `{}, issue_number`",
+			"variable `sanitized` should be embedded in format string: use `{sanitized}` instead of `{}, sanitized`",
+		],
+	);
 
 	// Verify fix embeds both simple vars
-	insta::assert_snapshot!(snapshot_fix(&check_code(
+	check_fix(
 		r#"
-fn test() {
-    let issue_number = 123;
-    let sanitized = "foo";
-    let s = format!("{}_-_{}.{}", issue_number, sanitized, extension.as_str());
-}
-"#,
-	)), @r#""{issue_number}_-_{sanitized}.{}", extension.as_str()"#);
+		fn test() {
+			let issue_number = 123;
+			let sanitized = "foo";
+			let s = format!("{}_-_{}.{}", issue_number, sanitized, extension.as_str());
+		}
+		"#,
+		r#""{issue_number}_-_{sanitized}.{}", extension.as_str()"#,
+	);
 
-	// Test: field access should NOT be doubled
-	// Bug case: format!("...{}/user/{}/...", workspace_id, user.id) was producing user.id.id
-	insta::assert_snapshot!(snapshot_fix(&check_code(
+	// field access should NOT be doubled
+	check_fix(
 		r#"
-fn test() {
-    let workspace_id = "ws123";
-    let s = format!("{}/user/{}/time-entries", workspace_id, user.id);
-}
-"#,
-	)), @r#""{workspace_id}/user/{}/time-entries", user.id"#);
+		fn test() {
+			let workspace_id = "ws123";
+			let s = format!("{}/user/{}/time-entries", workspace_id, user.id);
+		}
+		"#,
+		r#""{workspace_id}/user/{}/time-entries", user.id"#,
+	);
 
 	println!("All embed_simple_vars tests passed!");
 }
