@@ -122,7 +122,7 @@ impl Fixture {
 		use std::sync::atomic::{AtomicU64, Ordering};
 		static COUNTER: AtomicU64 = AtomicU64::new(0);
 		let unique_id = COUNTER.fetch_add(1, Ordering::SeqCst);
-		let temp_dir = std::env::temp_dir().join(format!("codestyle_fixture_{}_{}", std::process::id(), unique_id));
+		let temp_dir = std::env::temp_dir().join(format!("codestyle_fixture_{}_{unique_id}", std::process::id()));
 		fs::create_dir_all(&temp_dir).expect("failed to create temp dir");
 
 		for file in &self.files {
@@ -287,7 +287,7 @@ pub fn simulate_check(fixture_str: &str, opts: &RustCheckOptions) -> String {
 		.map(|v| {
 			let relative_path = v.file.strip_prefix(temp.root.to_str().unwrap_or("")).unwrap_or(&v.file);
 			let relative_path = relative_path.trim_start_matches('/');
-			format!("[{}] /{}:{}: {}", v.rule, relative_path, v.line, v.message)
+			format!("[{}] /{relative_path}:{}: {}", v.rule, v.line, v.message)
 		})
 		.collect::<Vec<_>>()
 		.join("\n")
