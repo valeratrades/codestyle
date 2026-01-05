@@ -1,26 +1,19 @@
-use codestyle::{
-	rust_checks::{self, Violation, loops},
-	test_fixture::Fixture,
-};
+use codestyle::{rust_checks::RustCheckOptions, test_fixture::simulate_check};
 
-fn check_violations(code: &str, expected: &[&str]) {
-	let fixture = Fixture::parse(code);
-	let temp = fixture.write_to_tempdir();
-
-	let file_infos = rust_checks::collect_rust_files(&temp.root);
-	let violations: Vec<Violation> = file_infos.iter().flat_map(|info| loops::check_loops(info)).collect();
-	let messages: Vec<&str> = violations.iter().map(|v| v.message.as_str()).collect();
-
-	assert_eq!(messages, expected, "Violations mismatch for fixture:\n{code}");
+fn opts() -> RustCheckOptions {
+	RustCheckOptions {
+		loops: true,
+		join_split_impls: false,
+		impl_follows_type: false,
+		embed_simple_vars: false,
+		insta_inline_snapshot: false,
+		instrument: false,
+	}
 }
 
-fn check_ok(code: &str) {
-	check_violations(code, &[]);
-}
-
-fn main() {
-	// loop without comment triggers violation
-	check_violations(
+#[test]
+fn loop_without_comment_triggers_violation() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn bad() {
 			loop {
@@ -28,11 +21,13 @@ fn main() {
 			}
 		}
 		"#,
-		&["Endless loop without `//LOOP` comment"],
-	);
+		&opts(),
+	), @"[loop-comment] /main.rs:2: Endless loop without `//LOOP` comment");
+}
 
-	// loop with inline comment passes
-	check_ok(
+#[test]
+fn loop_with_inline_comment_passes() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn good() {
 			loop { //LOOP: justified reason
@@ -40,10 +35,13 @@ fn main() {
 			}
 		}
 		"#,
-	);
+		&opts(),
+	), @"(no violations)");
+}
 
-	// loop with comment on line above passes
-	check_ok(
+#[test]
+fn loop_with_comment_on_line_above_passes() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn good() {
 			//LOOP: justified reason
@@ -52,10 +50,13 @@ fn main() {
 			}
 		}
 		"#,
-	);
+		&opts(),
+	), @"(no violations)");
+}
 
-	// nested loop without comment
-	check_violations(
+#[test]
+fn nested_loop_without_comment() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn nested() {
 			if true {
@@ -65,21 +66,26 @@ fn main() {
 			}
 		}
 		"#,
-		&["Endless loop without `//LOOP` comment"],
-	);
+		&opts(),
+	), @"[loop-comment] /main.rs:3: Endless loop without `//LOOP` comment");
+}
 
-	// while and for loops don't trigger (only endless loop)
-	check_ok(
+#[test]
+fn while_and_for_loops_dont_trigger() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn other_loops() {
 			while true { break; }
 			for i in 0..10 { break; }
 		}
 		"#,
-	);
+		&opts(),
+	), @"(no violations)");
+}
 
-	// loop inside closure
-	check_violations(
+#[test]
+fn loop_inside_closure() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn with_closure() {
 			let f = || {
@@ -89,11 +95,13 @@ fn main() {
 			};
 		}
 		"#,
-		&["Endless loop without `//LOOP` comment"],
-	);
+		&opts(),
+	), @"[loop-comment] /main.rs:3: Endless loop without `//LOOP` comment");
+}
 
-	// loop inside async block
-	check_violations(
+#[test]
+fn loop_inside_async_block() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn with_async() {
 			let f = async {
@@ -103,8 +111,6 @@ fn main() {
 			};
 		}
 		"#,
-		&["Endless loop without `//LOOP` comment"],
-	);
-
-	println!("All loop tests passed!");
+		&opts(),
+	), @"[loop-comment] /main.rs:3: Endless loop without `//LOOP` comment");
 }

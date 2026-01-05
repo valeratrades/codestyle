@@ -1,62 +1,22 @@
 use codestyle::{
-	rust_checks::{self, Fix, Violation, impl_follows_type},
-	test_fixture::Fixture,
+	rust_checks::RustCheckOptions,
+	test_fixture::{simulate_check, simulate_format},
 };
 
-fn check_violations(code: &str, expected: &[&str]) {
-	let fixture = Fixture::parse(code);
-	let temp = fixture.write_to_tempdir();
-
-	let file_infos = rust_checks::collect_rust_files(&temp.root);
-	let violations: Vec<Violation> = file_infos
-		.iter()
-		.filter_map(|info| info.syntax_tree.as_ref().map(|tree| (info, tree)))
-		.flat_map(|(info, tree)| impl_follows_type::check(&info.path, &info.contents, tree))
-		.collect();
-	let messages: Vec<&str> = violations.iter().map(|v| v.message.as_str()).collect();
-
-	assert_eq!(messages, expected, "Violations mismatch for fixture:\n{code}");
-}
-
-fn check_ok(code: &str) {
-	check_violations(code, &[]);
-}
-
-/// Check that applying fix produces expected result
-fn check_fix(before: &str, after: &str) {
-	let before_fixture = Fixture::parse(before);
-	let after_fixture = Fixture::parse(after);
-
-	let before_temp = before_fixture.write_to_tempdir();
-
-	let file_infos = rust_checks::collect_rust_files(&before_temp.root);
-	let violations: Vec<Violation> = file_infos
-		.iter()
-		.filter_map(|info| info.syntax_tree.as_ref().map(|tree| (info, tree)))
-		.flat_map(|(info, tree)| impl_follows_type::check(&info.path, &info.contents, tree))
-		.collect();
-
-	assert!(!violations.is_empty(), "Expected violations to fix, found none");
-
-	// Apply fixes in reverse order
-	let mut fixes: Vec<&Fix> = violations.iter().filter_map(|v| v.fix.as_ref()).collect();
-	fixes.sort_by(|a, b| b.start_byte.cmp(&a.start_byte));
-
-	let content = before_fixture.single_file().text.clone();
-	let mut result = content.clone();
-	for fix in fixes {
-		if fix.start_byte <= result.len() && fix.end_byte <= result.len() {
-			result.replace_range(fix.start_byte..fix.end_byte, &fix.replacement);
-		}
+fn opts() -> RustCheckOptions {
+	RustCheckOptions {
+		impl_follows_type: true,
+		join_split_impls: false,
+		loops: false,
+		embed_simple_vars: false,
+		insta_inline_snapshot: false,
+		instrument: false,
 	}
-
-	let expected = after_fixture.single_file().text.as_str();
-	assert_eq!(result, expected, "Fix result mismatch");
 }
 
-fn main() {
-	// impl immediately after struct passes
-	check_ok(
+#[test]
+fn impl_immediately_after_struct_passes() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		struct Foo {
 			x: i32,
@@ -65,10 +25,13 @@ fn main() {
 			fn new() -> Self { Self { x: 0 } }
 		}
 		"#,
-	);
+		&opts(),
+	), @"(no violations)");
+}
 
-	// impl with gap triggers violation
-	check_violations(
+#[test]
+fn impl_with_gap_triggers_violation() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		struct Foo {
 			x: i32,
@@ -79,11 +42,13 @@ fn main() {
 			fn new() -> Self { Self { x: 0 } }
 		}
 		"#,
-		&["`impl Foo` should follow type definition (line 3), but has 2 blank line(s)"],
-	);
+		&opts(),
+	), @"[impl-follows-type] /main.rs:6: `impl Foo` should follow type definition (line 3), but has 2 blank line(s)");
+}
 
-	// trait impl is exempt (can be anywhere)
-	check_ok(
+#[test]
+fn trait_impl_is_exempt() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		struct Foo;
 
@@ -92,10 +57,13 @@ fn main() {
 			fn default() -> Self { Foo }
 		}
 		"#,
-	);
+		&opts(),
+	), @"(no violations)");
+}
 
-	// enum works same as struct
-	check_violations(
+#[test]
+fn enum_works_same_as_struct() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		enum Bar {
 			A,
@@ -107,11 +75,13 @@ fn main() {
 			fn is_a(&self) -> bool { matches!(self, Self::A) }
 		}
 		"#,
-		&["`impl Bar` should follow type definition (line 4), but has 2 blank line(s)"],
-	);
+		&opts(),
+	), @"[impl-follows-type] /main.rs:7: `impl Bar` should follow type definition (line 4), but has 2 blank line(s)");
+}
 
-	// chained impls (multiple impl blocks)
-	check_ok(
+#[test]
+fn chained_impls_pass() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		struct Foo;
 		impl Foo {
@@ -121,10 +91,13 @@ fn main() {
 			fn two() {}
 		}
 		"#,
-	);
+		&opts(),
+	), @"(no violations)");
+}
 
-	// impl for type not defined in file is ignored
-	check_ok(
+#[test]
+fn impl_for_type_not_defined_in_file_is_ignored() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 
 
@@ -132,10 +105,13 @@ fn main() {
 			fn custom() {}
 		}
 		"#,
-	);
+		&opts(),
+	), @"(no violations)");
+}
 
-	// auto-fix relocates impl block immediately after struct (blank lines only)
-	check_fix(
+#[test]
+fn autofix_removes_blank_lines() {
+	insta::assert_snapshot!(simulate_format(
 		r#"
 		struct Foo {
 			x: i32,
@@ -146,18 +122,20 @@ fn main() {
 			fn new() -> Self { Self { x: 0 } }
 		}
 		"#,
-		r#"
-		struct Foo {
-			x: i32,
-		}
-		impl Foo {
-			fn new() -> Self { Self { x: 0 } }
-		}
-		"#,
-	);
+		&opts(),
+	), @r#"
+	struct Foo {
+		x: i32,
+	}
+	impl Foo {
+		fn new() -> Self { Self { x: 0 } }
+	}
+	"#);
+}
 
-	// auto-fix relocates impl block when other code is in between
-	check_fix(
+#[test]
+fn autofix_relocates_impl_when_other_code_in_between() {
+	insta::assert_snapshot!(simulate_format(
 		r#"
 		struct Foo {
 			x: i32,
@@ -169,20 +147,22 @@ fn main() {
 			fn new() -> Self { Self { x: 0 } }
 		}
 		"#,
-		r#"
-		struct Foo {
-			x: i32,
-		}
-		impl Foo {
-			fn new() -> Self { Self { x: 0 } }
-		}
+		&opts(),
+	), @r#"
+	struct Foo {
+		x: i32,
+	}
+	impl Foo {
+		fn new() -> Self { Self { x: 0 } }
+	}
 
-		fn unrelated() {}
-		"#,
-	);
+	fn unrelated() {}
+	"#);
+}
 
-	// auto-fix with multiple impl blocks for same struct
-	check_fix(
+#[test]
+fn autofix_with_multiple_impl_blocks_for_same_struct() {
+	insta::assert_snapshot!(simulate_format(
 		r#"
 		struct Foo;
 
@@ -196,19 +176,17 @@ fn main() {
 			fn two() {}
 		}
 		"#,
-		r#"
-		struct Foo;
-		impl Foo {
-			fn one() {}
-		}
+		&opts(),
+	), @r#"
+	struct Foo;
+	impl Foo {
+		fn one() {}
+	}
 
-		fn other() {}
+	fn other() {}
 
-		impl Foo {
-			fn two() {}
-		}
-		"#,
-	);
-
-	println!("All impl_follows_type tests passed!");
+	impl Foo {
+		fn two() {}
+	}
+	"#);
 }

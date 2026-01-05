@@ -1,75 +1,81 @@
-use codestyle::{
-	rust_checks::{self, Violation, instrument},
-	test_fixture::Fixture,
-};
+use codestyle::{rust_checks::RustCheckOptions, test_fixture::simulate_check};
 
-fn check_violations(code: &str, expected: &[&str]) {
-	let fixture = Fixture::parse(code);
-	let temp = fixture.write_to_tempdir();
-
-	let file_infos = rust_checks::collect_rust_files(&temp.root);
-	let violations: Vec<Violation> = file_infos.iter().flat_map(|info| instrument::check_instrument(info)).collect();
-	let messages: Vec<&str> = violations.iter().map(|v| v.message.as_str()).collect();
-
-	assert_eq!(messages, expected, "Violations mismatch for fixture:\n{code}");
+fn opts() -> RustCheckOptions {
+	RustCheckOptions {
+		instrument: true,
+		join_split_impls: false,
+		impl_follows_type: false,
+		loops: false,
+		embed_simple_vars: false,
+		insta_inline_snapshot: false,
+	}
 }
 
-fn check_ok(code: &str) {
-	check_violations(code, &[]);
-}
-
-fn main() {
-	// sync function without #[instrument] passes (only async is checked)
-	check_ok(
+#[test]
+fn sync_function_without_instrument_passes() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn sync_no_instrument() {
 			println!("hello");
 		}
 		"#,
-	);
+		&opts(),
+	), @"(no violations)");
+}
 
-	// async function without #[instrument] triggers violation
-	check_violations(
+#[test]
+fn async_function_without_instrument_triggers_violation() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		async fn async_no_instrument() {
 			println!("hello");
 		}
 		"#,
-		&["No #[instrument] on async fn `async_no_instrument`"],
-	);
+		&opts(),
+	), @"[instrument] /main.rs:1: No #[instrument] on async fn `async_no_instrument`");
+}
 
-	// async function with #[instrument] passes
-	check_ok(
+#[test]
+fn async_function_with_instrument_passes() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		#[instrument]
 		async fn with_instrument() {
 			println!("hello");
 		}
 		"#,
-	);
+		&opts(),
+	), @"(no violations)");
+}
 
-	// main function is exempt (even if async)
-	check_ok(
+#[test]
+fn main_function_is_exempt() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		async fn main() {
 			println!("hello");
 		}
 		"#,
-	);
+		&opts(),
+	), @"(no violations)");
+}
 
-	// async functions in utils.rs are exempt
-	check_violations(
+#[test]
+fn async_functions_in_utils_rs_are_exempt() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		//- /utils.rs
 		async fn helper() {
 			println!("hello");
 		}
 		"#,
-		&[], // exempt in utils.rs
-	);
+		&opts(),
+	), @"(no violations)");
+}
 
-	// multiple functions - only async without instrument are caught
-	check_violations(
+#[test]
+fn multiple_functions_only_async_without_instrument_caught() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn sync_one() {}
 		async fn async_one() {}
@@ -77,8 +83,9 @@ fn main() {
 		#[instrument]
 		async fn async_three() {}
 		"#,
-		&["No #[instrument] on async fn `async_one`", "No #[instrument] on async fn `async_two`"],
-	);
-
-	println!("All instrument tests passed!");
+		&opts(),
+	), @r#"
+	[instrument] /main.rs:2: No #[instrument] on async fn `async_one`
+	[instrument] /main.rs:3: No #[instrument] on async fn `async_two`
+	"#);
 }

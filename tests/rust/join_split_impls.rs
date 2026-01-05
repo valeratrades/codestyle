@@ -1,62 +1,22 @@
 use codestyle::{
-	rust_checks::{self, Fix, Violation, join_split_impls},
-	test_fixture::Fixture,
+	rust_checks::RustCheckOptions,
+	test_fixture::{simulate_check, simulate_format},
 };
 
-fn check_violations(code: &str, expected: &[&str]) {
-	let fixture = Fixture::parse(code);
-	let temp = fixture.write_to_tempdir();
-
-	let file_infos = rust_checks::collect_rust_files(&temp.root);
-	let violations: Vec<Violation> = file_infos
-		.iter()
-		.filter_map(|info| info.syntax_tree.as_ref().map(|tree| (info, tree)))
-		.flat_map(|(info, tree)| join_split_impls::check(&info.path, &info.contents, tree))
-		.collect();
-	let messages: Vec<&str> = violations.iter().map(|v| v.message.as_str()).collect();
-
-	assert_eq!(messages, expected, "Violations mismatch for fixture:\n{code}");
-}
-
-fn check_ok(code: &str) {
-	check_violations(code, &[]);
-}
-
-/// Check that applying fix produces expected result
-fn check_fix(before: &str, after: &str) {
-	let before_fixture = Fixture::parse(before);
-	let after_fixture = Fixture::parse(after);
-
-	let before_temp = before_fixture.write_to_tempdir();
-
-	let file_infos = rust_checks::collect_rust_files(&before_temp.root);
-	let violations: Vec<Violation> = file_infos
-		.iter()
-		.filter_map(|info| info.syntax_tree.as_ref().map(|tree| (info, tree)))
-		.flat_map(|(info, tree)| join_split_impls::check(&info.path, &info.contents, tree))
-		.collect();
-
-	assert!(!violations.is_empty(), "Expected violations to fix, found none");
-
-	// Apply fixes in reverse order
-	let mut fixes: Vec<&Fix> = violations.iter().filter_map(|v| v.fix.as_ref()).collect();
-	fixes.sort_by(|a, b| b.start_byte.cmp(&a.start_byte));
-
-	let content = before_fixture.single_file().text.clone();
-	let mut result = content.clone();
-	for fix in fixes {
-		if fix.start_byte <= result.len() && fix.end_byte <= result.len() {
-			result.replace_range(fix.start_byte..fix.end_byte, &fix.replacement);
-		}
+fn opts() -> RustCheckOptions {
+	RustCheckOptions {
+		join_split_impls: true,
+		impl_follows_type: false,
+		loops: false,
+		embed_simple_vars: false,
+		insta_inline_snapshot: false,
+		instrument: false,
 	}
-
-	let expected = after_fixture.single_file().text.as_str();
-	assert_eq!(result, expected, "Fix result mismatch");
 }
 
-fn main() {
-	// single impl block passes (no split)
-	check_ok(
+#[test]
+fn single_impl_block_passes() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		struct Foo {
 			x: i32,
@@ -66,10 +26,13 @@ fn main() {
 			fn get(&self) -> i32 { self.x }
 		}
 		"#,
-	);
+		&opts(),
+	), @"(no violations)");
+}
 
-	// two impl blocks for same type should be joined
-	check_violations(
+#[test]
+fn two_impl_blocks_for_same_type_should_be_joined() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		struct Foo;
 		impl Foo {
@@ -79,11 +42,13 @@ fn main() {
 			fn two() {}
 		}
 		"#,
-		&["split `impl Foo` blocks should be joined into one"],
-	);
+		&opts(),
+	), @"[join-split-impls] /main.rs:5: split `impl Foo` blocks should be joined into one");
+}
 
-	// trait impl is NOT joined with inherent impl
-	check_ok(
+#[test]
+fn trait_impl_not_joined_with_inherent_impl() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		struct Foo;
 		impl Foo {
@@ -93,10 +58,13 @@ fn main() {
 			fn default() -> Self { Foo }
 		}
 		"#,
-	);
+		&opts(),
+	), @"(no violations)");
+}
 
-	// different trait impls are NOT joined
-	check_ok(
+#[test]
+fn different_trait_impls_not_joined() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		struct Foo;
 		impl Default for Foo {
@@ -106,10 +74,13 @@ fn main() {
 			fn clone(&self) -> Self { Foo }
 		}
 		"#,
-	);
+		&opts(),
+	), @"(no violations)");
+}
 
-	// impl blocks for different types are NOT joined
-	check_ok(
+#[test]
+fn impl_blocks_for_different_types_not_joined() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		struct Foo;
 		struct Bar;
@@ -120,10 +91,13 @@ fn main() {
 			fn bar() {}
 		}
 		"#,
-	);
+		&opts(),
+	), @"(no violations)");
+}
 
-	// auto-fix joins two consecutive impl blocks
-	check_fix(
+#[test]
+fn autofix_joins_two_consecutive_impl_blocks() {
+	insta::assert_snapshot!(simulate_format(
 		r#"
 		struct Foo;
 		impl Foo {
@@ -133,17 +107,19 @@ fn main() {
 			fn two() {}
 		}
 		"#,
-		r#"
-		struct Foo;
-		impl Foo {
-			fn one() {}
-			fn two() {}
-		}
-		"#,
-	);
+		&opts(),
+	), @r#"
+	struct Foo;
+	impl Foo {
+		fn one() {}
+		fn two() {}
+	}
+	"#);
+}
 
-	// auto-fix joins impl blocks with code in between
-	check_fix(
+#[test]
+fn autofix_joins_impl_blocks_with_code_in_between() {
+	insta::assert_snapshot!(simulate_format(
 		r#"
 		struct Foo;
 		impl Foo {
@@ -156,19 +132,21 @@ fn main() {
 			fn two() {}
 		}
 		"#,
-		r#"
-		struct Foo;
-		impl Foo {
-			fn one() {}
-			fn two() {}
-		}
+		&opts(),
+	), @r#"
+	struct Foo;
+	impl Foo {
+		fn one() {}
+		fn two() {}
+	}
 
-		fn unrelated() {}
-		"#,
-	);
+	fn unrelated() {}
+	"#);
+}
 
-	// auto-fix joins three impl blocks
-	check_fix(
+#[test]
+fn autofix_joins_three_impl_blocks() {
+	insta::assert_snapshot!(simulate_format(
 		r#"
 		struct Foo;
 		impl Foo {
@@ -181,15 +159,36 @@ fn main() {
 			fn three() {}
 		}
 		"#,
+		&opts(),
+	), @r#"
+	struct Foo;
+	impl Foo {
+		fn one() {}
+		fn two() {}
+		fn three() {}
+	}
+	"#);
+}
+
+#[test]
+fn cross_file_impl_blocks_not_detected() {
+	// Currently NOT detected (single-file scope)
+	insta::assert_snapshot!(simulate_check(
 		r#"
-		struct Foo;
+		//- /src/first.rs
+		pub struct Foo;
 		impl Foo {
-			fn one() {}
-			fn two() {}
-			fn three() {}
+			fn bar() {}
+		}
+
+		//- /src/second.rs
+		use crate::first::Foo;
+		impl Foo {
+			fn yuck() {
+				println!("Cross-file impl - not detected");
+			}
 		}
 		"#,
-	);
-
-	println!("All join_split_impls tests passed!");
+		&opts(),
+	), @"(no violations)");
 }

@@ -1,98 +1,97 @@
-use codestyle::{
-	rust_checks::{self, RustCheckOptions, Violation, insta_snapshots, run_assert},
-	test_fixture::Fixture,
-};
+use codestyle::{rust_checks::RustCheckOptions, test_fixture::simulate_check};
 
-/// Check that given code produces expected violations
-fn check_violations(code: &str, expected: &[&str]) {
-	let fixture = Fixture::parse(code);
-	let temp = fixture.write_to_tempdir();
-
-	let file_infos = rust_checks::collect_rust_files(&temp.root);
-	let violations: Vec<Violation> = file_infos
-		.iter()
-		.filter_map(|info| info.syntax_tree.as_ref().map(|tree| (info, tree)))
-		.flat_map(|(info, tree)| insta_snapshots::check(&info.path, &info.contents, tree, false))
-		.collect();
-
-	let messages: Vec<&str> = violations.iter().map(|v| v.message.as_str()).collect();
-
-	assert_eq!(messages, expected, "Violations mismatch for fixture:\n{code}");
+fn opts() -> RustCheckOptions {
+	RustCheckOptions {
+		insta_inline_snapshot: true,
+		join_split_impls: false,
+		impl_follows_type: false,
+		loops: false,
+		embed_simple_vars: false,
+		instrument: false,
+	}
 }
 
-/// Check that given code produces no violations
-fn check_ok(code: &str) {
-	check_violations(code, &[]);
-}
-
-fn main() {
-	// === Detection tests ===
-
-	// Snapshot without inline @"" is violation
-	check_violations(
+#[test]
+fn snapshot_without_inline_is_violation() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn test() {
 			let output = "hello";
 			insta::assert_snapshot!(output);
 		}
 		"#,
-		&[r#"`assert_snapshot!` must use inline snapshot with `@r""` or `@""`"#],
-	);
+		&opts(),
+	), @r#"[insta-inline-snapshot] /main.rs:3: `assert_snapshot!` must use inline snapshot with `@r""` or `@""`"#);
+}
 
-	// Snapshot with inline passes
-	check_ok(
+#[test]
+fn snapshot_with_inline_passes() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn test() {
 			let output = "hello";
 			insta::assert_snapshot!(output, @"hello");
 		}
 		"#,
-	);
+		&opts(),
+	), @"(no violations)");
+}
 
-	// Snapshot with empty inline passes
-	check_ok(
+#[test]
+fn snapshot_with_empty_inline_passes() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn test() {
 			let output = "hello";
 			insta::assert_snapshot!(output, @"");
 		}
 		"#,
-	);
+		&opts(),
+	), @"(no violations)");
+}
 
-	// Raw string inline passes
-	check_ok(
+#[test]
+fn raw_string_inline_passes() {
+	insta::assert_snapshot!(simulate_check(
 		r##"
 		fn test() {
 			let output = "hello";
 			insta::assert_snapshot!(output, @r#"hello"#);
 		}
 		"##,
-	);
+		&opts(),
+	), @"(no violations)");
+}
 
-	// assert_debug_snapshot variant
-	check_violations(
+#[test]
+fn assert_debug_snapshot_variant() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn test() {
 			let output = vec![1, 2, 3];
 			insta::assert_debug_snapshot!(output);
 		}
 		"#,
-		&[r#"`assert_debug_snapshot!` must use inline snapshot with `@r""` or `@""`"#],
-	);
+		&opts(),
+	), @r#"[insta-inline-snapshot] /main.rs:3: `assert_debug_snapshot!` must use inline snapshot with `@r""` or `@""`"#);
+}
 
-	// assert_json_snapshot variant
-	check_violations(
+#[test]
+fn assert_json_snapshot_variant() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn test() {
 			let output = serde_json::json!({"key": "value"});
 			insta::assert_json_snapshot!(output);
 		}
 		"#,
-		&[r#"`assert_json_snapshot!` must use inline snapshot with `@r""` or `@""`"#],
-	);
+		&opts(),
+	), @r#"[insta-inline-snapshot] /main.rs:3: `assert_json_snapshot!` must use inline snapshot with `@r""` or `@""`"#);
+}
 
-	// Multiline snapshot with content passes
-	check_ok(
+#[test]
+fn multiline_snapshot_with_content_passes() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn test() {
 			assert_snapshot!(extract_blockers_section(content).unwrap(), @"
@@ -101,28 +100,37 @@ fn main() {
 				");
 		}
 		"#,
-	);
+		&opts(),
+	), @"(no violations)");
+}
 
-	// Single-line non-empty snapshot passes
-	check_ok(
+#[test]
+fn single_line_non_empty_snapshot_passes() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn test() {
 			assert_snapshot!(get_current_blocker_from_content(blockers_content).unwrap(), @"- Third task");
 		}
 		"#,
-	);
+		&opts(),
+	), @"(no violations)");
+}
 
-	// Raw string snapshot with content passes
-	check_ok(
+#[test]
+fn raw_string_snapshot_with_content_passes() {
+	insta::assert_snapshot!(simulate_check(
 		r##"
 		fn test() {
 			assert_snapshot!(format!("{:?}", items), @r#"[("Phase 1", true, false)]"#);
 		}
 		"##,
-	);
+		&opts(),
+	), @"(no violations)");
+}
 
-	// Multiple snapshots in one file
-	check_violations(
+#[test]
+fn multiple_snapshots_in_one_file() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn test() {
 			insta::assert_snapshot!("a");
@@ -130,38 +138,27 @@ fn main() {
 			insta::assert_debug_snapshot!(vec![1]);
 		}
 		"#,
-		&[
-			r#"`assert_snapshot!` must use inline snapshot with `@r""` or `@""`"#,
-			r#"`assert_debug_snapshot!` must use inline snapshot with `@r""` or `@""`"#,
-		],
-	);
+		&opts(),
+	), @r#"
+	[insta-inline-snapshot] /main.rs:2: `assert_snapshot!` must use inline snapshot with `@r""` or `@""`
+	[insta-inline-snapshot] /main.rs:4: `assert_debug_snapshot!` must use inline snapshot with `@r""` or `@""`
+	"#);
+}
 
-	// === Directory scanning tests ===
+#[test]
+fn run_assert_scans_tests_directory() {
+	insta::assert_snapshot!(simulate_check(
+		r#"
+		//- /Cargo.toml
+		[package]
+		name = "test"
+		version = "0.1.0"
 
-	// run_assert should scan tests/ directory (not just src/)
-	{
-		let fixture = Fixture::parse(
-			r#"
-			//- /Cargo.toml
-			[package]
-			name = "test"
-			version = "0.1.0"
-
-			//- /tests/test.rs
-			fn test() {
-				insta::assert_snapshot!(output);
-			}
-			"#,
-		);
-		let temp = fixture.write_to_tempdir();
-
-		let opts = RustCheckOptions {
-			insta_inline_snapshot: true,
-			..Default::default()
-		};
-		let exit_code = run_assert(&temp.root, &opts);
-		assert_eq!(exit_code, 1, "Should detect violations in tests/ directory");
-	}
-
-	println!("All insta_snapshots tests passed!");
+		//- /tests/test.rs
+		fn test() {
+			insta::assert_snapshot!(output);
+		}
+		"#,
+		&opts(),
+	), @r#"[insta-inline-snapshot] /tests/test.rs:2: `assert_snapshot!` must use inline snapshot with `@r""` or `@""`"#);
 }

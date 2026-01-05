@@ -26,27 +26,29 @@
 //! "#
 //! ```
 //!
-//! # Testing transformations (before -> after)
+//! # Testing with insta snapshots
 //!
-//! Use the `check` pattern with `=>` separator:
+//! Use `simulate_check` which returns a string for snapshot testing:
 //!
 //! ```ignore
-//! r#"
-//! //- /test.rs
-//! fn main() {
-//!     let x = 1;
-//!     println!("{}", x);
-//! }
-//! =>
-//! //- /test.rs
-//! fn main() {
-//!     let x = 1;
-//!     println!("{x}");
-//! }
-//! "#
+//! // Test violation detection - returns violations as readable string
+//! insta::assert_snapshot!(simulate_check(r#"
+//!     fn test() {
+//!         insta::assert_snapshot!(output);
+//!     }
+//! "#, &opts), @"...");
+//!
+//! // Test auto-fix - returns the modified fixture
+//! insta::assert_snapshot!(simulate_format(r#"
+//!     struct Foo;
+//!     impl Foo { fn one() {} }
+//!     impl Foo { fn two() {} }
+//! "#, &opts), @"...");
 //! ```
 
-use std::{fs, path::PathBuf};
+use std::{collections::HashMap, fs, path::PathBuf};
+
+use crate::rust_checks::{self, Fix, RustCheckOptions, Violation};
 
 /// A single file in a fixture
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -117,7 +119,10 @@ impl Fixture {
 
 	/// Write fixture files to a temporary directory and return the path
 	pub fn write_to_tempdir(&self) -> TempFixture {
-		let temp_dir = std::env::temp_dir().join(format!("codestyle_fixture_{}", std::process::id()));
+		use std::sync::atomic::{AtomicU64, Ordering};
+		static COUNTER: AtomicU64 = AtomicU64::new(0);
+		let unique_id = COUNTER.fetch_add(1, Ordering::SeqCst);
+		let temp_dir = std::env::temp_dir().join(format!("codestyle_fixture_{}_{}", std::process::id(), unique_id));
 		fs::create_dir_all(&temp_dir).expect("failed to create temp dir");
 
 		for file in &self.files {
@@ -258,6 +263,115 @@ pub fn render_fixture(fixture: &Fixture) -> String {
 		}
 	}
 	result
+}
+
+/// Simulate running `codestyle rust assert` on a fixture.
+///
+/// Returns a string representation of violations suitable for snapshot testing.
+/// Format: one violation per line as `[rule] /path:line: message`
+///
+/// If no violations, returns `(no violations)`
+pub fn simulate_check(fixture_str: &str, opts: &RustCheckOptions) -> String {
+	let fixture = Fixture::parse(fixture_str);
+	let temp = fixture.write_to_tempdir();
+
+	let violations = collect_violations(&temp.root, opts);
+
+	if violations.is_empty() {
+		return "(no violations)".to_string();
+	}
+
+	// Format violations relative to fixture root
+	violations
+		.iter()
+		.map(|v| {
+			let relative_path = v.file.strip_prefix(temp.root.to_str().unwrap_or("")).unwrap_or(&v.file);
+			let relative_path = relative_path.trim_start_matches('/');
+			format!("[{}] /{}:{}: {}", v.rule, relative_path, v.line, v.message)
+		})
+		.collect::<Vec<_>>()
+		.join("\n")
+}
+
+/// Simulate running `codestyle rust format` on a fixture.
+///
+/// Returns the fixture after applying all auto-fixes, in fixture format.
+/// This allows snapshot testing of the transformation result.
+pub fn simulate_format(fixture_str: &str, opts: &RustCheckOptions) -> String {
+	let fixture = Fixture::parse(fixture_str);
+	let temp = fixture.write_to_tempdir();
+
+	let violations = collect_violations(&temp.root, opts);
+
+	// Group fixes by file, deduplicating by (start_byte, end_byte)
+	let mut fixes_by_file: HashMap<String, Vec<&Fix>> = HashMap::new();
+	for v in &violations {
+		if let Some(ref fix) = v.fix {
+			let fixes = fixes_by_file.entry(v.file.clone()).or_default();
+			// Deduplicate fixes with same byte range
+			if !fixes.iter().any(|f| f.start_byte == fix.start_byte && f.end_byte == fix.end_byte) {
+				fixes.push(fix);
+			}
+		}
+	}
+
+	// Apply fixes to each file
+	for (file_path, fixes) in fixes_by_file {
+		let content = match fs::read_to_string(&file_path) {
+			Ok(c) => c,
+			Err(_) => continue,
+		};
+
+		// Sort fixes by position (descending) to apply from end to start
+		let mut fixes = fixes;
+		fixes.sort_by(|a, b| b.start_byte.cmp(&a.start_byte));
+
+		let mut new_content = content;
+		for fix in fixes {
+			if fix.start_byte <= new_content.len() && fix.end_byte <= new_content.len() {
+				new_content.replace_range(fix.start_byte..fix.end_byte, &fix.replacement);
+			}
+		}
+
+		let _ = fs::write(&file_path, new_content);
+	}
+
+	// Read back all files and render as fixture
+	let result = temp.read_all();
+	render_fixture(&result)
+}
+
+/// Collect all violations from a directory using the given options.
+fn collect_violations(root: &PathBuf, opts: &RustCheckOptions) -> Vec<Violation> {
+	use crate::rust_checks::{embed_simple_vars, impl_follows_type, insta_snapshots, instrument, join_split_impls, loops};
+
+	let file_infos = rust_checks::collect_rust_files(root);
+	let mut violations = Vec::new();
+
+	for info in &file_infos {
+		if opts.instrument {
+			violations.extend(instrument::check_instrument(info));
+		}
+		if opts.loops {
+			violations.extend(loops::check_loops(info));
+		}
+		if let Some(ref tree) = info.syntax_tree {
+			if opts.join_split_impls {
+				violations.extend(join_split_impls::check(&info.path, &info.contents, tree));
+			}
+			if opts.impl_follows_type {
+				violations.extend(impl_follows_type::check(&info.path, &info.contents, tree));
+			}
+			if opts.embed_simple_vars {
+				violations.extend(embed_simple_vars::check(&info.path, &info.contents, tree));
+			}
+			if opts.insta_inline_snapshot {
+				violations.extend(insta_snapshots::check(&info.path, &info.contents, tree, false));
+			}
+		}
+	}
+
+	violations
 }
 
 #[cfg(test)]

@@ -1,10 +1,11 @@
-#[test]
-fn rust_checks() {
-	let t = trybuild::TestCases::new();
-	t.pass("tests/rust/loops.rs");
-	t.pass("tests/rust/instrument.rs");
-	t.pass("tests/rust/join_split_impls.rs");
-	t.pass("tests/rust/impl_follows_type.rs");
-	t.pass("tests/rust/embed_simple_vars.rs");
-	t.pass("tests/rust/insta_snapshots.rs");
-}
+//! Rust check integration tests.
+//!
+//! Each module contains individual #[test] functions that can run in parallel,
+//! enabling proper insta snapshot workflow (all failures at once, accept all at once).
+
+mod embed_simple_vars;
+mod impl_follows_type;
+mod insta_snapshots;
+mod instrument;
+mod join_split_impls;
+mod loops;

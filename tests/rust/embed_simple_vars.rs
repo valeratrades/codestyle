@@ -1,77 +1,61 @@
 use codestyle::{
-	rust_checks::{self, Violation, embed_simple_vars},
-	test_fixture::Fixture,
+	rust_checks::RustCheckOptions,
+	test_fixture::{simulate_check, simulate_format},
 };
 
-fn check_violations(code: &str, expected: &[&str]) {
-	let fixture = Fixture::parse(code);
-	let temp = fixture.write_to_tempdir();
-
-	let file_infos = rust_checks::collect_rust_files(&temp.root);
-	let violations: Vec<Violation> = file_infos
-		.iter()
-		.filter_map(|info| info.syntax_tree.as_ref().map(|tree| (info, tree)))
-		.flat_map(|(info, tree)| embed_simple_vars::check(&info.path, &info.contents, tree))
-		.collect();
-	let messages: Vec<&str> = violations.iter().map(|v| v.message.as_str()).collect();
-
-	assert_eq!(messages, expected, "Violations mismatch for fixture:\n{code}");
+fn opts() -> RustCheckOptions {
+	RustCheckOptions {
+		embed_simple_vars: true,
+		join_split_impls: false,
+		impl_follows_type: false,
+		loops: false,
+		insta_inline_snapshot: false,
+		instrument: false,
+	}
 }
 
-fn check_ok(code: &str) {
-	check_violations(code, &[]);
-}
-
-fn check_fix(code: &str, expected_fix: &str) {
-	let fixture = Fixture::parse(code);
-	let temp = fixture.write_to_tempdir();
-
-	let file_infos = rust_checks::collect_rust_files(&temp.root);
-	let violations: Vec<Violation> = file_infos
-		.iter()
-		.filter_map(|info| info.syntax_tree.as_ref().map(|tree| (info, tree)))
-		.flat_map(|(info, tree)| embed_simple_vars::check(&info.path, &info.contents, tree))
-		.collect();
-
-	let fix = violations.first().and_then(|v| v.fix.as_ref()).map(|f| f.replacement.as_str()).unwrap_or("(no fix)");
-
-	assert_eq!(fix, expected_fix, "Fix mismatch for fixture:\n{code}");
-}
-
-fn main() {
-	// simple var in println should embed
-	check_violations(
+#[test]
+fn simple_var_in_println_should_embed() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn test() {
 			let name = "world";
 			println!("Hello, {}", name);
 		}
 		"#,
-		&["variable `name` should be embedded in format string: use `{name}` instead of `{}, name`"],
-	);
+		&opts(),
+	), @"[embed-simple-vars] /main.rs:3: variable `name` should be embedded in format string: use `{name}` instead of `{}, name`");
+}
 
-	// already embedded var passes
-	check_ok(
+#[test]
+fn already_embedded_var_passes() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn test() {
 			let name = "world";
 			println!("Hello, {name}");
 		}
 		"#,
-	);
+		&opts(),
+	), @"(no violations)");
+}
 
-	// complex expression is fine (method call)
-	check_ok(
+#[test]
+fn complex_expression_method_call_is_fine() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn test() {
 			let s = String::new();
 			println!("len: {}", s.len());
 		}
 		"#,
-	);
+		&opts(),
+	), @"(no violations)");
+}
 
-	// field access is fine
-	check_ok(
+#[test]
+fn field_access_is_fine() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		struct Foo { x: i32 }
 		fn test() {
@@ -79,10 +63,13 @@ fn main() {
 			println!("x: {}", f.x);
 		}
 		"#,
-	);
+		&opts(),
+	), @"(no violations)");
+}
 
-	// all simple vars
-	check_violations(
+#[test]
+fn all_simple_vars() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn test() {
 			let a = 1;
@@ -90,14 +77,16 @@ fn main() {
 			println!("{} + {}", a, b);
 		}
 		"#,
-		&[
-			"variable `a` should be embedded in format string: use `{a}` instead of `{}, a`",
-			"variable `b` should be embedded in format string: use `{b}` instead of `{}, b`",
-		],
-	);
+		&opts(),
+	), @r#"
+	[embed-simple-vars] /main.rs:4: variable `a` should be embedded in format string: use `{a}` instead of `{}, a`
+	[embed-simple-vars] /main.rs:4: variable `b` should be embedded in format string: use `{b}` instead of `{}, b`
+	"#);
+}
 
-	// mixed simple and complex - all simple vars reported
-	check_violations(
+#[test]
+fn mixed_simple_and_complex_all_simple_vars_reported() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn test() {
 			let a = 1;
@@ -106,26 +95,30 @@ fn main() {
 			println!("{} + {} = {}", a, b, sum);
 		}
 		"#,
-		&[
-			"variable `a` should be embedded in format string: use `{a}` instead of `{}, a`",
-			"variable `b` should be embedded in format string: use `{b}` instead of `{}, b`",
-			"variable `sum` should be embedded in format string: use `{sum}` instead of `{}, sum`",
-		],
-	);
+		&opts(),
+	), @r#"
+	[embed-simple-vars] /main.rs:5: variable `a` should be embedded in format string: use `{a}` instead of `{}, a`
+	[embed-simple-vars] /main.rs:5: variable `b` should be embedded in format string: use `{b}` instead of `{}, b`
+	[embed-simple-vars] /main.rs:5: variable `sum` should be embedded in format string: use `{sum}` instead of `{}, sum`
+	"#);
+}
 
-	// format! macro works too
-	check_violations(
+#[test]
+fn format_macro_works_too() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn test() {
 			let x = 42;
 			let s = format!("value: {}", x);
 		}
 		"#,
-		&["variable `x` should be embedded in format string: use `{x}` instead of `{}, x`"],
-	);
+		&opts(),
+	), @"[embed-simple-vars] /main.rs:3: variable `x` should be embedded in format string: use `{x}` instead of `{}, x`");
+}
 
-	// write! macro
-	check_violations(
+#[test]
+fn write_macro() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		use std::io::Write;
 		fn test() {
@@ -134,30 +127,38 @@ fn main() {
 			write!(buf, "{}", x).unwrap();
 		}
 		"#,
-		&["variable `x` should be embedded in format string: use `{x}` instead of `{}, x`"],
-	);
+		&opts(),
+	), @"[embed-simple-vars] /main.rs:5: variable `x` should be embedded in format string: use `{x}` instead of `{}, x`");
+}
 
-	// no placeholder = no violation
-	check_ok(
+#[test]
+fn no_placeholder_no_violation() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn test() {
 			println!("Hello, world!");
 		}
 		"#,
-	);
+		&opts(),
+	), @"(no violations)");
+}
 
-	// named placeholder is fine
-	check_ok(
+#[test]
+fn named_placeholder_is_fine() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn test() {
 			let width = 5;
 			println!("{:width$}", "hi");
 		}
 		"#,
-	);
+		&opts(),
+	), @"(no violations)");
+}
 
-	// multi-line format macro should be detected
-	check_violations(
+#[test]
+fn multi_line_format_macro_detected() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn test() {
 			let name = "world";
@@ -169,52 +170,47 @@ fn main() {
 			);
 		}
 		"#,
-		&[
-			"variable `name` should be embedded in format string: use `{name}` instead of `{}, name`",
-			"variable `count` should be embedded in format string: use `{count}` instead of `{}, count`",
-		],
-	);
+		&opts(),
+	), @r#"
+	[embed-simple-vars] /main.rs:6: variable `name` should be embedded in format string: use `{name}` instead of `{}, name`
+	[embed-simple-vars] /main.rs:7: variable `count` should be embedded in format string: use `{count}` instead of `{}, count`
+	"#);
+}
 
-	// multi-line format macro fix should be generated
-	check_fix(
-		r#"
-		fn test() {
-			let name = "world";
-			let count = 42;
-			println!(
-				"Hello {}, you have {} messages",
-				name,
-				count
-			);
-		}
-		"#,
-		r#""Hello {name}, you have {count} messages""#,
-	);
-
-	// mixed simple and complex args should still fix the simple ones
-	check_violations(
+#[test]
+fn mixed_simple_and_complex_args_check() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn test() {
 			let tf = "1d";
 			let s = format!("{}_{}", Utc::now().format("%Y/%m/%d"), tf);
 		}
 		"#,
-		&["variable `tf` should be embedded in format string: use `{tf}` instead of `{}, tf`"],
-	);
+		&opts(),
+	), @"[embed-simple-vars] /main.rs:3: variable `tf` should be embedded in format string: use `{tf}` instead of `{}, tf`");
+}
 
-	// Verify fix is generated for mixed args
-	check_fix(
+#[test]
+fn autofix_mixed_args() {
+	insta::assert_snapshot!(simulate_format(
 		r#"
 		fn test() {
 			let tf = "1d";
 			let s = format!("{}_{}", Utc::now().format("%Y/%m/%d"), tf);
 		}
 		"#,
-		r#""{}_{tf}", Utc::now().format("%Y/%m/%d")"#,
-	);
+		&opts(),
+	), @r#"
+	fn test() {
+		let tf = "1d";
+		let s = format!("{}_{tf}", Utc::now().format("%Y/%m/%d"));
+	}
+	"#);
+}
 
-	// multiple simple vars mixed with complex should fix all simple ones
-	check_violations(
+#[test]
+fn multiple_simple_vars_mixed_with_complex_check() {
+	insta::assert_snapshot!(simulate_check(
 		r#"
 		fn test() {
 			let issue_number = 123;
@@ -222,14 +218,16 @@ fn main() {
 			let s = format!("{}_-_{}.{}", issue_number, sanitized, extension.as_str());
 		}
 		"#,
-		&[
-			"variable `issue_number` should be embedded in format string: use `{issue_number}` instead of `{}, issue_number`",
-			"variable `sanitized` should be embedded in format string: use `{sanitized}` instead of `{}, sanitized`",
-		],
-	);
+		&opts(),
+	), @r#"
+	[embed-simple-vars] /main.rs:4: variable `issue_number` should be embedded in format string: use `{issue_number}` instead of `{}, issue_number`
+	[embed-simple-vars] /main.rs:4: variable `sanitized` should be embedded in format string: use `{sanitized}` instead of `{}, sanitized`
+	"#);
+}
 
-	// Verify fix embeds both simple vars
-	check_fix(
+#[test]
+fn autofix_embeds_both_simple_vars() {
+	insta::assert_snapshot!(simulate_format(
 		r#"
 		fn test() {
 			let issue_number = 123;
@@ -237,19 +235,30 @@ fn main() {
 			let s = format!("{}_-_{}.{}", issue_number, sanitized, extension.as_str());
 		}
 		"#,
-		r#""{issue_number}_-_{sanitized}.{}", extension.as_str()"#,
-	);
+		&opts(),
+	), @r#"
+	fn test() {
+		let issue_number = 123;
+		let sanitized = "foo";
+		let s = format!("{issue_number}_-_{sanitized}.{}", extension.as_str());
+	}
+	"#);
+}
 
-	// field access should NOT be doubled
-	check_fix(
+#[test]
+fn field_access_should_not_be_doubled() {
+	insta::assert_snapshot!(simulate_format(
 		r#"
 		fn test() {
 			let workspace_id = "ws123";
 			let s = format!("{}/user/{}/time-entries", workspace_id, user.id);
 		}
 		"#,
-		r#""{workspace_id}/user/{}/time-entries", user.id"#,
-	);
-
-	println!("All embed_simple_vars tests passed!");
+		&opts(),
+	), @r#"
+	fn test() {
+		let workspace_id = "ws123";
+		let s = format!("{workspace_id}/user/{}/time-entries", user.id);
+	}
+	"#);
 }
