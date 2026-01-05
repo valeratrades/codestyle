@@ -46,7 +46,10 @@
 //! "#, &opts), @"...");
 //! ```
 
-use std::{fs, path::PathBuf};
+use std::{
+	fs,
+	path::{Path, PathBuf},
+};
 
 use crate::rust_checks::{self, RustCheckOptions, Violation};
 
@@ -349,7 +352,7 @@ pub fn simulate_format(fixture_str: &str, opts: &RustCheckOptions) -> String {
 }
 
 /// Collect all violations from a directory using the given options.
-fn collect_violations(root: &PathBuf, opts: &RustCheckOptions, is_format_mode: bool) -> Vec<Violation> {
+fn collect_violations(root: &Path, opts: &RustCheckOptions, is_format_mode: bool) -> Vec<Violation> {
 	use crate::rust_checks::{embed_simple_vars, impl_follows_type, insta_snapshots, instrument, join_split_impls, loops, no_chrono, no_tokio_spawn};
 
 	let file_infos = rust_checks::collect_rust_files(root);

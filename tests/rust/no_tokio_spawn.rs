@@ -7,24 +7,22 @@ fn opts() -> codestyle::rust_checks::RustCheckOptions {
 }
 
 #[test]
-fn all_spawn_variants_are_violations() {
+fn spawn_variants_are_violations() {
 	insta::assert_snapshot!(simulate_check(
 		r#"
 		async fn main() {
 			tokio::spawn(async { println!("1"); });
-			tokio::spawn_blocking(|| { println!("2"); });
-			tokio::task::spawn(async { println!("3"); });
-			tokio::task::spawn_blocking(|| { println!("4"); });
-			tokio::spawn_local(async { println!("5"); });
+			tokio::task::spawn(async { println!("2"); });
+			tokio::spawn_local(async { println!("3"); });
+			tokio::task::spawn_local(async { println!("4"); });
 		}
 		"#,
 		&opts(),
 	), @r#"
 	[no-tokio-spawn] /main.rs:2: Usage of `tokio::spawn` is disallowed. Unstructured concurrency makes code harder to reason about. See: https://vorpus.org/blog/notes-on-structured-concurrency-or-go-statement-considered-harmful/
-	[no-tokio-spawn] /main.rs:3: Usage of `tokio::spawn_blocking` is disallowed. Unstructured concurrency makes code harder to reason about. See: https://vorpus.org/blog/notes-on-structured-concurrency-or-go-statement-considered-harmful/
-	[no-tokio-spawn] /main.rs:4: Usage of `tokio::task::spawn` is disallowed. Unstructured concurrency makes code harder to reason about. See: https://vorpus.org/blog/notes-on-structured-concurrency-or-go-statement-considered-harmful/
-	[no-tokio-spawn] /main.rs:5: Usage of `tokio::task::spawn_blocking` is disallowed. Unstructured concurrency makes code harder to reason about. See: https://vorpus.org/blog/notes-on-structured-concurrency-or-go-statement-considered-harmful/
-	[no-tokio-spawn] /main.rs:6: Usage of `tokio::spawn_local` is disallowed. Unstructured concurrency makes code harder to reason about. See: https://vorpus.org/blog/notes-on-structured-concurrency-or-go-statement-considered-harmful/
+	[no-tokio-spawn] /main.rs:3: Usage of `tokio::task::spawn` is disallowed. Unstructured concurrency makes code harder to reason about. See: https://vorpus.org/blog/notes-on-structured-concurrency-or-go-statement-considered-harmful/
+	[no-tokio-spawn] /main.rs:4: Usage of `tokio::spawn_local` is disallowed. Unstructured concurrency makes code harder to reason about. See: https://vorpus.org/blog/notes-on-structured-concurrency-or-go-statement-considered-harmful/
+	[no-tokio-spawn] /main.rs:5: Usage of `tokio::task::spawn_local` is disallowed. Unstructured concurrency makes code harder to reason about. See: https://vorpus.org/blog/notes-on-structured-concurrency-or-go-statement-considered-harmful/
 	"#);
 }
 
@@ -43,6 +41,19 @@ fn nested_spawn_detected() {
 	[no-tokio-spawn] /main.rs:2: Usage of `tokio::spawn` is disallowed. Unstructured concurrency makes code harder to reason about. See: https://vorpus.org/blog/notes-on-structured-concurrency-or-go-statement-considered-harmful/
 	[no-tokio-spawn] /main.rs:3: Usage of `tokio::spawn` is disallowed. Unstructured concurrency makes code harder to reason about. See: https://vorpus.org/blog/notes-on-structured-concurrency-or-go-statement-considered-harmful/
 	"#);
+}
+
+#[test]
+fn spawn_blocking_is_allowed() {
+	assert_check_passing(
+		r#"
+		async fn main() {
+			tokio::spawn_blocking(|| { println!("blocking"); });
+			tokio::task::spawn_blocking(|| { println!("also blocking"); });
+		}
+		"#,
+		&opts(),
+	);
 }
 
 #[test]

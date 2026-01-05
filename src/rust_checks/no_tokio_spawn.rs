@@ -52,19 +52,13 @@ impl<'a> TokioSpawnVisitor<'a> {
 		let segments: Vec<_> = path.segments.iter().map(|s| s.ident.to_string()).collect();
 		let segments_str: Vec<&str> = segments.iter().map(|s| s.as_str()).collect();
 
+		// Note: spawn_blocking is allowed - it runs sync code on a blocking thread pool
+		// and doesn't create unstructured concurrent tasks
 		match segments_str.as_slice() {
 			["tokio", "spawn"] => Some("tokio::spawn"),
-			["tokio", "spawn_blocking"] => Some("tokio::spawn_blocking"),
 			["tokio", "spawn_local"] => Some("tokio::spawn_local"),
 			["tokio", "task", "spawn"] => Some("tokio::task::spawn"),
-			["tokio", "task", "spawn_blocking"] => Some("tokio::task::spawn_blocking"),
 			["tokio", "task", "spawn_local"] => Some("tokio::task::spawn_local"),
-			// Handle when tokio is imported and spawn is called directly
-			["spawn"] | ["spawn_blocking"] | ["spawn_local"] => {
-				// We can't definitively know if this is tokio::spawn without type information,
-				// but we'll be conservative and not flag bare `spawn` calls
-				None
-			}
 			_ => None,
 		}
 	}
