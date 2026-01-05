@@ -1,4 +1,4 @@
-use codestyle::rust_checks::{self, Violation, insta_snapshots};
+use codestyle::rust_checks::{self, RustCheckOptions, Violation, insta_snapshots, run_assert};
 
 fn check_code(code: &str, is_format_mode: bool) -> Vec<Violation> {
 	let temp_dir = std::env::temp_dir().join("codestyle_test_insta_snapshots");
@@ -162,6 +162,33 @@ fn test() {
 	`assert_snapshot!` must use inline snapshot with `@r""` or `@""`
 	`assert_debug_snapshot!` must use inline snapshot with `@r""` or `@""`
 	"###);
+
+	// Test: run_assert scans tests/ directory (not just src/)
+	// This is a regression test for when tests/ directory was not being scanned
+	{
+		let temp_dir = std::env::temp_dir().join("codestyle_test_insta_tests_dir");
+		std::fs::create_dir_all(temp_dir.join("tests")).unwrap();
+		std::fs::write(temp_dir.join("Cargo.toml"), "[package]\nname = \"test\"\nversion = \"0.1.0\"\n").unwrap();
+		std::fs::write(
+			temp_dir.join("tests/test.rs"),
+			r#"
+fn test() {
+    insta::assert_snapshot!(output);
+}
+"#,
+		)
+		.unwrap();
+
+		// Should return exit code 1 due to violation in tests/
+		let opts = RustCheckOptions {
+			insta_inline_snapshot: true,
+			..Default::default()
+		};
+		let exit_code = run_assert(&temp_dir, &opts);
+		assert_eq!(exit_code, 1, "Should detect violations in tests/ directory");
+
+		std::fs::remove_dir_all(&temp_dir).ok();
+	}
 
 	println!("All insta_snapshots tests passed!");
 }

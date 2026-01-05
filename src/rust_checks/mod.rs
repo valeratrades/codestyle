@@ -196,7 +196,7 @@ fn find_src_dirs(root: &Path) -> Vec<PathBuf> {
 
 	let content = match fs::read_to_string(&cargo_toml) {
 		Ok(c) => c,
-		Err(_) => return vec![root.join("src")],
+		Err(_) => return collect_standard_dirs(root),
 	};
 
 	let mut in_workspace = false;
@@ -224,20 +224,21 @@ fn find_src_dirs(root: &Path) -> Vec<PathBuf> {
 	}
 
 	if members.is_empty() {
-		let src = root.join("src");
-		if src.exists() {
-			return vec![src];
-		}
-		return vec![];
+		return collect_standard_dirs(root);
 	}
 
-	members
-		.into_iter()
-		.filter_map(|m| {
-			let src = root.join(&m).join("src");
-			if src.exists() { Some(src) } else { None }
-		})
-		.collect()
+	let mut dirs = Vec::new();
+	for m in members {
+		let member_root = root.join(&m);
+		dirs.extend(collect_standard_dirs(&member_root));
+	}
+	dirs
+}
+
+/// Collect standard Rust directories: src/, tests/, examples/, benches/
+fn collect_standard_dirs(root: &Path) -> Vec<PathBuf> {
+	let standard_dirs = ["src", "tests", "examples", "benches"];
+	standard_dirs.iter().map(|d| root.join(d)).filter(|p| p.exists()).collect()
 }
 
 pub fn collect_rust_files(target_dir: &Path) -> Vec<FileInfo> {
