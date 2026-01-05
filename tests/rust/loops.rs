@@ -1,6 +1,4 @@
-use codestyle::test_fixture::{assert_check_passing, simulate_check};
-
-use crate::utils::opts_for;
+use crate::utils::{assert_check_passing, opts_for, simulate_check};
 
 fn opts() -> codestyle::rust_checks::RustCheckOptions {
 	opts_for("loops")
