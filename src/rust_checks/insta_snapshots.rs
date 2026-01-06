@@ -1,7 +1,7 @@
 use std::{collections::HashSet, path::Path};
 
 use proc_macro2::{Span, TokenTree};
-use syn::{ExprMacro, Macro, spanned::Spanned, visit::Visit};
+use syn::{ExprMacro, ItemFn, Macro, spanned::Spanned, visit::Visit};
 
 use super::{Fix, Violation};
 
@@ -21,6 +21,12 @@ const INSTA_SNAPSHOT_MACROS: &[&str] = &[
 pub fn check(path: &Path, content: &str, file: &syn::File, is_format_mode: bool) -> Vec<Violation> {
 	let mut visitor = InstaSnapshotVisitor::new(path, content, is_format_mode);
 	visitor.visit_file(file);
+
+	// Check for sequential snapshots in functions
+	let mut seq_visitor = SequentialSnapshotVisitor::new(path);
+	seq_visitor.visit_file(file);
+	visitor.violations.extend(seq_visitor.violations);
+
 	visitor.violations
 }
 
@@ -189,4 +195,88 @@ fn find_closing_paren_before(content: &str, max_pos: usize) -> Option<usize> {
 		}
 	}
 	None
+}
+
+/// Visitor that detects sequential snapshot assertions within the same function
+struct SequentialSnapshotVisitor {
+	path_str: String,
+	violations: Vec<Violation>,
+}
+
+impl SequentialSnapshotVisitor {
+	fn new(path: &Path) -> Self {
+		Self {
+			path_str: path.display().to_string(),
+			violations: Vec::new(),
+		}
+	}
+
+	fn is_insta_snapshot_macro(mac: &Macro) -> bool {
+		let macro_name = mac.path.segments.last().map(|s| s.ident.to_string()).unwrap_or_default();
+
+		if !INSTA_SNAPSHOT_MACROS.contains(&macro_name.as_str()) {
+			return false;
+		}
+
+		// Check if this is insta:: prefixed or just the macro name
+		mac.path.segments.len() == 1 || (mac.path.segments.len() == 2 && mac.path.segments.first().map(|s| s.ident.to_string()).as_deref() == Some("insta"))
+	}
+
+	fn check_function_for_sequential_snapshots(&mut self, func: &ItemFn) {
+		// Collect all snapshot macros in the function
+		let mut collector = SnapshotCollector::default();
+		collector.visit_block(&func.block);
+
+		if collector.snapshots.len() > 1 {
+			// Report violation on each snapshot after the first
+			let first_line = collector.snapshots[0].0;
+			for (line, column) in collector.snapshots.into_iter().skip(1) {
+				self.violations.push(Violation {
+					rule: "insta-sequential-snapshots",
+					file: self.path_str.clone(),
+					line,
+					column,
+					message: format!(
+						"multiple snapshot assertions in one test (first at line {first_line}); \
+						join tested strings together or split into separate tests"
+					),
+					fix: None,
+				});
+			}
+		}
+	}
+}
+
+impl<'a> Visit<'a> for SequentialSnapshotVisitor {
+	fn visit_item_fn(&mut self, node: &'a ItemFn) {
+		self.check_function_for_sequential_snapshots(node);
+		syn::visit::visit_item_fn(self, node);
+	}
+}
+
+/// Collects all insta snapshot macro positions within a block (recursively)
+#[derive(Default)]
+struct SnapshotCollector {
+	snapshots: Vec<(usize, usize)>, // (line, column)
+}
+
+impl<'a> Visit<'a> for SnapshotCollector {
+	fn visit_expr_macro(&mut self, node: &'a ExprMacro) {
+		if SequentialSnapshotVisitor::is_insta_snapshot_macro(&node.mac) {
+			let span = node.mac.span();
+			self.snapshots.push((span.start().line, span.start().column));
+		}
+		syn::visit::visit_expr_macro(self, node);
+	}
+
+	fn visit_macro(&mut self, node: &'a Macro) {
+		if SequentialSnapshotVisitor::is_insta_snapshot_macro(node) {
+			let span = node.span();
+			self.snapshots.push((span.start().line, span.start().column));
+		}
+		syn::visit::visit_macro(self, node);
+	}
+
+	// Don't descend into nested functions - they have their own scope
+	fn visit_item_fn(&mut self, _node: &'a ItemFn) {}
 }

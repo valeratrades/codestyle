@@ -135,6 +135,8 @@ fn multiple_snapshots_in_one_file() {
 	), @r#"
 	[insta-inline-snapshot] /main.rs:2: `assert_snapshot!` must use inline snapshot with `@r""` or `@""`
 	[insta-inline-snapshot] /main.rs:4: `assert_debug_snapshot!` must use inline snapshot with `@r""` or `@""`
+	[insta-sequential-snapshots] /main.rs:3: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests
+	[insta-sequential-snapshots] /main.rs:4: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests
 	"#);
 }
 
@@ -274,4 +276,91 @@ fn format_deletes_pending_snap_files() {
 	//- /src/lib.rs
 	fn foo() {}
 	"#);
+}
+
+// Sequential snapshot tests
+
+#[test]
+fn sequential_snapshots_is_violation() {
+	insta::assert_snapshot!(simulate_check(
+		r#"
+		fn test() {
+			insta::assert_snapshot!(a, @"");
+			insta::assert_snapshot!(b, @"");
+		}
+		"#,
+		&opts(),
+	), @"[insta-sequential-snapshots] /main.rs:3: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests");
+}
+
+#[test]
+fn sequential_snapshots_different_variants_is_violation() {
+	insta::assert_snapshot!(simulate_check(
+		r#"
+		fn test() {
+			insta::assert_snapshot!(a, @"");
+			insta::assert_debug_snapshot!(b, @"");
+		}
+		"#,
+		&opts(),
+	), @"[insta-sequential-snapshots] /main.rs:3: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests");
+}
+
+#[test]
+fn sequential_snapshots_three_in_a_row() {
+	insta::assert_snapshot!(simulate_check(
+		r#"
+		fn test() {
+			insta::assert_snapshot!(a, @"");
+			insta::assert_snapshot!(b, @"");
+			insta::assert_snapshot!(c, @"");
+		}
+		"#,
+		&opts(),
+	), @"
+	[insta-sequential-snapshots] /main.rs:3: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests
+	[insta-sequential-snapshots] /main.rs:4: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests
+	");
+}
+
+#[test]
+fn snapshots_separated_by_statement_is_violation() {
+	insta::assert_snapshot!(simulate_check(
+		r#"
+		fn test() {
+			insta::assert_snapshot!(a, @"");
+			let x = compute();
+			insta::assert_snapshot!(b, @"");
+		}
+		"#,
+		&opts(),
+	), @"[insta-sequential-snapshots] /main.rs:4: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests");
+}
+
+#[test]
+fn single_snapshot_passes() {
+	assert_check_passing(
+		r#"
+		fn test() {
+			let output = "hello";
+			insta::assert_snapshot!(output, @"hello");
+		}
+		"#,
+		&opts(),
+	);
+}
+
+#[test]
+fn snapshots_in_different_functions_passes() {
+	assert_check_passing(
+		r#"
+		fn test_a() {
+			insta::assert_snapshot!(a, @"");
+		}
+		fn test_b() {
+			insta::assert_snapshot!(b, @"");
+		}
+		"#,
+		&opts(),
+	);
 }
