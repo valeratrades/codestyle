@@ -121,9 +121,9 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 }
 
 /// Creates a fix that relocates an impl block to immediately follow its type definition.
-/// We do this by replacing the impl block with empty string and inserting it after the type.
-/// Since we can only return one Fix, we handle this by replacing a region that spans
-/// from the type def end to the impl block end, with just the type def end + impl block.
+/// Only provides a fix when there's just blank lines between type def and impl block.
+/// When there's other code between them, returns None (requires manual fix) to avoid
+/// creating overlapping fixes that corrupt the file.
 fn create_relocation_fix(content: &str, type_def: &TypeDef, impl_block: &ImplBlock) -> Option<Fix> {
 	// Find the start of the impl block including any leading whitespace/newlines on that line
 	let impl_line_start = find_line_start(content, impl_block.start_byte);
@@ -135,36 +135,24 @@ fn create_relocation_fix(content: &str, type_def: &TypeDef, impl_block: &ImplBlo
 	// We want to find the newline after type_def.end_byte
 	let insert_pos = find_line_end(content, type_def.end_byte);
 
-	// The replacement strategy: we replace from insert_pos to impl_block.end_byte
-	// with just a newline + impl block text
-	// This effectively: removes the impl from old location, inserts at new location
+	// Check what's between type def and impl block
 	let between_text = &content[insert_pos..impl_line_start];
 
-	// Build replacement: newline + impl block (we're removing the "between" part)
-	// Keep one newline between type def and impl, and the impl block itself
+	// Only auto-fix if there's just blank lines between type def and impl block.
+	// If there's other code, don't auto-fix to avoid creating overlapping fixes
+	// that can corrupt the file when multiple impls need fixing.
+	if !between_text.trim().is_empty() {
+		return None;
+	}
+
+	// Build replacement: newline + impl block (we're removing the extra blank lines)
 	let replacement = format!("\n{}", impl_text.trim_start_matches('\n'));
 
-	// Only fix if there's actually something between (impl is truly far away)
-	if between_text.trim().is_empty() {
-		// It's just extra blank lines, remove them
-		Some(Fix {
-			start_byte: insert_pos,
-			end_byte: impl_block.end_byte,
-			replacement,
-		})
-	} else {
-		// There's other code between type def and impl block
-		// We need to preserve that code
-		// Strategy: replace the region from insert_pos to impl_block.end_byte
-		// with: newline + impl_text + blank line + between_text (reordered)
-		let between_trimmed = between_text.trim_matches('\n');
-		let replacement = format!("\n{}\n\n{between_trimmed}", impl_text.trim_start_matches('\n'));
-		Some(Fix {
-			start_byte: insert_pos,
-			end_byte: impl_block.end_byte,
-			replacement,
-		})
-	}
+	Some(Fix {
+		start_byte: insert_pos,
+		end_byte: impl_block.end_byte,
+		replacement,
+	})
 }
 
 /// Convert a line/column position to byte offset in content.

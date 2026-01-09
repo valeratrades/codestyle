@@ -337,12 +337,21 @@ fn apply_fixes(violations: &[Violation]) -> (usize, usize) {
 			}
 		}
 
-		// Sort fixes by start position (descending) to apply from end to beginning
-		unique_fixes.sort_by(|a, b| b.start_byte.cmp(&a.start_byte));
+		// Sort fixes by start position (ascending) first for overlap detection
+		unique_fixes.sort_by(|a, b| a.start_byte.cmp(&b.start_byte));
+
+		// Filter out overlapping fixes - only keep non-overlapping ones
+		let non_overlapping = filter_non_overlapping(&unique_fixes);
+		let skipped_due_to_overlap = unique_fixes.len() - non_overlapping.len();
+		unfixable_count += skipped_due_to_overlap;
+
+		// Now sort by start position (descending) to apply from end to beginning
+		let mut non_overlapping = non_overlapping;
+		non_overlapping.sort_by(|a, b| b.start_byte.cmp(&a.start_byte));
 
 		let mut new_content = content.clone();
 
-		for fix in unique_fixes {
+		for fix in non_overlapping {
 			if fix.start_byte <= new_content.len() && fix.end_byte <= new_content.len() {
 				new_content.replace_range(fix.start_byte..fix.end_byte, &fix.replacement);
 				fixed_count += 1;
@@ -363,6 +372,28 @@ fn apply_fixes(violations: &[Violation]) -> (usize, usize) {
 	}
 
 	(fixed_count, unfixable_count)
+}
+
+/// Filter out overlapping fixes, keeping only non-overlapping ones.
+/// Input must be sorted by start_byte ascending.
+/// When overlaps are detected, we keep the earlier (smaller start_byte) fix.
+fn filter_non_overlapping<'a>(fixes: &[&'a Fix]) -> Vec<&'a Fix> {
+	let mut result = Vec::new();
+	let mut last_end: Option<usize> = None;
+
+	for fix in fixes {
+		if let Some(end) = last_end {
+			// Check if this fix overlaps with the previous one
+			if fix.start_byte < end {
+				// Overlap detected - skip this fix
+				continue;
+			}
+		}
+		result.push(*fix);
+		last_end = Some(fix.end_byte);
+	}
+
+	result
 }
 
 fn delete_snap_files(target_dir: &Path) {
