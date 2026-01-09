@@ -8,7 +8,6 @@ pub mod no_chrono;
 pub mod no_tokio_spawn;
 
 use std::{
-	collections::HashMap,
 	fs,
 	path::{Path, PathBuf},
 };
@@ -141,68 +140,168 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 		return 1;
 	}
 
-	let mut all_violations = Vec::new();
-
-	for src_dir in src_dirs {
-		let file_infos = collect_rust_files(&src_dir);
-		for info in &file_infos {
-			if opts.instrument {
-				all_violations.extend(instrument::check_instrument(info));
-			}
-			if opts.loops {
-				all_violations.extend(loops::check_loops(info));
-			}
-			if let Some(ref tree) = info.syntax_tree {
-				// join_split_impls should run before impl_follows_type
-				if opts.join_split_impls {
-					all_violations.extend(join_split_impls::check(&info.path, &info.contents, tree));
-				}
-				if opts.impl_follows_type {
-					all_violations.extend(impl_follows_type::check(&info.path, &info.contents, tree));
-				}
-				if opts.embed_simple_vars {
-					all_violations.extend(embed_simple_vars::check(&info.path, &info.contents, tree));
-				}
-				if opts.insta_inline_snapshot {
-					all_violations.extend(insta_snapshots::check(&info.path, &info.contents, tree, true));
-				}
-				if opts.no_chrono {
-					all_violations.extend(no_chrono::check(&info.path, &info.contents, tree));
-				}
-				if opts.no_tokio_spawn {
-					all_violations.extend(no_tokio_spawn::check(&info.path, &info.contents, tree));
-				}
-			}
-		}
-	}
-
 	// Delete any .snap and .pending-snap files in the target directory (only if insta check is enabled)
 	if opts.insta_inline_snapshot {
 		delete_snap_files(target_dir);
 	}
 
-	if all_violations.is_empty() {
+	let mut fixed_count = 0;
+	let mut unfixable_violations = Vec::new();
+
+	// Process files iteratively - when a fix is applied, re-check that file
+	for src_dir in src_dirs {
+		let file_paths: Vec<PathBuf> = collect_rust_files(&src_dir).into_iter().map(|f| f.path).collect();
+
+		for file_path in file_paths {
+			let (file_fixed, file_unfixable) = format_file_iteratively(&file_path, opts);
+			fixed_count += file_fixed;
+			unfixable_violations.extend(file_unfixable);
+		}
+	}
+
+	if fixed_count == 0 && unfixable_violations.is_empty() {
 		println!("codestyle: all checks passed, nothing to format");
 		0
 	} else {
-		let (fixed, unfixable) = apply_fixes(&all_violations);
-
-		if fixed > 0 {
-			println!("codestyle: fixed {fixed} violation(s)");
+		if fixed_count > 0 {
+			println!("codestyle: fixed {fixed_count} violation(s)");
 		}
 
-		if unfixable > 0 {
-			eprintln!("codestyle: {unfixable} violation(s) need manual fixing:\n");
-			for v in &all_violations {
-				if v.fix.is_none() {
-					eprintln!("  [{}] {}:{}:{}: {}", v.rule, v.file, v.line, v.column, v.message);
-				}
+		if !unfixable_violations.is_empty() {
+			eprintln!("codestyle: {} violation(s) need manual fixing:\n", unfixable_violations.len());
+			for v in &unfixable_violations {
+				eprintln!("  [{}] {}:{}:{}: {}", v.rule, v.file, v.line, v.column, v.message);
 			}
 			1
 		} else {
 			0
 		}
 	}
+}
+
+/// Format a single file iteratively - apply one fix at a time, re-parse, repeat
+fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize, Vec<Violation>) {
+	let mut fixed_count = 0;
+	let mut unfixable = Vec::new();
+
+	loop {
+		// Parse the file fresh
+		let Some(info) = parse_rust_file(file_path.to_path_buf()) else {
+			break;
+		};
+
+		// Find the first fixable violation
+		let mut first_fix: Option<(Violation, Fix)> = None;
+
+		if opts.instrument {
+			for v in instrument::check_instrument(&info) {
+				if let Some(fix) = v.fix.clone() {
+					first_fix = Some((v, fix));
+					break;
+				} else {
+					unfixable.push(v);
+				}
+			}
+		}
+
+		if first_fix.is_none() && opts.loops {
+			for v in loops::check_loops(&info) {
+				if let Some(fix) = v.fix.clone() {
+					first_fix = Some((v, fix));
+					break;
+				} else {
+					unfixable.push(v);
+				}
+			}
+		}
+
+		if let Some(ref tree) = info.syntax_tree {
+			if first_fix.is_none() && opts.join_split_impls {
+				for v in join_split_impls::check(&info.path, &info.contents, tree) {
+					if let Some(fix) = v.fix.clone() {
+						first_fix = Some((v, fix));
+						break;
+					} else {
+						unfixable.push(v);
+					}
+				}
+			}
+
+			if first_fix.is_none() && opts.impl_follows_type {
+				for v in impl_follows_type::check(&info.path, &info.contents, tree) {
+					if let Some(fix) = v.fix.clone() {
+						first_fix = Some((v, fix));
+						break;
+					} else {
+						unfixable.push(v);
+					}
+				}
+			}
+
+			if first_fix.is_none() && opts.embed_simple_vars {
+				for v in embed_simple_vars::check(&info.path, &info.contents, tree) {
+					if let Some(fix) = v.fix.clone() {
+						first_fix = Some((v, fix));
+						break;
+					} else {
+						unfixable.push(v);
+					}
+				}
+			}
+
+			if first_fix.is_none() && opts.insta_inline_snapshot {
+				for v in insta_snapshots::check(&info.path, &info.contents, tree, true) {
+					if let Some(fix) = v.fix.clone() {
+						first_fix = Some((v, fix));
+						break;
+					} else {
+						unfixable.push(v);
+					}
+				}
+			}
+
+			if first_fix.is_none() && opts.no_chrono {
+				for v in no_chrono::check(&info.path, &info.contents, tree) {
+					if let Some(fix) = v.fix.clone() {
+						first_fix = Some((v, fix));
+						break;
+					} else {
+						unfixable.push(v);
+					}
+				}
+			}
+
+			if first_fix.is_none() && opts.no_tokio_spawn {
+				for v in no_tokio_spawn::check(&info.path, &info.contents, tree) {
+					if let Some(fix) = v.fix.clone() {
+						first_fix = Some((v, fix));
+						break;
+					} else {
+						unfixable.push(v);
+					}
+				}
+			}
+		}
+
+		// Apply the fix if found
+		let Some((_violation, fix)) = first_fix else {
+			break;
+		};
+
+		if fix.start_byte <= info.contents.len() && fix.end_byte <= info.contents.len() {
+			let mut new_content = info.contents.clone();
+			new_content.replace_range(fix.start_byte..fix.end_byte, &fix.replacement);
+			if fs::write(file_path, new_content).is_ok() {
+				fixed_count += 1;
+				// Loop again to find more violations in the modified file
+				continue;
+			}
+		}
+
+		break;
+	}
+
+	(fixed_count, unfixable)
 }
 
 fn find_src_dirs(root: &Path) -> Vec<PathBuf> {
@@ -302,98 +401,6 @@ fn parse_rust_file(path: PathBuf) -> Option<FileInfo> {
 		fn_items,
 		path,
 	})
-}
-
-fn apply_fixes(violations: &[Violation]) -> (usize, usize) {
-	let mut fixes_by_file: HashMap<String, Vec<&Fix>> = HashMap::new();
-
-	for v in violations {
-		if let Some(ref fix) = v.fix {
-			fixes_by_file.entry(v.file.clone()).or_default().push(fix);
-		}
-	}
-
-	let mut fixed_count = 0;
-	let mut unfixable_count = 0;
-
-	for (file_path, fixes) in fixes_by_file {
-		let content = match fs::read_to_string(&file_path) {
-			Ok(c) => c,
-			Err(e) => {
-				eprintln!("Warning: Failed to read {file_path} for fixing: {e}");
-				unfixable_count += fixes.len();
-				continue;
-			}
-		};
-
-		// Deduplicate fixes by (start_byte, end_byte)
-		let mut seen_positions = std::collections::HashSet::new();
-		let mut unique_fixes: Vec<&Fix> = Vec::new();
-		for fix in fixes {
-			let key = (fix.start_byte, fix.end_byte);
-			if !seen_positions.contains(&key) {
-				seen_positions.insert(key);
-				unique_fixes.push(fix);
-			}
-		}
-
-		// Sort fixes by start position (ascending) first for overlap detection
-		unique_fixes.sort_by(|a, b| a.start_byte.cmp(&b.start_byte));
-
-		// Filter out overlapping fixes - only keep non-overlapping ones
-		let non_overlapping = filter_non_overlapping(&unique_fixes);
-		let skipped_due_to_overlap = unique_fixes.len() - non_overlapping.len();
-		unfixable_count += skipped_due_to_overlap;
-
-		// Now sort by start position (descending) to apply from end to beginning
-		let mut non_overlapping = non_overlapping;
-		non_overlapping.sort_by(|a, b| b.start_byte.cmp(&a.start_byte));
-
-		let mut new_content = content.clone();
-
-		for fix in non_overlapping {
-			if fix.start_byte <= new_content.len() && fix.end_byte <= new_content.len() {
-				new_content.replace_range(fix.start_byte..fix.end_byte, &fix.replacement);
-				fixed_count += 1;
-			} else {
-				unfixable_count += 1;
-			}
-		}
-
-		if let Err(e) = fs::write(&file_path, new_content) {
-			eprintln!("Warning: Failed to write {file_path}: {e}");
-		}
-	}
-
-	for v in violations {
-		if v.fix.is_none() {
-			unfixable_count += 1;
-		}
-	}
-
-	(fixed_count, unfixable_count)
-}
-
-/// Filter out overlapping fixes, keeping only non-overlapping ones.
-/// Input must be sorted by start_byte ascending.
-/// When overlaps are detected, we keep the earlier (smaller start_byte) fix.
-fn filter_non_overlapping<'a>(fixes: &[&'a Fix]) -> Vec<&'a Fix> {
-	let mut result = Vec::new();
-	let mut last_end: Option<usize> = None;
-
-	for fix in fixes {
-		if let Some(end) = last_end {
-			// Check if this fix overlaps with the previous one
-			if fix.start_byte < end {
-				// Overlap detected - skip this fix
-				continue;
-			}
-		}
-		result.push(*fix);
-		last_end = Some(fix.end_byte);
-	}
-
-	result
 }
 
 fn delete_snap_files(target_dir: &Path) {

@@ -121,9 +121,9 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 }
 
 /// Creates a fix that relocates an impl block to immediately follow its type definition.
-/// Only provides a fix when there's just blank lines between type def and impl block.
-/// When there's other code between them, returns None (requires manual fix) to avoid
-/// creating overlapping fixes that corrupt the file.
+/// The fix replaces the region from type_def end to impl_block end with:
+/// - The impl block text (moved to right after type def)
+/// - Followed by any code that was between them
 fn create_relocation_fix(content: &str, type_def: &TypeDef, impl_block: &ImplBlock) -> Option<Fix> {
 	// Find the start of the impl block including any leading whitespace/newlines on that line
 	let impl_line_start = find_line_start(content, impl_block.start_byte);
@@ -138,21 +138,25 @@ fn create_relocation_fix(content: &str, type_def: &TypeDef, impl_block: &ImplBlo
 	// Check what's between type def and impl block
 	let between_text = &content[insert_pos..impl_line_start];
 
-	// Only auto-fix if there's just blank lines between type def and impl block.
-	// If there's other code, don't auto-fix to avoid creating overlapping fixes
-	// that can corrupt the file when multiple impls need fixing.
-	if !between_text.trim().is_empty() {
-		return None;
+	if between_text.trim().is_empty() {
+		// Just blank lines - simple case, remove the extra blank lines
+		let replacement = format!("\n{}", impl_text.trim_start_matches('\n'));
+		Some(Fix {
+			start_byte: insert_pos,
+			end_byte: impl_block.end_byte,
+			replacement,
+		})
+	} else {
+		// There's other code between type def and impl block.
+		// Reorder: impl block first, then the between code
+		let between_trimmed = between_text.trim();
+		let replacement = format!("\n{}\n\n{between_trimmed}", impl_text.trim_start_matches('\n'));
+		Some(Fix {
+			start_byte: insert_pos,
+			end_byte: impl_block.end_byte,
+			replacement,
+		})
 	}
-
-	// Build replacement: newline + impl block (we're removing the extra blank lines)
-	let replacement = format!("\n{}", impl_text.trim_start_matches('\n'));
-
-	Some(Fix {
-		start_byte: insert_pos,
-		end_byte: impl_block.end_byte,
-		replacement,
-	})
 }
 
 /// Convert a line/column position to byte offset in content.
