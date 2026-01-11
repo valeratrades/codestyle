@@ -6,7 +6,8 @@ use syn::{ExprMacro, Macro, spanned::Spanned, visit::Visit};
 use super::{Fix, Violation};
 
 const FORMAT_MACROS: &[&str] = &[
-	"format", "write", "writeln", "print", "println", "eprint", "eprintln", "panic", "format_args", "log", "trace", "debug", "info", "warn", "error",
+	"format", "write", "writeln", "print", "println", "eprint", "eprintln", "panic", "format_args", "log", "trace", "debug", "info", "warn", "error", "assert", "assert_eq", "assert_ne",
+	"debug_assert", "debug_assert_eq", "debug_assert_ne",
 ];
 
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {

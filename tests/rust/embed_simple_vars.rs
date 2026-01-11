@@ -252,3 +252,22 @@ fn field_access_should_not_be_doubled() {
 	}
 	"#);
 }
+
+#[test]
+fn assert_macros_with_simple_var() {
+	insta::assert_snapshot!(simulate_check(
+		r#"
+		fn test() {
+			let expected = 42;
+			assert!(value == expected, "expected {}", expected);
+			assert_eq!(a, b, "comparison failed: {}", expected);
+			debug_assert!(check(), "check failed: {}", expected);
+		}
+		"#,
+		&opts(),
+	), @"
+	[embed-simple-vars] /main.rs:3: variable `expected` should be embedded in format string: use `{expected}` instead of `{}, expected`
+	[embed-simple-vars] /main.rs:4: variable `expected` should be embedded in format string: use `{expected}` instead of `{}, expected`
+	[embed-simple-vars] /main.rs:5: variable `expected` should be embedded in format string: use `{expected}` instead of `{}, expected`
+	");
+}
