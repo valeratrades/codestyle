@@ -66,10 +66,10 @@ impl<'a> TokioSpawnVisitor<'a> {
 
 impl<'a> Visit<'a> for TokioSpawnVisitor<'a> {
 	fn visit_expr_call(&mut self, node: &'a ExprCall) {
-		if let Expr::Path(ExprPath { path, .. }) = &*node.func {
-			if let Some(variant) = self.is_tokio_spawn_path(path) {
-				self.report_tokio_spawn(node.func.span(), variant);
-			}
+		if let Expr::Path(ExprPath { path, .. }) = &*node.func
+			&& let Some(variant) = self.is_tokio_spawn_path(path)
+		{
+			self.report_tokio_spawn(node.func.span(), variant);
 		}
 		syn::visit::visit_expr_call(self, node);
 	}

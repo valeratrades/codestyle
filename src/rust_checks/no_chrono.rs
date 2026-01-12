@@ -78,10 +78,10 @@ impl<'a> ChronoVisitor<'a> {
 	}
 
 	fn check_path_for_chrono(&mut self, path: &syn::Path) {
-		if let Some(first_segment) = path.segments.first() {
-			if first_segment.ident == "chrono" {
-				self.report_chrono_usage(first_segment.ident.span(), "");
-			}
+		if let Some(first_segment) = path.segments.first()
+			&& first_segment.ident == "chrono"
+		{
+			self.report_chrono_usage(first_segment.ident.span(), "");
 		}
 	}
 }
