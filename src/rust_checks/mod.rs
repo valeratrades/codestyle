@@ -409,15 +409,30 @@ fn delete_snap_files(target_dir: &Path) {
 		!name.starts_with('.') && name != "target"
 	});
 
+	let mut snapshot_dirs_to_delete = Vec::new();
+
 	for entry in walker.filter_map(Result::ok) {
 		let path = entry.path();
-		let is_snap = path.extension().is_some_and(|ext| ext == "snap" || ext == "pending-snap");
-		if is_snap {
-			if let Err(e) = fs::remove_file(path) {
-				eprintln!("Warning: Failed to delete snap file {:?}: {}", path, e);
-			} else {
-				println!("codestyle: deleted snap file {:?}", path);
+
+		// If we find a snapshots/ directory, mark it for deletion
+		if path.is_dir() && path.file_name().is_some_and(|n| n == "snapshots") {
+			// Check if it contains any .snap or .pending-snap files
+			let has_snap_files = WalkDir::new(path)
+				.into_iter()
+				.filter_map(Result::ok)
+				.any(|e| e.path().extension().is_some_and(|ext| ext == "snap" || ext == "pending-snap"));
+			if has_snap_files {
+				snapshot_dirs_to_delete.push(path.to_path_buf());
 			}
+		}
+	}
+
+	// Delete snapshots/ directories (this also removes all files inside)
+	for dir in snapshot_dirs_to_delete {
+		if let Err(e) = fs::remove_dir_all(&dir) {
+			eprintln!("Warning: Failed to delete snapshots dir {:?}: {}", dir, e);
+		} else {
+			println!("codestyle: deleted snapshots dir {:?}", dir);
 		}
 	}
 }
