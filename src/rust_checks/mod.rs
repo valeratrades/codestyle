@@ -184,12 +184,7 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 	let mut fixed_count = 0;
 	let mut unfixable = Vec::new();
 
-	loop {
-		// Parse the file fresh
-		let Some(info) = parse_rust_file(file_path.to_path_buf()) else {
-			break;
-		};
-
+	while let Some(info) = parse_rust_file(file_path.to_path_buf()) {
 		// Find the first fixable violation
 		let mut first_fix: Option<(Violation, Fix)> = None;
 
