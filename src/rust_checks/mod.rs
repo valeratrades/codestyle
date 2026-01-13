@@ -75,7 +75,7 @@ pub struct Fix {
 
 pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 	if !target_dir.exists() {
-		eprintln!("Target directory does not exist: {:?}", target_dir);
+		eprintln!("Target directory does not exist: {target_dir:?}");
 		return 1;
 	}
 
@@ -137,7 +137,7 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 
 pub fn run_format(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 	if !target_dir.exists() {
-		eprintln!("Target directory does not exist: {:?}", target_dir);
+		eprintln!("Target directory does not exist: {target_dir:?}");
 		return 1;
 	}
 
@@ -397,7 +397,7 @@ fn parse_rust_file(path: PathBuf) -> Option<FileInfo> {
 	let syntax_tree = match parse_file(&contents) {
 		Ok(tree) => tree,
 		Err(e) => {
-			eprintln!("Failed to parse file {:?}: {}", path, e);
+			eprintln!("Failed to parse file {path:?}: {e}");
 			return None;
 		}
 	};
@@ -443,9 +443,9 @@ fn delete_snap_files(target_dir: &Path) {
 	// Delete snapshots/ directories (this also removes all files inside)
 	for dir in snapshot_dirs_to_delete {
 		if let Err(e) = fs::remove_dir_all(&dir) {
-			eprintln!("Warning: Failed to delete snapshots dir {:?}: {}", dir, e);
+			eprintln!("Warning: Failed to delete snapshots dir {dir:?}: {e}");
 		} else {
-			println!("codestyle: deleted snapshots dir {:?}", dir);
+			println!("codestyle: deleted snapshots dir {dir:?}");
 		}
 	}
 }
