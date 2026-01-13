@@ -15,6 +15,7 @@ pub fn opts_for(check: &str) -> RustCheckOptions {
 		insta_inline_snapshot: check == "insta_inline_snapshot",
 		no_chrono: check == "no_chrono",
 		no_tokio_spawn: check == "no_tokio_spawn",
+		use_bail: check == "use_bail",
 	}
 }
 
@@ -72,7 +73,7 @@ pub fn simulate_format(fixture_str: &str, opts: &RustCheckOptions) -> String {
 }
 
 fn collect_violations(root: &Path, opts: &RustCheckOptions, is_format_mode: bool) -> Vec<Violation> {
-	use codestyle::rust_checks::{embed_simple_vars, impl_follows_type, insta_snapshots, instrument, join_split_impls, loops, no_chrono, no_tokio_spawn};
+	use codestyle::rust_checks::{embed_simple_vars, impl_follows_type, insta_snapshots, instrument, join_split_impls, loops, no_chrono, no_tokio_spawn, use_bail};
 
 	let file_infos = rust_checks::collect_rust_files(root);
 	let mut violations = Vec::new();
@@ -102,6 +103,9 @@ fn collect_violations(root: &Path, opts: &RustCheckOptions, is_format_mode: bool
 			}
 			if opts.no_tokio_spawn {
 				violations.extend(no_tokio_spawn::check(&info.path, &info.contents, tree));
+			}
+			if opts.use_bail {
+				violations.extend(use_bail::check(&info.path, &info.contents, tree));
 			}
 		}
 	}

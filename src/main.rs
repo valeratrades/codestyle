@@ -72,6 +72,10 @@ struct RustCheckOptionsArgs {
 	/// Disallow usage of tokio::spawn [default: true]
 	#[arg(long)]
 	no_tokio_spawn: Option<bool>,
+
+	/// Replace `return Err(eyre!(...))` with `bail!(...)` [default: true]
+	#[arg(long)]
+	use_bail: Option<bool>,
 }
 
 impl From<RustCheckOptionsArgs> for RustCheckOptions {
@@ -86,6 +90,7 @@ impl From<RustCheckOptionsArgs> for RustCheckOptions {
 			insta_inline_snapshot: args.insta_inline_snapshot.unwrap_or(defaults.insta_inline_snapshot),
 			no_chrono: args.no_chrono.unwrap_or(defaults.no_chrono),
 			no_tokio_spawn: args.no_tokio_spawn.unwrap_or(defaults.no_tokio_spawn),
+			use_bail: args.use_bail.unwrap_or(defaults.use_bail),
 		}
 	}
 }

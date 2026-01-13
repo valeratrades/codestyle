@@ -6,6 +6,7 @@ pub mod join_split_impls;
 pub mod loops;
 pub mod no_chrono;
 pub mod no_tokio_spawn;
+pub mod use_bail;
 
 use std::{
 	fs,
@@ -42,6 +43,9 @@ pub struct RustCheckOptions {
 	/// Disallow usage of tokio::spawn (default: true)
 	#[default = true]
 	pub no_tokio_spawn: bool,
+	/// Replace `return Err(eyre!(...))` with `bail!(...)` (default: true)
+	#[default = true]
+	pub use_bail: bool,
 }
 
 #[derive(Clone, Default, derive_new::new)]
@@ -111,6 +115,9 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 				}
 				if opts.no_tokio_spawn {
 					all_violations.extend(no_tokio_spawn::check(&info.path, &info.contents, tree));
+				}
+				if opts.use_bail {
+					all_violations.extend(use_bail::check(&info.path, &info.contents, tree));
 				}
 			}
 		}
@@ -268,6 +275,17 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 
 			if first_fix.is_none() && opts.no_tokio_spawn {
 				for v in no_tokio_spawn::check(&info.path, &info.contents, tree) {
+					if let Some(fix) = v.fix.clone() {
+						first_fix = Some((v, fix));
+						break;
+					} else {
+						unfixable.push(v);
+					}
+				}
+			}
+
+			if first_fix.is_none() && opts.use_bail {
+				for v in use_bail::check(&info.path, &info.contents, tree) {
 					if let Some(fix) = v.fix.clone() {
 						first_fix = Some((v, fix));
 						break;
