@@ -347,16 +347,17 @@ fn collect_complex_argument(tokens: &[TokenTree], start: usize) -> Option<(Strin
 }
 
 /// Convert a proc_macro2 line/column position to byte offset in content.
-/// Lines are 1-indexed, columns are 0-indexed (byte offset within line).
+/// Lines are 1-indexed, columns are 0-indexed character offsets within line.
 fn span_position_to_byte(content: &str, line: usize, column: usize) -> Option<usize> {
 	let mut current_line = 1;
 	let mut line_start = 0;
 
 	for (i, ch) in content.char_indices() {
 		if current_line == line {
-			// Found the line, add column offset
-			// Column is byte offset, not char offset
-			return Some(line_start + column);
+			// Found the line, convert character offset to byte offset
+			let line_content = &content[line_start..];
+			let byte_offset: usize = line_content.char_indices().take(column).map(|(_, c)| c.len_utf8()).sum();
+			return Some(line_start + byte_offset);
 		}
 		if ch == '\n' {
 			current_line += 1;
@@ -366,7 +367,9 @@ fn span_position_to_byte(content: &str, line: usize, column: usize) -> Option<us
 
 	// Handle last line (no trailing newline)
 	if current_line == line {
-		return Some(line_start + column);
+		let line_content = &content[line_start..];
+		let byte_offset: usize = line_content.char_indices().take(column).map(|(_, c)| c.len_utf8()).sum();
+		return Some(line_start + byte_offset);
 	}
 
 	None

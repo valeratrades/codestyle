@@ -345,14 +345,16 @@ fn debug_format_autofix() {
 		fn test() {
 			let value = vec![1, 2, 3];
 			println!("value: {:?}", value);
+			println!("pandoc md → typst:        {:?}", pandoc_to_typst); // real failure case
 		}
 		"#,
 		&opts(),
 	), @r#"
-	fn test() {
-		let value = vec![1, 2, 3];
-		println!("value: {value:?}");
-	}
+		fn test() {
+			let value = vec![1, 2, 3];
+			println!("value: {value:?}");
+			println!("pandoc md → typst:        {pandoc_to_typst:?}"); // real failure case
+		}
 	"#);
 }
 
