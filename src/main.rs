@@ -76,6 +76,10 @@ struct RustCheckOptionsArgs {
 	/// Replace `return Err(eyre!(...))` with `bail!(...)` [default: true]
 	#[arg(long)]
 	use_bail: Option<bool>,
+
+	/// Check that test functions don't have redundant `test_` prefix [default: true]
+	#[arg(long)]
+	test_fn_prefix: Option<bool>,
 }
 
 impl From<RustCheckOptionsArgs> for RustCheckOptions {
@@ -91,6 +95,7 @@ impl From<RustCheckOptionsArgs> for RustCheckOptions {
 			no_chrono: args.no_chrono.unwrap_or(defaults.no_chrono),
 			no_tokio_spawn: args.no_tokio_spawn.unwrap_or(defaults.no_tokio_spawn),
 			use_bail: args.use_bail.unwrap_or(defaults.use_bail),
+			test_fn_prefix: args.test_fn_prefix.unwrap_or(defaults.test_fn_prefix),
 		}
 	}
 }

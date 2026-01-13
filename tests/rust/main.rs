@@ -11,5 +11,6 @@ mod join_split_impls;
 mod loops;
 mod no_chrono;
 mod no_tokio_spawn;
+mod test_fn_prefix;
 mod use_bail;
 mod utils;

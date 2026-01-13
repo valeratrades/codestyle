@@ -6,6 +6,7 @@ pub mod join_split_impls;
 pub mod loops;
 pub mod no_chrono;
 pub mod no_tokio_spawn;
+pub mod test_fn_prefix;
 pub mod use_bail;
 
 use std::{
@@ -46,6 +47,9 @@ pub struct RustCheckOptions {
 	/// Replace `return Err(eyre!(...))` with `bail!(...)` (default: true)
 	#[default = true]
 	pub use_bail: bool,
+	/// Check that test functions don't have redundant `test_` prefix (default: true)
+	#[default = true]
+	pub test_fn_prefix: bool,
 }
 
 #[derive(Clone, Default, derive_new::new)]
@@ -118,6 +122,9 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 				}
 				if opts.use_bail {
 					all_violations.extend(use_bail::check(&info.path, &info.contents, tree));
+				}
+				if opts.test_fn_prefix {
+					all_violations.extend(test_fn_prefix::check(&info.path, &info.contents, tree));
 				}
 			}
 		}
@@ -286,6 +293,17 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 
 			if first_fix.is_none() && opts.use_bail {
 				for v in use_bail::check(&info.path, &info.contents, tree) {
+					if let Some(fix) = v.fix.clone() {
+						first_fix = Some((v, fix));
+						break;
+					} else {
+						unfixable.push(v);
+					}
+				}
+			}
+
+			if first_fix.is_none() && opts.test_fn_prefix {
+				for v in test_fn_prefix::check(&info.path, &info.contents, tree) {
 					if let Some(fix) = v.fix.clone() {
 						first_fix = Some((v, fix));
 						break;
