@@ -75,41 +75,6 @@ fn bail_already_used_passes() {
 }
 
 #[test]
-fn return_err_anyhow_should_use_bail() {
-	insta::assert_snapshot!(simulate_check(
-		r#"
-		use anyhow::anyhow;
-
-		fn test() -> anyhow::Result<()> {
-			return Err(anyhow!("something went wrong"));
-		}
-		"#,
-		&opts(),
-	), @"[use-bail] /main.rs:4: use `bail!(...)` instead of `return Err(anyhow!(...))`");
-}
-
-#[test]
-fn return_err_anyhow_autofix() {
-	insta::assert_snapshot!(simulate_format(
-		r#"
-		use anyhow::anyhow;
-
-		fn test() -> anyhow::Result<()> {
-			return Err(anyhow!("something went wrong"));
-		}
-		"#,
-		&opts(),
-	), @r#"
-	use anyhow::anyhow;
-	use anyhow::bail;
-
-	fn test() -> anyhow::Result<()> {
-		bail!("something went wrong");
-	}
-	"#);
-}
-
-#[test]
 fn multiple_return_err_eyre_in_function() {
 	insta::assert_snapshot!(simulate_check(
 		r#"

@@ -16,7 +16,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	visitor.violations
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ErrorCrate {
 	Eyre,
 	ColorEyre,
