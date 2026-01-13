@@ -201,7 +201,7 @@ impl<'a> Visit<'a> for FormatMacroVisitor<'a> {
 
 /// Represents a placeholder in a format string that can have a variable embedded.
 /// The `specifier` is the format specifier (e.g., `:?`, `:#?`, or empty for Display).
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 struct Placeholder {
 	start: usize,
 	end: usize,
