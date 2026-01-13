@@ -6,8 +6,12 @@ use syn::{ExprMacro, Macro, spanned::Spanned, visit::Visit};
 use super::{Fix, Violation};
 
 const FORMAT_MACROS: &[&str] = &[
-	"format", "write", "writeln", "print", "println", "eprint", "eprintln", "panic", "format_args", "log", "trace", "debug", "info", "warn", "error", "assert", "assert_eq", "assert_ne",
-	"debug_assert", "debug_assert_eq", "debug_assert_ne",
+	// std formatting
+	"format", "write", "writeln", "print", "println", "eprint", "eprintln", "format_args", // std panicking/unreachable
+	"panic", "todo", "unimplemented", "unreachable", // logging (log crate, tracing uses same names)
+	"log", "trace", "debug", "info", "warn", "error", // assertions
+	"assert", "assert_eq", "assert_ne", "debug_assert", "debug_assert_eq", "debug_assert_ne", // error handling (anyhow, eyre, etc.)
+	"bail", "ensure", "anyhow", "eyre",
 ];
 
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
@@ -78,8 +82,8 @@ impl<'a> FormatMacroVisitor<'a> {
 			return;
 		};
 
-		let empty_placeholder_count = count_empty_placeholders(&format_string_content);
-		if empty_placeholder_count == 0 {
+		let placeholder_count = count_embeddable_placeholders(&format_string_content);
+		if placeholder_count == 0 {
 			return;
 		}
 
@@ -103,20 +107,23 @@ impl<'a> FormatMacroVisitor<'a> {
 			}
 		}
 
-		let placeholder_positions = find_empty_placeholder_positions(&format_string_content);
+		let placeholders = find_embeddable_placeholders(&format_string_content);
 
-		if placeholder_positions.len() != args.len() {
+		if placeholders.len() != args.len() {
 			return;
 		}
 
-		let simple_args: Vec<(usize, &str, Span)> = placeholder_positions
+		// Collect simple args with their placeholder info
+		let simple_args: Vec<(&Placeholder, &str, Span)> = placeholders
 			.iter()
 			.zip(args.iter())
-			.filter_map(
-				|(pos, (arg_str, arg_span))| {
-					if is_simple_identifier(arg_str) { Some((*pos, arg_str.as_str(), *arg_span)) } else { None }
-				},
-			)
+			.filter_map(|(placeholder, (arg_str, arg_span))| {
+				if is_simple_identifier(arg_str) {
+					Some((placeholder, arg_str.as_str(), *arg_span))
+				} else {
+					None
+				}
+			})
 			.collect();
 
 		if simple_args.is_empty() {
@@ -124,7 +131,7 @@ impl<'a> FormatMacroVisitor<'a> {
 		}
 
 		// Build set of indices for simple args
-		let simple_indices: std::collections::HashSet<usize> = placeholder_positions
+		let simple_indices: std::collections::HashSet<usize> = placeholders
 			.iter()
 			.zip(args.iter())
 			.enumerate()
@@ -133,9 +140,10 @@ impl<'a> FormatMacroVisitor<'a> {
 
 		// Build new format string with simple vars embedded
 		let mut new_fmt = format_string_content.clone();
-		for (pos, arg_str, _) in simple_args.iter().rev() {
-			let end_pos = pos + 2;
-			new_fmt.replace_range(*pos..end_pos, &format!("{{{arg_str}}}"));
+		for (placeholder, arg_str, _) in simple_args.iter().rev() {
+			// Replace the placeholder with {var} or {var:?} or {var:#?}
+			let replacement = format!("{{{arg_str}{}}}", placeholder.specifier);
+			new_fmt.replace_range(placeholder.start..placeholder.end, &replacement);
 		}
 
 		// Build remaining args (non-simple ones only)
@@ -158,13 +166,21 @@ impl<'a> FormatMacroVisitor<'a> {
 			create_full_macro_fix(&replacement, fmt_span, last_arg_span, self.content)
 		};
 
-		for (_, arg_str, arg_span) in &simple_args {
+		for (placeholder, arg_str, arg_span) in &simple_args {
+			let spec_display = if placeholder.specifier.is_empty() {
+				"{}".to_string()
+			} else {
+				format!("{{{}}}", placeholder.specifier)
+			};
 			self.violations.push(Violation {
 				rule: "embed-simple-vars",
 				file: self.path_str.clone(),
 				line: arg_span.start().line,
 				column: arg_span.start().column,
-				message: format!("variable `{arg_str}` should be embedded in format string: use `{{{arg_str}}}` instead of `{{}}, {arg_str}`"),
+				message: format!(
+					"variable `{arg_str}` should be embedded in format string: use `{{{arg_str}{}}}` instead of `{spec_display}, {arg_str}`",
+					placeholder.specifier
+				),
 				fix: fix.clone(),
 			});
 		}
@@ -183,56 +199,81 @@ impl<'a> Visit<'a> for FormatMacroVisitor<'a> {
 	}
 }
 
-fn count_empty_placeholders(format_str: &str) -> usize {
-	let mut count = 0;
-	let mut chars = format_str.chars().peekable();
-
-	while let Some(c) = chars.next() {
-		if c == '{'
-			&& let Some(&next) = chars.peek()
-		{
-			if next == '{' {
-				chars.next();
-			} else if next == '}' {
-				count += 1;
-				chars.next();
-			} else {
-				for c in chars.by_ref() {
-					if c == '}' {
-						break;
-					}
-				}
-			}
-		}
-	}
-
-	count
+/// Represents a placeholder in a format string that can have a variable embedded.
+/// The `specifier` is the format specifier (e.g., `:?`, `:#?`, or empty for Display).
+#[derive(Debug, Clone)]
+struct Placeholder {
+	start: usize,
+	end: usize,
+	specifier: String,
 }
 
-fn find_empty_placeholder_positions(format_str: &str) -> Vec<usize> {
-	let mut positions = Vec::new();
-	let mut chars = format_str.char_indices().peekable();
+fn count_embeddable_placeholders(format_str: &str) -> usize {
+	find_embeddable_placeholders(format_str).len()
+}
 
-	while let Some((idx, c)) = chars.next() {
-		if c == '{'
-			&& let Some(&(_, next)) = chars.peek()
-		{
-			if next == '{' {
-				chars.next();
-			} else if next == '}' {
-				positions.push(idx);
-				chars.next();
-			} else {
-				for (_, c) in chars.by_ref() {
-					if c == '}' {
-						break;
-					}
-				}
+/// Find placeholders that can have variables embedded into them.
+/// This includes `{}`, `{:?}`, and `{:#?}`.
+fn find_embeddable_placeholders(format_str: &str) -> Vec<Placeholder> {
+	let mut placeholders = Vec::new();
+	let bytes = format_str.as_bytes();
+	let mut i = 0;
+
+	while i < bytes.len() {
+		if bytes[i] == b'{' {
+			if i + 1 < bytes.len() && bytes[i + 1] == b'{' {
+				// Escaped brace, skip
+				i += 2;
+				continue;
 			}
+
+			let start = i;
+			i += 1;
+
+			// Find the end of this placeholder
+			let mut end = None;
+			let mut j = i;
+			while j < bytes.len() {
+				if bytes[j] == b'}' {
+					end = Some(j);
+					break;
+				}
+				j += 1;
+			}
+
+			let Some(end_pos) = end else {
+				// No closing brace found, malformed
+				continue;
+			};
+
+			let content = &format_str[i..end_pos];
+
+			// Check if this is an embeddable placeholder:
+			// - "{}" (empty)
+			// - "{:?}" (debug)
+			// - "{:#?}" (pretty debug)
+			// We don't want to match placeholders that already have a variable name like "{foo:?}"
+			let specifier = if content.is_empty() {
+				String::new()
+			} else if content == ":?" {
+				":?".to_string()
+			} else if content == ":#?" {
+				":#?".to_string()
+			} else {
+				// Has other content (named variable, width specifier, etc.), skip
+				i = end_pos + 1;
+				continue;
+			};
+
+			placeholders.push(Placeholder { start, end: end_pos + 1, specifier });
+
+			i = end_pos + 1;
+		} else {
+			i += 1;
 		}
 	}
 
-	positions
+	placeholders
 }
 
 fn is_simple_identifier(s: &str) -> bool {
