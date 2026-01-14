@@ -5,7 +5,7 @@ fn opts() -> codestyle::rust_checks::RustCheckOptions {
 }
 
 #[test]
-fn test_fn_with_test_prefix_triggers_violation() {
+fn fn_with_test_prefix_triggers_violation() {
 	insta::assert_snapshot!(simulate_check(
 		r#"
 		#[test]
@@ -27,7 +27,7 @@ fn rstest_fn_with_test_prefix_triggers_violation() {
 }
 
 #[test]
-fn test_fn_without_prefix_passes() {
+fn fn_without_prefix_passes() {
 	assert_check_passing(
 		r#"
 		#[test]

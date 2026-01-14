@@ -77,7 +77,7 @@ struct RustCheckOptionsArgs {
 	#[arg(long)]
 	use_bail: Option<bool>,
 
-	/// Check that test functions don't have redundant `test_` prefix [default: true]
+	/// Check that test functions don't have redundant `test_` prefix [default: false]
 	#[arg(long)]
 	test_fn_prefix: Option<bool>,
 }

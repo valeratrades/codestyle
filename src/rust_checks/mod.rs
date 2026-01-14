@@ -47,8 +47,8 @@ pub struct RustCheckOptions {
 	/// Replace `return Err(eyre!(...))` with `bail!(...)` (default: true)
 	#[default = true]
 	pub use_bail: bool,
-	/// Check that test functions don't have redundant `test_` prefix (default: true)
-	#[default = true]
+	/// Check that test functions don't have redundant `test_` prefix (default: false)
+	#[default = false]
 	pub test_fn_prefix: bool,
 }
 
