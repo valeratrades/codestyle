@@ -1,8 +1,10 @@
-use crate::utils::{assert_check_passing, opts_for, simulate_check, simulate_format};
+use crate::utils::{assert_check_passing, opts_for, test_case};
 
 fn opts() -> codestyle::rust_checks::RustCheckOptions {
 	opts_for("join_split_impls")
 }
+
+// === Passing cases ===
 
 #[test]
 fn single_impl_block_passes() {
@@ -18,22 +20,6 @@ fn single_impl_block_passes() {
 		"#,
 		&opts(),
 	);
-}
-
-#[test]
-fn two_impl_blocks_for_same_type_should_be_joined() {
-	insta::assert_snapshot!(simulate_check(
-		r#"
-		struct Foo;
-		impl Foo {
-			fn one() {}
-		}
-		impl Foo {
-			fn two() {}
-		}
-		"#,
-		&opts(),
-	), @"[join-split-impls] /main.rs:5: split `impl Foo` blocks should be joined into one");
 }
 
 #[test]
@@ -86,81 +72,6 @@ fn impl_blocks_for_different_types_not_joined() {
 }
 
 #[test]
-fn autofix_joins_two_consecutive_impl_blocks() {
-	insta::assert_snapshot!(simulate_format(
-		r#"
-		struct Foo;
-		impl Foo {
-			fn one() {}
-		}
-		impl Foo {
-			fn two() {}
-		}
-		"#,
-		&opts(),
-	), @r#"
-	struct Foo;
-	impl Foo {
-		fn one() {}
-		fn two() {}
-	}
-	"#);
-}
-
-#[test]
-fn autofix_joins_impl_blocks_with_code_in_between() {
-	insta::assert_snapshot!(simulate_format(
-		r#"
-		struct Foo;
-		impl Foo {
-			fn one() {}
-		}
-
-		fn unrelated() {}
-
-		impl Foo {
-			fn two() {}
-		}
-		"#,
-		&opts(),
-	), @r#"
-	struct Foo;
-	impl Foo {
-		fn one() {}
-		fn two() {}
-	}
-
-	fn unrelated() {}
-	"#);
-}
-
-#[test]
-fn autofix_joins_three_impl_blocks() {
-	insta::assert_snapshot!(simulate_format(
-		r#"
-		struct Foo;
-		impl Foo {
-			fn one() {}
-		}
-		impl Foo {
-			fn two() {}
-		}
-		impl Foo {
-			fn three() {}
-		}
-		"#,
-		&opts(),
-	), @r#"
-	struct Foo;
-	impl Foo {
-		fn one() {}
-		fn two() {}
-		fn three() {}
-	}
-	"#);
-}
-
-#[test]
 fn cross_file_impl_blocks_not_detected() {
 	// Currently NOT detected (single-file scope)
 	assert_check_passing(
@@ -181,4 +92,93 @@ fn cross_file_impl_blocks_not_detected() {
 		"#,
 		&opts(),
 	);
+}
+
+// === Violation cases ===
+
+#[test]
+fn two_consecutive_impl_blocks() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		struct Foo;
+		impl Foo {
+			fn one() {}
+		}
+		impl Foo {
+			fn two() {}
+		}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[join-split-impls] /main.rs:5: split `impl Foo` blocks should be joined into one
+
+	# Format mode
+	struct Foo;
+	impl Foo {
+		fn one() {}
+		fn two() {}
+	}
+	");
+}
+
+#[test]
+fn impl_blocks_with_code_in_between() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		struct Foo;
+		impl Foo {
+			fn one() {}
+		}
+
+		fn unrelated() {}
+
+		impl Foo {
+			fn two() {}
+		}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[join-split-impls] /main.rs:8: split `impl Foo` blocks should be joined into one
+
+	# Format mode
+	struct Foo;
+	impl Foo {
+		fn one() {}
+		fn two() {}
+	}
+
+	fn unrelated() {}
+	");
+}
+
+#[test]
+fn three_impl_blocks() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		struct Foo;
+		impl Foo {
+			fn one() {}
+		}
+		impl Foo {
+			fn two() {}
+		}
+		impl Foo {
+			fn three() {}
+		}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[join-split-impls] /main.rs:5: split `impl Foo` blocks should be joined into one
+
+	# Format mode
+	struct Foo;
+	impl Foo {
+		fn one() {}
+		fn two() {}
+		fn three() {}
+	}
+	");
 }

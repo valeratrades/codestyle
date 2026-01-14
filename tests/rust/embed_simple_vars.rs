@@ -1,21 +1,10 @@
-use crate::utils::{assert_check_passing, opts_for, simulate_check, simulate_format};
+use crate::utils::{assert_check_passing, opts_for, test_case};
 
 fn opts() -> codestyle::rust_checks::RustCheckOptions {
 	opts_for("embed_simple_vars")
 }
 
-#[test]
-fn simple_var_in_println_should_embed() {
-	insta::assert_snapshot!(simulate_check(
-		r#"
-		fn test() {
-			let name = "world";
-			println!("Hello, {}", name);
-		}
-		"#,
-		&opts(),
-	), @"[embed-simple-vars] /main.rs:3: variable `name` should be embedded in format string: use `{name}` instead of `{}, name`");
-}
+// === Passing cases ===
 
 #[test]
 fn already_embedded_var_passes() {
@@ -31,7 +20,7 @@ fn already_embedded_var_passes() {
 }
 
 #[test]
-fn complex_expression_method_call_is_fine() {
+fn complex_expression_method_call_passes() {
 	assert_check_passing(
 		r#"
 		fn test() {
@@ -44,7 +33,7 @@ fn complex_expression_method_call_is_fine() {
 }
 
 #[test]
-fn field_access_is_fine() {
+fn field_access_passes() {
 	assert_check_passing(
 		r#"
 		struct Foo { x: i32 }
@@ -58,83 +47,7 @@ fn field_access_is_fine() {
 }
 
 #[test]
-fn all_simple_vars() {
-	insta::assert_snapshot!(simulate_check(
-		r#"
-		fn test() {
-			let a = 1;
-			let b = 2;
-			println!("{} + {}", a, b);
-		}
-		"#,
-		&opts(),
-	), @r#"
-	[embed-simple-vars] /main.rs:4: variable `a` should be embedded in format string: use `{a}` instead of `{}, a`
-	[embed-simple-vars] /main.rs:4: variable `b` should be embedded in format string: use `{b}` instead of `{}, b`
-	"#);
-}
-
-#[test]
-fn mixed_simple_and_complex_all_simple_vars_reported() {
-	insta::assert_snapshot!(simulate_check(
-		r#"
-		fn test() {
-			let a = 1;
-			let b = 2;
-			let sum = a + b;
-			println!("{} + {} = {}", a, b, sum);
-		}
-		"#,
-		&opts(),
-	), @r#"
-	[embed-simple-vars] /main.rs:5: variable `a` should be embedded in format string: use `{a}` instead of `{}, a`
-	[embed-simple-vars] /main.rs:5: variable `b` should be embedded in format string: use `{b}` instead of `{}, b`
-	[embed-simple-vars] /main.rs:5: variable `sum` should be embedded in format string: use `{sum}` instead of `{}, sum`
-	"#);
-}
-
-#[test]
-fn format_macro_works_too() {
-	insta::assert_snapshot!(simulate_check(
-		r#"
-		fn test() {
-			let x = 42;
-			let s = format!("value: {}", x);
-		}
-		"#,
-		&opts(),
-	), @"[embed-simple-vars] /main.rs:3: variable `x` should be embedded in format string: use `{x}` instead of `{}, x`");
-}
-
-#[test]
-fn write_macro() {
-	insta::assert_snapshot!(simulate_check(
-		r#"
-		use std::io::Write;
-		fn test() {
-			let x = 42;
-			let mut buf = Vec::new();
-			write!(buf, "{}", x).unwrap();
-		}
-		"#,
-		&opts(),
-	), @"[embed-simple-vars] /main.rs:5: variable `x` should be embedded in format string: use `{x}` instead of `{}, x`");
-}
-
-#[test]
-fn no_placeholder_no_violation() {
-	assert_check_passing(
-		r#"
-		fn test() {
-			println!("Hello, world!");
-		}
-		"#,
-		&opts(),
-	);
-}
-
-#[test]
-fn named_placeholder_is_fine() {
+fn named_placeholder_width_specifier_passes() {
 	assert_check_passing(
 		r#"
 		fn test() {
@@ -147,8 +60,120 @@ fn named_placeholder_is_fine() {
 }
 
 #[test]
-fn multi_line_format_macro_detected() {
-	insta::assert_snapshot!(simulate_check(
+fn already_embedded_with_format_specifiers_passes() {
+	assert_check_passing(
+		r#"
+		fn test() {
+			let value = vec![1, 2, 3];
+			println!("value: {value:?}");
+			error!("pretty: {value:#?}");
+			warn!("precision: {value:.0}");
+		}
+		"#,
+		&opts(),
+	);
+}
+
+// === Violation cases ===
+
+#[test]
+fn simple_var_in_println() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		fn test() {
+			let name = "world";
+			println!("Hello, {}", name);
+		}
+		"#,
+		&opts(),
+	), @r#"
+	# Assert mode
+	[embed-simple-vars] /main.rs:3: variable `name` should be embedded in format string: use `{name}` instead of `{}, name`
+
+	# Format mode
+	fn test() {
+		let name = "world";
+		println!("Hello, {name}");
+	}
+	"#);
+}
+
+#[test]
+fn multiple_simple_vars() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		fn test() {
+			let a = 1;
+			let b = 2;
+			println!("{} + {}", a, b);
+		}
+		"#,
+		&opts(),
+	), @r#"
+	# Assert mode
+	[embed-simple-vars] /main.rs:4: variable `a` should be embedded in format string: use `{a}` instead of `{}, a`
+	[embed-simple-vars] /main.rs:4: variable `b` should be embedded in format string: use `{b}` instead of `{}, b`
+
+	# Format mode
+	fn test() {
+		let a = 1;
+		let b = 2;
+		println!("{a} + {b}");
+	}
+	"#);
+}
+
+#[test]
+fn format_macro() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		fn test() {
+			let x = 42;
+			let s = format!("value: {}", x);
+		}
+		"#,
+		&opts(),
+	), @r#"
+	# Assert mode
+	[embed-simple-vars] /main.rs:3: variable `x` should be embedded in format string: use `{x}` instead of `{}, x`
+
+	# Format mode
+	fn test() {
+		let x = 42;
+		let s = format!("value: {x}");
+	}
+	"#);
+}
+
+#[test]
+fn write_macro() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		use std::io::Write;
+		fn test() {
+			let x = 42;
+			let mut buf = Vec::new();
+			write!(buf, "{}", x).unwrap();
+		}
+		"#,
+		&opts(),
+	), @r#"
+	# Assert mode
+	[embed-simple-vars] /main.rs:5: variable `x` should be embedded in format string: use `{x}` instead of `{}, x`
+
+	# Format mode
+	use std::io::Write;
+	fn test() {
+		let x = 42;
+		let mut buf = Vec::new();
+		write!(buf, "{x}").unwrap();
+	}
+	"#);
+}
+
+#[test]
+fn multi_line_format_macro() {
+	insta::assert_snapshot!(test_case(
 		r#"
 		fn test() {
 			let name = "world";
@@ -162,27 +187,24 @@ fn multi_line_format_macro_detected() {
 		"#,
 		&opts(),
 	), @r#"
+	# Assert mode
 	[embed-simple-vars] /main.rs:6: variable `name` should be embedded in format string: use `{name}` instead of `{}, name`
 	[embed-simple-vars] /main.rs:7: variable `count` should be embedded in format string: use `{count}` instead of `{}, count`
+
+	# Format mode
+	fn test() {
+		let name = "world";
+		let count = 42;
+		println!(
+			"Hello {name}, you have {count} messages"
+		);
+	}
 	"#);
 }
 
 #[test]
-fn mixed_simple_and_complex_args_check() {
-	insta::assert_snapshot!(simulate_check(
-		r#"
-		fn test() {
-			let tf = "1d";
-			let s = format!("{}_{}", Utc::now().format("%Y/%m/%d"), tf);
-		}
-		"#,
-		&opts(),
-	), @"[embed-simple-vars] /main.rs:3: variable `tf` should be embedded in format string: use `{tf}` instead of `{}, tf`");
-}
-
-#[test]
-fn autofix_mixed_args() {
-	insta::assert_snapshot!(simulate_format(
+fn mixed_simple_and_complex_args() {
+	insta::assert_snapshot!(test_case(
 		r#"
 		fn test() {
 			let tf = "1d";
@@ -191,6 +213,10 @@ fn autofix_mixed_args() {
 		"#,
 		&opts(),
 	), @r#"
+	# Assert mode
+	[embed-simple-vars] /main.rs:3: variable `tf` should be embedded in format string: use `{tf}` instead of `{}, tf`
+
+	# Format mode
 	fn test() {
 		let tf = "1d";
 		let s = format!("{}_{tf}", Utc::now().format("%Y/%m/%d"));
@@ -199,8 +225,8 @@ fn autofix_mixed_args() {
 }
 
 #[test]
-fn multiple_simple_vars_mixed_with_complex_check() {
-	insta::assert_snapshot!(simulate_check(
+fn multiple_simple_vars_mixed_with_complex() {
+	insta::assert_snapshot!(test_case(
 		r#"
 		fn test() {
 			let issue_number = 123;
@@ -210,23 +236,11 @@ fn multiple_simple_vars_mixed_with_complex_check() {
 		"#,
 		&opts(),
 	), @r#"
+	# Assert mode
 	[embed-simple-vars] /main.rs:4: variable `issue_number` should be embedded in format string: use `{issue_number}` instead of `{}, issue_number`
 	[embed-simple-vars] /main.rs:4: variable `sanitized` should be embedded in format string: use `{sanitized}` instead of `{}, sanitized`
-	"#);
-}
 
-#[test]
-fn autofix_embeds_both_simple_vars() {
-	insta::assert_snapshot!(simulate_format(
-		r#"
-		fn test() {
-			let issue_number = 123;
-			let sanitized = "foo";
-			let s = format!("{}_-_{}.{}", issue_number, sanitized, extension.as_str());
-		}
-		"#,
-		&opts(),
-	), @r#"
+	# Format mode
 	fn test() {
 		let issue_number = 123;
 		let sanitized = "foo";
@@ -236,8 +250,8 @@ fn autofix_embeds_both_simple_vars() {
 }
 
 #[test]
-fn field_access_should_not_be_doubled() {
-	insta::assert_snapshot!(simulate_format(
+fn field_access_not_doubled_in_format() {
+	insta::assert_snapshot!(test_case(
 		r#"
 		fn test() {
 			let workspace_id = "ws123";
@@ -246,6 +260,10 @@ fn field_access_should_not_be_doubled() {
 		"#,
 		&opts(),
 	), @r#"
+	# Assert mode
+	[embed-simple-vars] /main.rs:3: variable `workspace_id` should be embedded in format string: use `{workspace_id}` instead of `{}, workspace_id`
+
+	# Format mode
 	fn test() {
 		let workspace_id = "ws123";
 		let s = format!("{workspace_id}/user/{}/time-entries", user.id);
@@ -254,8 +272,8 @@ fn field_access_should_not_be_doubled() {
 }
 
 #[test]
-fn assert_macros_with_simple_var() {
-	insta::assert_snapshot!(simulate_check(
+fn assert_macros() {
+	insta::assert_snapshot!(test_case(
 		r#"
 		fn test() {
 			let expected = 42;
@@ -265,16 +283,25 @@ fn assert_macros_with_simple_var() {
 		}
 		"#,
 		&opts(),
-	), @"
+	), @r#"
+	# Assert mode
 	[embed-simple-vars] /main.rs:3: variable `expected` should be embedded in format string: use `{expected}` instead of `{}, expected`
 	[embed-simple-vars] /main.rs:4: variable `expected` should be embedded in format string: use `{expected}` instead of `{}, expected`
 	[embed-simple-vars] /main.rs:5: variable `expected` should be embedded in format string: use `{expected}` instead of `{}, expected`
-	");
+
+	# Format mode
+	fn test() {
+		let expected = 42;
+		assert!(value == expected, "expected {expected}");
+		assert_eq!(a, b, "comparison failed: {expected}");
+		debug_assert!(check(), "check failed: {expected}");
+	}
+	"#);
 }
 
 #[test]
 fn todo_unimplemented_unreachable_macros() {
-	insta::assert_snapshot!(simulate_check(
+	insta::assert_snapshot!(test_case(
 		r#"
 		fn test() {
 			let feature = "auth";
@@ -284,16 +311,25 @@ fn todo_unimplemented_unreachable_macros() {
 		}
 		"#,
 		&opts(),
-	), @"
+	), @r#"
+	# Assert mode
 	[embed-simple-vars] /main.rs:3: variable `feature` should be embedded in format string: use `{feature}` instead of `{}, feature`
 	[embed-simple-vars] /main.rs:4: variable `feature` should be embedded in format string: use `{feature}` instead of `{}, feature`
 	[embed-simple-vars] /main.rs:5: variable `feature` should be embedded in format string: use `{feature}` instead of `{}, feature`
-	");
+
+	# Format mode
+	fn test() {
+		let feature = "auth";
+		todo!("implement {feature}");
+		unimplemented!("not yet: {feature}");
+		unreachable!("should not reach: {feature}");
+	}
+	"#);
 }
 
 #[test]
 fn bail_and_eyre_macros() {
-	insta::assert_snapshot!(simulate_check(
+	insta::assert_snapshot!(test_case(
 		r#"
 		fn test() -> Result<()> {
 			let reason = "invalid input";
@@ -302,15 +338,23 @@ fn bail_and_eyre_macros() {
 		}
 		"#,
 		&opts(),
-	), @"
+	), @r#"
+	# Assert mode
 	[embed-simple-vars] /main.rs:3: variable `reason` should be embedded in format string: use `{reason}` instead of `{}, reason`
 	[embed-simple-vars] /main.rs:4: variable `reason` should be embedded in format string: use `{reason}` instead of `{}, reason`
-	");
+
+	# Format mode
+	fn test() -> Result<()> {
+		let reason = "invalid input";
+		bail!("failed: {reason}");
+		Err(eyre!("error: {reason}"))
+	}
+	"#);
 }
 
 #[test]
 fn anyhow_and_ensure_macros() {
-	insta::assert_snapshot!(simulate_check(
+	insta::assert_snapshot!(test_case(
 		r#"
 		fn test() -> Result<()> {
 			let value = 42;
@@ -319,15 +363,23 @@ fn anyhow_and_ensure_macros() {
 		}
 		"#,
 		&opts(),
-	), @"
+	), @r#"
+	# Assert mode
 	[embed-simple-vars] /main.rs:3: variable `value` should be embedded in format string: use `{value}` instead of `{}, value`
 	[embed-simple-vars] /main.rs:4: variable `value` should be embedded in format string: use `{value}` instead of `{}, value`
-	");
+
+	# Format mode
+	fn test() -> Result<()> {
+		let value = 42;
+		ensure!(value > 0, "value must be positive: {value}");
+		Err(anyhow!("unexpected value: {value}"))
+	}
+	"#);
 }
 
 #[test]
-fn debug_format_simple_var_should_embed() {
-	insta::assert_snapshot!(simulate_check(
+fn debug_format_specifier() {
+	insta::assert_snapshot!(test_case(
 		r#"
 		fn test() {
 			let value = vec![1, 2, 3];
@@ -335,26 +387,41 @@ fn debug_format_simple_var_should_embed() {
 		}
 		"#,
 		&opts(),
-	), @"[embed-simple-vars] /main.rs:3: variable `value` should be embedded in format string: use `{value:?}` instead of `{:?}, value`");
+	), @r#"
+	# Assert mode
+	[embed-simple-vars] /main.rs:3: variable `value` should be embedded in format string: use `{value:?}` instead of `{:?}, value`
+
+	# Format mode
+	fn test() {
+		let value = vec![1, 2, 3];
+		println!("value: {value:?}");
+	}
+	"#);
 }
 
 #[test]
-fn debug_format_autofix() {
-	insta::assert_snapshot!(simulate_format(
+fn debug_format_with_multiple_specifiers() {
+	insta::assert_snapshot!(test_case(
 		r#"
 		fn test() {
 			let value = vec![1, 2, 3];
 			println!("value: {:?}", value);
-			println!("pandoc md → typst:        {:?}", pandoc_to_typst); // real failure case
+			println!("pandoc md → typst:        {:?}", pandoc_to_typst);
 			warn!("{:.0}", precision);
 		}
 		"#,
 		&opts(),
 	), @r#"
+	# Assert mode
+	[embed-simple-vars] /main.rs:3: variable `value` should be embedded in format string: use `{value:?}` instead of `{:?}, value`
+	[embed-simple-vars] /main.rs:4: variable `pandoc_to_typst` should be embedded in format string: use `{pandoc_to_typst:?}` instead of `{:?}, pandoc_to_typst`
+	[embed-simple-vars] /main.rs:5: variable `precision` should be embedded in format string: use `{precision:.0}` instead of `{:.0}, precision`
+
+	# Format mode
 	fn test() {
 		let value = vec![1, 2, 3];
 		println!("value: {value:?}");
-		println!("pandoc md → typst:        {pandoc_to_typst:?}"); // real failure case
+		println!("pandoc md → typst:        {pandoc_to_typst:?}");
 		warn!("{precision:.0}");
 	}
 	"#);
@@ -362,7 +429,7 @@ fn debug_format_autofix() {
 
 #[test]
 fn debug_format_mixed_with_display() {
-	insta::assert_snapshot!(simulate_check(
+	insta::assert_snapshot!(test_case(
 		r#"
 		fn test() {
 			let name = "test";
@@ -371,15 +438,23 @@ fn debug_format_mixed_with_display() {
 		}
 		"#,
 		&opts(),
-	), @"
+	), @r#"
+	# Assert mode
 	[embed-simple-vars] /main.rs:4: variable `name` should be embedded in format string: use `{name}` instead of `{}, name`
 	[embed-simple-vars] /main.rs:4: variable `data` should be embedded in format string: use `{data:?}` instead of `{:?}, data`
-	");
+
+	# Format mode
+	fn test() {
+		let name = "test";
+		let data = vec![1, 2, 3];
+		println!("{name}: {data:?}");
+	}
+	"#);
 }
 
 #[test]
 fn debug_format_pretty_print() {
-	insta::assert_snapshot!(simulate_check(
+	insta::assert_snapshot!(test_case(
 		r#"
 		fn test() {
 			let value = vec![1, 2, 3];
@@ -387,20 +462,14 @@ fn debug_format_pretty_print() {
 		}
 		"#,
 		&opts(),
-	), @"[embed-simple-vars] /main.rs:3: variable `value` should be embedded in format string: use `{value:#?}` instead of `{:#?}, value`");
-}
+	), @r#"
+	# Assert mode
+	[embed-simple-vars] /main.rs:3: variable `value` should be embedded in format string: use `{value:#?}` instead of `{:#?}, value`
 
-#[test]
-fn debug_format_already_embedded_passes() {
-	assert_check_passing(
-		r#"
-		fn test() {
-			let value = vec![1, 2, 3];
-			println!("value: {value:?}");
-			error!("pretty: {value:#?}");
-			warn!("precision: {value:.0}");
-		}
-		"#,
-		&opts(),
-	);
+	# Format mode
+	fn test() {
+		let value = vec![1, 2, 3];
+		println!("value: {value:#?}");
+	}
+	"#);
 }

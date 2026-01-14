@@ -3,9 +3,9 @@
 use std::path::Path;
 
 use codestyle::rust_checks::{self, RustCheckOptions, Violation};
-pub use v_fixtures::{Fixture, render_fixture};
+use v_fixtures::{Fixture, render_fixture};
 
-pub fn opts_for(check: &str) -> RustCheckOptions {
+pub(crate) fn opts_for(check: &str) -> RustCheckOptions {
 	RustCheckOptions {
 		instrument: check == "instrument",
 		join_split_impls: check == "join_split_impls",
@@ -22,7 +22,7 @@ pub fn opts_for(check: &str) -> RustCheckOptions {
 
 /// Assert that a fixture passes all enabled checks (no violations).
 #[track_caller]
-pub fn assert_check_passing(fixture_str: &str, opts: &RustCheckOptions) {
+pub(crate) fn assert_check_passing(fixture_str: &str, opts: &RustCheckOptions) {
 	let fixture = Fixture::parse(fixture_str);
 	let temp = fixture.write_to_tempdir();
 	let violations = collect_violations(&temp.root, opts, false);
@@ -40,15 +40,76 @@ pub fn assert_check_passing(fixture_str: &str, opts: &RustCheckOptions) {
 	}
 }
 
-/// Simulate running `codestyle rust assert` on a fixture.
-/// Returns violations as a string for snapshot testing.
-pub fn simulate_check(fixture_str: &str, opts: &RustCheckOptions) -> String {
+/// Unified test primitive for violation cases.
+/// Runs both assert mode and format mode, returning a combined snapshot.
+/// Also verifies that the formatted output passes the check.
+///
+/// Returns a string in the format:
+/// ```text
+/// # Assert mode
+/// {violations}
+///
+/// # Format mode
+/// {formatted_output}
+/// ```
+#[track_caller]
+pub(crate) fn test_case(fixture_str: &str, opts: &RustCheckOptions) -> String {
+	let fixture = Fixture::parse(fixture_str);
+
+	// Assert mode: collect violations
+	let temp_assert = fixture.write_to_tempdir();
+	let violations = collect_violations(&temp_assert.root, opts, false);
+
+	assert!(!violations.is_empty(), "test_case called but no violations found - use assert_check_passing instead");
+
+	let assert_out = violations
+		.iter()
+		.map(|v| {
+			let relative_path = v.file.strip_prefix(temp_assert.root.to_str().unwrap_or("")).unwrap_or(&v.file);
+			let relative_path = relative_path.trim_start_matches('/');
+			format!("[{}] /{relative_path}:{}: {}", v.rule, v.line, v.message)
+		})
+		.collect::<Vec<_>>()
+		.join("\n");
+
+	// Format mode: apply fixes
+	let temp_format = fixture.write_to_tempdir();
+	rust_checks::run_format(&temp_format.root, opts);
+	let result = temp_format.read_all_from_disk();
+	let format_out = render_fixture(&result);
+
+	// Verify formatted output passes the check
+	let format_violations = collect_violations(&temp_format.root, opts, false);
+	if !format_violations.is_empty() {
+		let violation_msgs: Vec<String> = format_violations
+			.iter()
+			.map(|v| {
+				let relative_path = v.file.strip_prefix(temp_format.root.to_str().unwrap_or("")).unwrap_or(&v.file);
+				let relative_path = relative_path.trim_start_matches('/');
+				format!("[{}] /{relative_path}:{}: {}", v.rule, v.line, v.message)
+			})
+			.collect();
+		panic!(
+			"formatted output still has {} violation(s):\n{}\n\nFormatted output:\n{format_out}",
+			format_violations.len(),
+			violation_msgs.join("\n")
+		);
+	}
+
+	format!("# Assert mode\n{assert_out}\n\n# Format mode\n{format_out}")
+}
+
+/// Test primitive for violations without autofix.
+/// Runs assert mode only and returns violations as a string for snapshot testing.
+/// Use this for rules that don't have autofix capability.
+#[track_caller]
+pub(crate) fn test_case_assert_only(fixture_str: &str, opts: &RustCheckOptions) -> String {
 	let fixture = Fixture::parse(fixture_str);
 	let temp = fixture.write_to_tempdir();
 
 	let violations = collect_violations(&temp.root, opts, false);
 
-	assert!(!violations.is_empty(), "simulate_check called but no violations found - use assert_check_passing instead");
+	assert!(!violations.is_empty(), "test_case_assert_only called but no violations found - use assert_check_passing instead");
 
 	violations
 		.iter()
@@ -59,18 +120,6 @@ pub fn simulate_check(fixture_str: &str, opts: &RustCheckOptions) -> String {
 		})
 		.collect::<Vec<_>>()
 		.join("\n")
-}
-
-/// Simulate running `codestyle rust format` on a fixture.
-/// Returns the fixture after applying all auto-fixes.
-pub fn simulate_format(fixture_str: &str, opts: &RustCheckOptions) -> String {
-	let fixture = Fixture::parse(fixture_str);
-	let temp = fixture.write_to_tempdir();
-
-	rust_checks::run_format(&temp.root, opts);
-
-	let result = temp.read_all_from_disk();
-	render_fixture(&result)
 }
 
 fn collect_violations(root: &Path, opts: &RustCheckOptions, is_format_mode: bool) -> Vec<Violation> {

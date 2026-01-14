@@ -1,11 +1,13 @@
-use crate::utils::{assert_check_passing, opts_for, simulate_check};
+use crate::utils::{assert_check_passing, opts_for, test_case_assert_only};
 
 fn opts() -> codestyle::rust_checks::RustCheckOptions {
 	opts_for("instrument")
 }
 
+// === Passing cases ===
+
 #[test]
-fn sync_function_without_instrument_passes() {
+fn sync_function_passes() {
 	assert_check_passing(
 		r#"
 		fn sync_no_instrument() {
@@ -14,18 +16,6 @@ fn sync_function_without_instrument_passes() {
 		"#,
 		&opts(),
 	);
-}
-
-#[test]
-fn async_function_without_instrument_triggers_violation() {
-	insta::assert_snapshot!(simulate_check(
-		r#"
-		async fn async_no_instrument() {
-			println!("hello");
-		}
-		"#,
-		&opts(),
-	), @"[instrument] /main.rs:1: No #[instrument] on async fn `async_no_instrument`");
 }
 
 #[test]
@@ -66,9 +56,23 @@ fn async_functions_in_utils_rs_are_exempt() {
 	);
 }
 
+// === Violation cases (no autofix) ===
+
 #[test]
-fn multiple_functions_only_async_without_instrument_caught() {
-	insta::assert_snapshot!(simulate_check(
+fn async_function_without_instrument() {
+	insta::assert_snapshot!(test_case_assert_only(
+		r#"
+		async fn async_no_instrument() {
+			println!("hello");
+		}
+		"#,
+		&opts(),
+	), @"[instrument] /main.rs:1: No #[instrument] on async fn `async_no_instrument`");
+}
+
+#[test]
+fn multiple_async_functions_without_instrument() {
+	insta::assert_snapshot!(test_case_assert_only(
 		r#"
 		fn sync_one() {}
 		async fn async_one() {}
@@ -77,8 +81,8 @@ fn multiple_functions_only_async_without_instrument_caught() {
 		async fn async_three() {}
 		"#,
 		&opts(),
-	), @r#"
+	), @"
 	[instrument] /main.rs:2: No #[instrument] on async fn `async_one`
 	[instrument] /main.rs:3: No #[instrument] on async fn `async_two`
-	"#);
+	");
 }

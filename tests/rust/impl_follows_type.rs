@@ -1,8 +1,10 @@
-use crate::utils::{assert_check_passing, opts_for, simulate_check, simulate_format};
+use crate::utils::{assert_check_passing, opts_for, test_case};
 
 fn opts() -> codestyle::rust_checks::RustCheckOptions {
 	opts_for("impl_follows_type")
 }
+
+// === Passing cases ===
 
 #[test]
 fn impl_immediately_after_struct_passes() {
@@ -20,28 +22,10 @@ fn impl_immediately_after_struct_passes() {
 }
 
 #[test]
-fn impl_with_gap_triggers_violation() {
-	insta::assert_snapshot!(simulate_check(
-		r#"
-		struct Foo {
-			x: i32,
-		}
-
-
-		impl Foo {
-			fn new() -> Self { Self { x: 0 } }
-		}
-		"#,
-		&opts(),
-	), @"[impl-follows-type] /main.rs:6: `impl Foo` should follow type definition (line 3), but has 2 blank line(s)");
-}
-
-#[test]
 fn trait_impl_is_exempt() {
 	assert_check_passing(
 		r#"
 		struct Foo;
-
 
 		impl Default for Foo {
 			fn default() -> Self { Foo }
@@ -49,24 +33,6 @@ fn trait_impl_is_exempt() {
 		"#,
 		&opts(),
 	);
-}
-
-#[test]
-fn enum_works_same_as_struct() {
-	insta::assert_snapshot!(simulate_check(
-		r#"
-		enum Bar {
-			A,
-			B,
-		}
-
-
-		impl Bar {
-			fn is_a(&self) -> bool { matches!(self, Self::A) }
-		}
-		"#,
-		&opts(),
-	), @"[impl-follows-type] /main.rs:7: `impl Bar` should follow type definition (line 4), but has 2 blank line(s)");
 }
 
 #[test]
@@ -90,7 +56,6 @@ fn impl_for_type_not_defined_in_file_is_ignored() {
 	assert_check_passing(
 		r#"
 
-
 		impl String {
 			fn custom() {}
 		}
@@ -99,9 +64,11 @@ fn impl_for_type_not_defined_in_file_is_ignored() {
 	);
 }
 
+// === Violation cases ===
+
 #[test]
-fn autofix_removes_blank_lines() {
-	insta::assert_snapshot!(simulate_format(
+fn struct_with_blank_lines_before_impl() {
+	insta::assert_snapshot!(test_case(
 		r#"
 		struct Foo {
 			x: i32,
@@ -113,19 +80,53 @@ fn autofix_removes_blank_lines() {
 		}
 		"#,
 		&opts(),
-	), @r#"
+	), @"
+	# Assert mode
+	[impl-follows-type] /main.rs:6: `impl Foo` should follow type definition (line 3), but has 2 blank line(s)
+
+	# Format mode
 	struct Foo {
 		x: i32,
 	}
 	impl Foo {
 		fn new() -> Self { Self { x: 0 } }
 	}
-	"#);
+	");
 }
 
 #[test]
-fn autofix_relocates_impl_when_other_code_in_between() {
-	insta::assert_snapshot!(simulate_format(
+fn enum_with_blank_lines_before_impl() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		enum Bar {
+			A,
+			B,
+		}
+
+
+		impl Bar {
+			fn is_a(&self) -> bool { matches!(self, Self::A) }
+		}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[impl-follows-type] /main.rs:7: `impl Bar` should follow type definition (line 4), but has 2 blank line(s)
+
+	# Format mode
+	enum Bar {
+		A,
+		B,
+	}
+	impl Bar {
+		fn is_a(&self) -> bool { matches!(self, Self::A) }
+	}
+	");
+}
+
+#[test]
+fn impl_with_code_in_between() {
+	insta::assert_snapshot!(test_case(
 		r#"
 		struct Foo {
 			x: i32,
@@ -138,7 +139,11 @@ fn autofix_relocates_impl_when_other_code_in_between() {
 		}
 		"#,
 		&opts(),
-	), @r#"
+	), @"
+	# Assert mode
+	[impl-follows-type] /main.rs:7: `impl Foo` should follow type definition (line 3), but has 3 blank line(s)
+
+	# Format mode
 	struct Foo {
 		x: i32,
 	}
@@ -147,12 +152,12 @@ fn autofix_relocates_impl_when_other_code_in_between() {
 	}
 
 	fn unrelated() {}
-	"#);
+	");
 }
 
 #[test]
-fn autofix_with_multiple_impl_blocks_for_same_struct() {
-	insta::assert_snapshot!(simulate_format(
+fn multiple_impl_blocks_with_code_in_between() {
+	insta::assert_snapshot!(test_case(
 		r#"
 		struct Foo;
 
@@ -167,7 +172,11 @@ fn autofix_with_multiple_impl_blocks_for_same_struct() {
 		}
 		"#,
 		&opts(),
-	), @r#"
+	), @"
+	# Assert mode
+	[impl-follows-type] /main.rs:5: `impl Foo` should follow type definition (line 1), but has 3 blank line(s)
+
+	# Format mode
 	struct Foo;
 	impl Foo {
 		fn one() {}
@@ -177,15 +186,12 @@ fn autofix_with_multiple_impl_blocks_for_same_struct() {
 	}
 
 	fn other() {}
-	"#);
+	");
 }
 
-/// Regression test: when struct B is defined between struct A and impl A,
-/// and impl B comes after impl A, iterative fixing handles this correctly
-/// by applying one fix at a time and re-parsing.
 #[test]
-fn autofix_with_interleaved_types_and_impls() {
-	insta::assert_snapshot!(simulate_format(
+fn interleaved_types_and_impls() {
+	insta::assert_snapshot!(test_case(
 		r#"
 		struct Foo {
 			x: i32,
@@ -207,7 +213,12 @@ fn autofix_with_interleaved_types_and_impls() {
 		}
 		"#,
 		&opts(),
-	), @r#"
+	), @"
+	# Assert mode
+	[impl-follows-type] /main.rs:10: `impl Foo` should follow type definition (line 3), but has 6 blank line(s)
+	[impl-follows-type] /main.rs:16: `impl Bar` should follow type definition (line 8), but has 7 blank line(s)
+
+	# Format mode
 	struct Foo {
 		x: i32,
 	}
@@ -224,5 +235,5 @@ fn autofix_with_interleaved_types_and_impls() {
 	}
 
 	fn unrelated_function() {}
-	"#);
+	");
 }
