@@ -346,15 +346,17 @@ fn debug_format_autofix() {
 			let value = vec![1, 2, 3];
 			println!("value: {:?}", value);
 			println!("pandoc md → typst:        {:?}", pandoc_to_typst); // real failure case
+			warn!("{:.0}", precision);
 		}
 		"#,
 		&opts(),
 	), @r#"
-		fn test() {
-			let value = vec![1, 2, 3];
-			println!("value: {value:?}");
-			println!("pandoc md → typst:        {pandoc_to_typst:?}"); // real failure case
-		}
+	fn test() {
+		let value = vec![1, 2, 3];
+		println!("value: {value:?}");
+		println!("pandoc md → typst:        {pandoc_to_typst:?}"); // real failure case
+		warn!("{precision:.0}");
+	}
 	"#);
 }
 
@@ -395,7 +397,8 @@ fn debug_format_already_embedded_passes() {
 		fn test() {
 			let value = vec![1, 2, 3];
 			println!("value: {value:?}");
-			println!("pretty: {value:#?}");
+			error!("pretty: {value:#?}");
+			warn!("precision: {value:.0}");
 		}
 		"#,
 		&opts(),

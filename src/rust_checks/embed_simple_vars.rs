@@ -250,17 +250,15 @@ fn find_embeddable_placeholders(format_str: &str) -> Vec<Placeholder> {
 
 			// Check if this is an embeddable placeholder:
 			// - "{}" (empty)
-			// - "{:?}" (debug)
-			// - "{:#?}" (pretty debug)
+			// - "{:specifier}" (any format specifier without a variable name)
 			// We don't want to match placeholders that already have a variable name like "{foo:?}"
 			let specifier = if content.is_empty() {
 				String::new()
-			} else if content == ":?" {
-				":?".to_string()
-			} else if content == ":#?" {
-				":#?".to_string()
+			} else if content.starts_with(':') {
+				// Format specifier without variable name (e.g., ":?", ":#?", ":.0", ":>10")
+				content.to_string()
 			} else {
-				// Has other content (named variable, width specifier, etc.), skip
+				// Has other content (named variable like "foo" or "foo:?"), skip
 				i = end_pos + 1;
 				continue;
 			};
