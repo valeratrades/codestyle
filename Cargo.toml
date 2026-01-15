@@ -36,6 +36,10 @@ insta = "^1"
 trybuild = "^1"
 v_fixtures = "^0.3"
 
+[[test]]
+name = "rust"
+path = "tests/integration/rust/main.rs"
+
 [lints.clippy]
 # Stable
 float_cmp = "allow" # is bad for `==` direct comparisons, but `<` and `>` should be allowed
