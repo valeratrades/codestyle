@@ -1,4 +1,5 @@
 pub mod embed_simple_vars;
+pub mod impl_folds;
 pub mod impl_follows_type;
 pub mod insta_snapshots;
 pub mod instrument;
@@ -29,6 +30,9 @@ pub struct RustCheckOptions {
 	/// Join split impl blocks for the same type (default: true)
 	#[default = true]
 	pub join_split_impls: bool,
+	/// Wrap impl blocks with vim 1-fold markers (default: false)
+	#[default = false]
+	pub impl_folds: bool,
 	/// Check that impl blocks follow type definitions (default: true)
 	#[default = true]
 	pub impl_follows_type: bool,
@@ -104,6 +108,9 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 				// join_split_impls should run before impl_follows_type
 				if opts.join_split_impls {
 					all_violations.extend(join_split_impls::check(&info.path, &info.contents, tree));
+				}
+				if opts.impl_folds {
+					all_violations.extend(impl_folds::check(&info.path, &info.contents, tree));
 				}
 				if opts.impl_follows_type {
 					all_violations.extend(impl_follows_type::check(&info.path, &info.contents, tree));
@@ -227,6 +234,17 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 		if let Some(ref tree) = info.syntax_tree {
 			if first_fix.is_none() && opts.join_split_impls {
 				for v in join_split_impls::check(&info.path, &info.contents, tree) {
+					if let Some(fix) = v.fix.clone() {
+						first_fix = Some((v, fix));
+						break;
+					} else {
+						unfixable.push(v);
+					}
+				}
+			}
+
+			if first_fix.is_none() && opts.impl_folds {
+				for v in impl_folds::check(&info.path, &info.contents, tree) {
 					if let Some(fix) = v.fix.clone() {
 						first_fix = Some((v, fix));
 						break;

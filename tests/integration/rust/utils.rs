@@ -9,6 +9,7 @@ pub(crate) fn opts_for(check: &str) -> RustCheckOptions {
 	RustCheckOptions {
 		instrument: check == "instrument",
 		join_split_impls: check == "join_split_impls",
+		impl_folds: check == "impl_folds",
 		impl_follows_type: check == "impl_follows_type",
 		loops: check == "loops",
 		embed_simple_vars: check == "embed_simple_vars",
@@ -123,7 +124,9 @@ pub(crate) fn test_case_assert_only(fixture_str: &str, opts: &RustCheckOptions) 
 }
 
 fn collect_violations(root: &Path, opts: &RustCheckOptions, is_format_mode: bool) -> Vec<Violation> {
-	use codestyle::rust_checks::{embed_simple_vars, impl_follows_type, insta_snapshots, instrument, join_split_impls, loops, no_chrono, no_tokio_spawn, test_fn_prefix, use_bail};
+	use codestyle::rust_checks::{
+		embed_simple_vars, impl_folds, impl_follows_type, insta_snapshots, instrument, join_split_impls, loops, no_chrono, no_tokio_spawn, test_fn_prefix, use_bail,
+	};
 
 	let file_infos = rust_checks::collect_rust_files(root);
 	let mut violations = Vec::new();
@@ -138,6 +141,9 @@ fn collect_violations(root: &Path, opts: &RustCheckOptions, is_format_mode: bool
 		if let Some(ref tree) = info.syntax_tree {
 			if opts.join_split_impls {
 				violations.extend(join_split_impls::check(&info.path, &info.contents, tree));
+			}
+			if opts.impl_folds {
+				violations.extend(impl_folds::check(&info.path, &info.contents, tree));
 			}
 			if opts.impl_follows_type {
 				violations.extend(impl_follows_type::check(&info.path, &info.contents, tree));

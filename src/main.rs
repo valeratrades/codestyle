@@ -53,6 +53,10 @@ struct RustCheckOptionsArgs {
 	#[arg(long)]
 	join_split_impls: Option<bool>,
 
+	/// Wrap impl blocks with vim 1-fold markers [default: false]
+	#[arg(long)]
+	impl_folds: Option<bool>,
+
 	/// Check that impl blocks follow type definitions [default: true]
 	#[arg(long)]
 	impl_follows_type: Option<bool>,
@@ -89,6 +93,7 @@ impl From<RustCheckOptionsArgs> for RustCheckOptions {
 			instrument: args.instrument.unwrap_or(defaults.instrument),
 			loops: args.loops.unwrap_or(defaults.loops),
 			join_split_impls: args.join_split_impls.unwrap_or(defaults.join_split_impls),
+			impl_folds: args.impl_folds.unwrap_or(defaults.impl_folds),
 			impl_follows_type: args.impl_follows_type.unwrap_or(defaults.impl_follows_type),
 			embed_simple_vars: args.embed_simple_vars.unwrap_or(defaults.embed_simple_vars),
 			insta_inline_snapshot: args.insta_inline_snapshot.unwrap_or(defaults.insta_inline_snapshot),
