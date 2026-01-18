@@ -4,11 +4,9 @@
 //! enabling proper insta snapshot workflow (all failures at once, accept all at once).
 
 mod embed_simple_vars;
-mod impl_folds;
-mod impl_follows_type;
+mod impl_blocks;
 mod insta_snapshots;
 mod instrument;
-mod join_split_impls;
 mod loops;
 mod no_chrono;
 mod no_tokio_spawn;

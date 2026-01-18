@@ -105,15 +105,15 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 				all_violations.extend(loops::check_loops(info));
 			}
 			if let Some(ref tree) = info.syntax_tree {
-				// join_split_impls should run before impl_follows_type
+				// Order matters: join_split_impls -> impl_follows_type -> impl_folds
 				if opts.join_split_impls {
 					all_violations.extend(join_split_impls::check(&info.path, &info.contents, tree));
 				}
-				if opts.impl_folds {
-					all_violations.extend(impl_folds::check(&info.path, &info.contents, tree));
-				}
 				if opts.impl_follows_type {
 					all_violations.extend(impl_follows_type::check(&info.path, &info.contents, tree));
+				}
+				if opts.impl_folds {
+					all_violations.extend(impl_folds::check(&info.path, &info.contents, tree));
 				}
 				if opts.embed_simple_vars {
 					all_violations.extend(embed_simple_vars::check(&info.path, &info.contents, tree));
@@ -232,6 +232,7 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 		}
 
 		if let Some(ref tree) = info.syntax_tree {
+			// Order matters: join_split_impls -> impl_follows_type -> impl_folds
 			if first_fix.is_none() && opts.join_split_impls {
 				for v in join_split_impls::check(&info.path, &info.contents, tree) {
 					if let Some(fix) = v.fix.clone() {
@@ -243,8 +244,8 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 				}
 			}
 
-			if first_fix.is_none() && opts.impl_folds {
-				for v in impl_folds::check(&info.path, &info.contents, tree) {
+			if first_fix.is_none() && opts.impl_follows_type {
+				for v in impl_follows_type::check(&info.path, &info.contents, tree) {
 					if let Some(fix) = v.fix.clone() {
 						first_fix = Some((v, fix));
 						break;
@@ -254,8 +255,8 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 				}
 			}
 
-			if first_fix.is_none() && opts.impl_follows_type {
-				for v in impl_follows_type::check(&info.path, &info.contents, tree) {
+			if first_fix.is_none() && opts.impl_folds {
+				for v in impl_folds::check(&info.path, &info.contents, tree) {
 					if let Some(fix) = v.fix.clone() {
 						first_fix = Some((v, fix));
 						break;
