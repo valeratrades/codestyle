@@ -51,9 +51,9 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 			continue;
 		};
 
-		// Find the opening and closing braces
+		// Find the opening and closing braces, skipping braces inside comments
 		let impl_text = &content[start_byte..end_byte];
-		let brace_open_offset = impl_text.find('{');
+		let brace_open_offset = find_impl_brace(impl_text);
 		let brace_close_offset = impl_text.rfind('}');
 
 		let (Some(brace_open_offset), Some(brace_close_offset)) = (brace_open_offset, brace_close_offset) else {
@@ -84,21 +84,19 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		// Create a fix that joins all impl blocks into the first one
 		// Strategy:
 		// 1. Keep the first impl block's header and opening brace
-		// 2. Append all items from subsequent impl blocks
+		// 2. Append all items from subsequent impl blocks (preserving their indentation)
 		// 3. Remove all subsequent impl blocks
 
 		let first = &impl_blocks[0];
 		let last = impl_blocks.last().unwrap();
 
-		// Collect all items from all impl blocks
-		let mut all_items = String::new();
+		// Collect all items from all impl blocks, preserving original indentation
+		let mut all_items_parts: Vec<String> = Vec::new();
 		for block in impl_blocks {
-			let trimmed = block.items_text.trim();
-			if !trimmed.is_empty() {
-				if !all_items.is_empty() {
-					all_items.push('\n');
-				}
-				all_items.push_str(trimmed);
+			// Strip only leading/trailing blank lines, not indentation
+			let stripped = strip_blank_lines(&block.items_text);
+			if !stripped.is_empty() {
+				all_items_parts.push(stripped);
 			}
 		}
 
@@ -121,11 +119,20 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		// - First impl header + opening brace + all items + closing brace
 		// - Then any code that was between impl blocks
 		let impl_header = &content[first.start_byte..first.brace_open_byte + 1];
-		let indent = detect_indent(&first.items_text);
 
-		let mut replacement = format!("{impl_header}\n");
-		replacement.push_str(&reindent(&all_items, &indent));
-		replacement.push_str("\n}");
+		let mut replacement = String::from(impl_header);
+		replacement.push('\n');
+
+		// Add all items - they already have proper indentation
+		for (i, items) in all_items_parts.iter().enumerate() {
+			if i > 0 {
+				replacement.push('\n');
+			}
+			replacement.push_str(items);
+		}
+
+		replacement.push('\n');
+		replacement.push('}');
 
 		if !between_sections.is_empty() {
 			replacement.push_str("\n\n");
@@ -173,32 +180,59 @@ fn span_position_to_byte(content: &str, line: usize, column: usize) -> Option<us
 	None
 }
 
-/// Detect the indentation used in the items text
-fn detect_indent(text: &str) -> String {
-	for line in text.lines() {
-		if !line.trim().is_empty() {
-			let indent_len = line.len() - line.trim_start().len();
-			return line[..indent_len].to_string();
+/// Find the opening brace of an impl block, skipping braces inside comments.
+/// This handles fold markers like `/*{{{1*/` which contain braces in comments.
+fn find_impl_brace(text: &str) -> Option<usize> {
+	let mut in_block_comment = false;
+	let mut in_line_comment = false;
+	let chars: Vec<char> = text.chars().collect();
+	let mut i = 0;
+
+	while i < chars.len() {
+		let ch = chars[i];
+		let next_ch = chars.get(i + 1).copied();
+
+		// Handle comment boundaries
+		if !in_block_comment && !in_line_comment {
+			if ch == '/' && next_ch == Some('*') {
+				in_block_comment = true;
+				i += 2;
+				continue;
+			}
+			if ch == '/' && next_ch == Some('/') {
+				in_line_comment = true;
+				i += 2;
+				continue;
+			}
+			// Found a brace outside of comments
+			if ch == '{' {
+				return Some(i);
+			}
+		} else if in_block_comment {
+			if ch == '*' && next_ch == Some('/') {
+				in_block_comment = false;
+				i += 2;
+				continue;
+			}
+		} else if in_line_comment && ch == '\n' {
+			in_line_comment = false;
 		}
+
+		i += 1;
 	}
-	"\t".to_string()
+
+	None
 }
 
-/// Reindent text to use the given indent
-fn reindent(text: &str, indent: &str) -> String {
+/// Strip leading and trailing blank lines from text, preserving internal structure.
+fn strip_blank_lines(text: &str) -> String {
 	let lines: Vec<&str> = text.lines().collect();
-	let mut result = String::new();
 
-	for line in lines {
-		let trimmed = line.trim();
-		if trimmed.is_empty() {
-			result.push('\n');
-		} else {
-			result.push_str(indent);
-			result.push_str(trimmed);
-			result.push('\n');
-		}
-	}
+	// Find first non-empty line
+	let start = lines.iter().position(|line| !line.trim().is_empty()).unwrap_or(0);
 
-	result.trim_end_matches('\n').to_string()
+	// Find last non-empty line
+	let end = lines.iter().rposition(|line| !line.trim().is_empty()).map(|i| i + 1).unwrap_or(lines.len());
+
+	lines[start..end].join("\n")
 }

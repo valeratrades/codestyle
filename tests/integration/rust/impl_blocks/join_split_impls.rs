@@ -182,3 +182,77 @@ fn three_impl_blocks() {
 	}
 	");
 }
+
+#[test]
+fn join_preserves_existing_fold_markers() {
+	// First impl has fold markers, second doesn't
+	// The join should preserve the fold markers from the first impl
+	insta::assert_snapshot!(test_case(
+		r#"
+		struct Foo;
+		impl Foo /*{{{1*/ {
+			fn one() {}
+		}
+		//,}}}1
+		impl Foo {
+			fn two() {}
+		}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[join-split-impls] /main.rs:6: split `impl Foo` blocks should be joined into one
+
+	# Format mode
+	struct Foo;
+	impl Foo /*{{{1*/ {
+		fn one() {}
+		fn two() {}
+	}
+
+	//,}}}1
+	");
+}
+
+#[test]
+fn join_preserves_nested_indentation() {
+	// Functions with nested blocks should preserve their internal indentation
+	insta::assert_snapshot!(test_case(
+		r#"
+		struct Foo;
+		impl Foo {
+			fn one() {
+				if true {
+					println!("nested");
+				}
+			}
+		}
+		impl Foo {
+			fn two() {
+				for i in 0..10 {
+					println!("{i}");
+				}
+			}
+		}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[join-split-impls] /main.rs:9: split `impl Foo` blocks should be joined into one
+
+	# Format mode
+	struct Foo;
+	impl Foo {
+		fn one() {
+			if true {
+				println!(\"nested\");
+			}
+		}
+		fn two() {
+			for i in 0..10 {
+				println!(\"{i}\");
+			}
+		}
+	}
+	");
+}
