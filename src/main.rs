@@ -84,6 +84,10 @@ struct RustCheckOptionsArgs {
 	/// Check that test functions don't have redundant `test_` prefix [default: false]
 	#[arg(long)]
 	test_fn_prefix: Option<bool>,
+
+	/// Check that public items come before private items [default: true]
+	#[arg(long)]
+	pub_first: Option<bool>,
 }
 
 impl From<RustCheckOptionsArgs> for RustCheckOptions {
@@ -101,6 +105,7 @@ impl From<RustCheckOptionsArgs> for RustCheckOptions {
 			no_tokio_spawn: args.no_tokio_spawn.unwrap_or(defaults.no_tokio_spawn),
 			use_bail: args.use_bail.unwrap_or(defaults.use_bail),
 			test_fn_prefix: args.test_fn_prefix.unwrap_or(defaults.test_fn_prefix),
+			pub_first: args.pub_first.unwrap_or(defaults.pub_first),
 		}
 	}
 }

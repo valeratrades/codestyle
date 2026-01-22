@@ -18,6 +18,7 @@ pub(crate) fn opts_for(check: &str) -> RustCheckOptions {
 		no_tokio_spawn: check == "no_tokio_spawn",
 		use_bail: check == "use_bail",
 		test_fn_prefix: check == "test_fn_prefix",
+		pub_first: check == "pub_first",
 	}
 }
 
@@ -125,7 +126,7 @@ pub(crate) fn test_case_assert_only(fixture_str: &str, opts: &RustCheckOptions) 
 
 fn collect_violations(root: &Path, opts: &RustCheckOptions, is_format_mode: bool) -> Vec<Violation> {
 	use codestyle::rust_checks::{
-		embed_simple_vars, impl_folds, impl_follows_type, insta_snapshots, instrument, join_split_impls, loops, no_chrono, no_tokio_spawn, test_fn_prefix, use_bail,
+		embed_simple_vars, impl_folds, impl_follows_type, insta_snapshots, instrument, join_split_impls, loops, no_chrono, no_tokio_spawn, pub_first, test_fn_prefix, use_bail,
 	};
 
 	let file_infos = rust_checks::collect_rust_files(root);
@@ -165,6 +166,9 @@ fn collect_violations(root: &Path, opts: &RustCheckOptions, is_format_mode: bool
 			}
 			if opts.test_fn_prefix {
 				violations.extend(test_fn_prefix::check(&info.path, &info.contents, tree));
+			}
+			if opts.pub_first {
+				violations.extend(pub_first::check(&info.path, &info.contents, tree));
 			}
 		}
 	}

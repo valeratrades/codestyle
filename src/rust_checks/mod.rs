@@ -7,6 +7,7 @@ pub mod join_split_impls;
 pub mod loops;
 pub mod no_chrono;
 pub mod no_tokio_spawn;
+pub mod pub_first;
 pub mod test_fn_prefix;
 pub mod use_bail;
 
@@ -54,6 +55,9 @@ pub struct RustCheckOptions {
 	/// Check that test functions don't have redundant `test_` prefix (default: false)
 	#[default = false]
 	pub test_fn_prefix: bool,
+	/// Check that public items come before private items (default: true)
+	#[default = true]
+	pub pub_first: bool,
 }
 
 #[derive(Clone, Default, derive_new::new)]
@@ -132,6 +136,9 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 				}
 				if opts.test_fn_prefix {
 					all_violations.extend(test_fn_prefix::check(&info.path, &info.contents, tree));
+				}
+				if opts.pub_first {
+					all_violations.extend(pub_first::check(&info.path, &info.contents, tree));
 				}
 			}
 		}
@@ -323,6 +330,17 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 
 			if first_fix.is_none() && opts.test_fn_prefix {
 				for v in test_fn_prefix::check(&info.path, &info.contents, tree) {
+					if let Some(fix) = v.fix.clone() {
+						first_fix = Some((v, fix));
+						break;
+					} else {
+						unfixable.push(v);
+					}
+				}
+			}
+
+			if first_fix.is_none() && opts.pub_first {
+				for v in pub_first::check(&info.path, &info.contents, tree) {
 					if let Some(fix) = v.fix.clone() {
 						first_fix = Some((v, fix));
 						break;
