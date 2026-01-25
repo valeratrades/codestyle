@@ -1,7 +1,7 @@
 cargo-features = ["codegen-backend"]
 [package]
 name = "codestyle"
-version = "0.2.25"
+version = "0.2.26"
 edition = "2024"
 authors = ["Valeriy Sakharov <valeratrades@gmail.com>"]
 description = "A code style checker and formatter for Rust"
