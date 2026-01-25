@@ -8,19 +8,6 @@ use syn::{Item, Visibility, spanned::Spanned};
 
 use super::{Fix, Violation};
 
-const RULE: &str = "pub-first";
-
-/// Represents an item with its visibility and position info
-struct ItemInfo {
-	is_pub: bool,
-	is_main_fn: bool,
-	start_line: usize,
-	/// Byte offset where the item starts (including any preceding doc comments/attributes on the same "block")
-	text_start: usize,
-	/// Byte offset where the item ends (end of line containing the item's closing brace/semicolon)
-	text_end: usize,
-}
-
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let path_str = path.display().to_string();
 
@@ -134,6 +121,18 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	}
 
 	vec![]
+}
+const RULE: &str = "pub-first";
+
+/// Represents an item with its visibility and position info
+struct ItemInfo {
+	is_pub: bool,
+	is_main_fn: bool,
+	start_line: usize,
+	/// Byte offset where the item starts (including any preceding doc comments/attributes on the same "block")
+	text_start: usize,
+	/// Byte offset where the item ends (end of line containing the item's closing brace/semicolon)
+	text_end: usize,
 }
 
 /// Returns (is_pub, is_main_fn) for an item, or None if it should be skipped

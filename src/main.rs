@@ -2,6 +2,22 @@ use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
 
+fn main() {
+	v_utils::clientside!();
+	let cli = Cli::parse();
+
+	let exit_code = match cli.command {
+		Commands::Rust { mode, options } => {
+			let opts: RustCheckOptions = options.into();
+			match mode {
+				RustMode::Assert { target_dir } => rust_checks::run_assert(&target_dir, &opts),
+				RustMode::Format { target_dir } => rust_checks::run_format(&target_dir, &opts),
+			}
+		}
+	};
+
+	std::process::exit(exit_code);
+}
 mod rust_checks;
 
 use rust_checks::RustCheckOptions;
@@ -108,21 +124,4 @@ impl From<RustCheckOptionsArgs> for RustCheckOptions {
 			pub_first: args.pub_first.unwrap_or(defaults.pub_first),
 		}
 	}
-}
-
-fn main() {
-	v_utils::clientside!();
-	let cli = Cli::parse();
-
-	let exit_code = match cli.command {
-		Commands::Rust { mode, options } => {
-			let opts: RustCheckOptions = options.into();
-			match mode {
-				RustMode::Assert { target_dir } => rust_checks::run_assert(&target_dir, &opts),
-				RustMode::Format { target_dir } => rust_checks::run_format(&target_dir, &opts),
-			}
-		}
-	};
-
-	std::process::exit(exit_code);
 }

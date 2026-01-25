@@ -4,16 +4,6 @@ use syn::{Item, spanned::Spanned};
 
 use super::{Fix, Violation};
 
-struct ImplBlockInfo {
-	start_line: usize,
-	start_byte: usize,
-	end_byte: usize,
-	/// Byte position of the opening brace
-	brace_open_byte: usize,
-	/// The content inside the braces (the items)
-	items_text: String,
-}
-
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	const RULE: &str = "join-split-impls";
 
@@ -156,6 +146,15 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	}
 
 	violations
+}
+struct ImplBlockInfo {
+	start_line: usize,
+	start_byte: usize,
+	end_byte: usize,
+	/// Byte position of the opening brace
+	brace_open_byte: usize,
+	/// The content inside the braces (the items)
+	items_text: String,
 }
 
 /// Convert a line/column position to byte offset in content.

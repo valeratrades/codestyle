@@ -207,6 +207,24 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 	}
 }
 
+pub fn collect_rust_files(target_dir: &Path) -> Vec<FileInfo> {
+	let mut file_infos = Vec::new();
+
+	let walker = WalkDir::new(target_dir).into_iter().filter_entry(|e| {
+		let name = e.file_name().to_string_lossy();
+		!name.starts_with('.') && name != "target" && name != "libs"
+	});
+
+	for entry in walker.filter_map(Result::ok) {
+		let path = entry.path().to_path_buf();
+		if path.extension().is_some_and(|ext| ext == "rs")
+			&& let Some(info) = parse_rust_file(path)
+		{
+			file_infos.push(info);
+		}
+	}
+	file_infos
+}
 /// Format a single file iteratively - apply one fix at a time, re-parse, repeat
 fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize, Vec<Violation>) {
 	let mut fixed_count = 0;
@@ -426,25 +444,6 @@ fn find_src_dirs(root: &Path) -> Vec<PathBuf> {
 fn collect_standard_dirs(root: &Path) -> Vec<PathBuf> {
 	let standard_dirs = ["src", "tests", "examples", "benches"];
 	standard_dirs.iter().map(|d| root.join(d)).filter(|p| p.exists()).collect()
-}
-
-pub fn collect_rust_files(target_dir: &Path) -> Vec<FileInfo> {
-	let mut file_infos = Vec::new();
-
-	let walker = WalkDir::new(target_dir).into_iter().filter_entry(|e| {
-		let name = e.file_name().to_string_lossy();
-		!name.starts_with('.') && name != "target" && name != "libs"
-	});
-
-	for entry in walker.filter_map(Result::ok) {
-		let path = entry.path().to_path_buf();
-		if path.extension().is_some_and(|ext| ext == "rs")
-			&& let Some(info) = parse_rust_file(path)
-		{
-			file_infos.push(info);
-		}
-	}
-	file_infos
 }
 
 fn parse_rust_file(path: PathBuf) -> Option<FileInfo> {

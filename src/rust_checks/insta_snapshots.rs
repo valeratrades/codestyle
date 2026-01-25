@@ -5,6 +5,17 @@ use syn::{ExprMacro, ItemFn, Macro, spanned::Spanned, visit::Visit};
 
 use super::{Fix, Violation};
 
+pub fn check(path: &Path, content: &str, file: &syn::File, is_format_mode: bool) -> Vec<Violation> {
+	let mut visitor = InstaSnapshotVisitor::new(path, content, is_format_mode);
+	visitor.visit_file(file);
+
+	// Check for sequential snapshots in functions
+	let mut seq_visitor = SequentialSnapshotVisitor::new(path);
+	seq_visitor.visit_file(file);
+	visitor.violations.extend(seq_visitor.violations);
+
+	visitor.violations
+}
 const INSTA_SNAPSHOT_MACROS: &[&str] = &[
 	"assert_snapshot",
 	"assert_debug_snapshot",
@@ -17,18 +28,6 @@ const INSTA_SNAPSHOT_MACROS: &[&str] = &[
 	"assert_compact_json_snapshot",
 	"assert_compact_debug_snapshot",
 ];
-
-pub fn check(path: &Path, content: &str, file: &syn::File, is_format_mode: bool) -> Vec<Violation> {
-	let mut visitor = InstaSnapshotVisitor::new(path, content, is_format_mode);
-	visitor.visit_file(file);
-
-	// Check for sequential snapshots in functions
-	let mut seq_visitor = SequentialSnapshotVisitor::new(path);
-	seq_visitor.visit_file(file);
-	visitor.violations.extend(seq_visitor.violations);
-
-	visitor.violations
-}
 
 struct InstaSnapshotVisitor<'a> {
 	path_str: String,

@@ -5,6 +5,11 @@ use syn::{ExprMacro, Macro, spanned::Spanned, visit::Visit};
 
 use super::{Fix, Violation};
 
+pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
+	let mut visitor = FormatMacroVisitor::new(path, content);
+	visitor.visit_file(file);
+	visitor.violations
+}
 const FORMAT_MACROS: &[&str] = &[
 	// std formatting
 	"format", "write", "writeln", "print", "println", "eprint", "eprintln", "format_args", // std panicking/unreachable
@@ -13,12 +18,6 @@ const FORMAT_MACROS: &[&str] = &[
 	"assert", "assert_eq", "assert_ne", "debug_assert", "debug_assert_eq", "debug_assert_ne", // error handling (anyhow, eyre, etc.)
 	"bail", "ensure", "anyhow", "eyre",
 ];
-
-pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
-	let mut visitor = FormatMacroVisitor::new(path, content);
-	visitor.visit_file(file);
-	visitor.violations
-}
 
 struct FormatMacroVisitor<'a> {
 	path_str: String,

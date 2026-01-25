@@ -31,7 +31,14 @@
           jobs.default = true;
           release.default = true;
         };
-        rs = v-utils.rs { inherit pkgs rust; };
+        rs = v-utils.rs {
+          inherit pkgs rust;
+          style = {
+            modules = {
+              pub_first = false; #dbg: on the difficulties of auto-fixing using ourselves
+            };
+          };
+        };
         readme = v-utils.readme-fw {
           inherit pkgs pname;
           defaults = true;

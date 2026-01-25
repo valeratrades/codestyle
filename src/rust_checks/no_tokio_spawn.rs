@@ -10,13 +10,12 @@ use syn::{Expr, ExprCall, ExprPath, spanned::Spanned, visit::Visit};
 
 use super::Violation;
 
-const GO_STATEMENT_HARMFUL_URL: &str = "https://vorpus.org/blog/notes-on-structured-concurrency-or-go-statement-considered-harmful/";
-
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let mut visitor = TokioSpawnVisitor::new(path, content);
 	visitor.visit_file(file);
 	visitor.violations
 }
+const GO_STATEMENT_HARMFUL_URL: &str = "https://vorpus.org/blog/notes-on-structured-concurrency-or-go-statement-considered-harmful/";
 
 struct TokioSpawnVisitor<'a> {
 	path_str: String,

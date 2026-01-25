@@ -4,18 +4,6 @@ use syn::{Item, ItemEnum, ItemImpl, ItemStruct, ItemUnion, spanned::Spanned};
 
 use super::{Fix, Violation};
 
-struct TypeDef {
-	end_line: usize,
-	end_byte: usize,
-}
-
-struct ImplBlock<'a> {
-	item: &'a ItemImpl,
-	start_line: usize,
-	start_byte: usize,
-	end_byte: usize,
-}
-
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	const RULE: &str = "impl-follows-type";
 
@@ -118,6 +106,17 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	}
 
 	violations
+}
+struct TypeDef {
+	end_line: usize,
+	end_byte: usize,
+}
+
+struct ImplBlock<'a> {
+	item: &'a ItemImpl,
+	start_line: usize,
+	start_byte: usize,
+	end_byte: usize,
 }
 
 /// Creates a fix that relocates an impl block to immediately follow its type definition.
