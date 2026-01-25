@@ -38,7 +38,7 @@ fn check_expr_for_loops(expr: &Expr, file_contents: &str, file_path: &str, viola
 					file: file_path.to_string(),
 					line: span_start.line,
 					column: span_start.column,
-					message: "Endless loop without `//LOOP` comment".to_string(),
+					message: "Endless loop without `//LOOP` comment\nHINT: try to rewrite the loop with `while let` or justify why a bound can't be enforced)".to_string(),
 					fix: None,
 				});
 			}
