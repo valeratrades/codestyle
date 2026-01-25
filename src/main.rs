@@ -104,6 +104,14 @@ struct RustCheckOptionsArgs {
 	/// Check that public items come before private items [default: true]
 	#[arg(long)]
 	pub_first: Option<bool>,
+
+	/// Check for //UNWRAP_OR comments on unwrap_or/unwrap_or_default/unwrap_or_else calls [default: true]
+	#[arg(long)]
+	unwrap_or_comment: Option<bool>,
+
+	/// Check for //LET_UNDERSCORE comments on `let _ = ...` patterns [default: true]
+	#[arg(long)]
+	let_underscore_comment: Option<bool>,
 }
 
 impl From<RustCheckOptionsArgs> for RustCheckOptions {
@@ -122,6 +130,8 @@ impl From<RustCheckOptionsArgs> for RustCheckOptions {
 			use_bail: args.use_bail.unwrap_or(defaults.use_bail),
 			test_fn_prefix: args.test_fn_prefix.unwrap_or(defaults.test_fn_prefix),
 			pub_first: args.pub_first.unwrap_or(defaults.pub_first),
+			unwrap_or_comment: args.unwrap_or_comment.unwrap_or(defaults.unwrap_or_comment),
+			let_underscore_comment: args.let_underscore_comment.unwrap_or(defaults.let_underscore_comment),
 		}
 	}
 }
