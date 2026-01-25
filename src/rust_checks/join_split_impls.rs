@@ -10,8 +10,8 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let path_str = path.display().to_string();
 	let mut violations = Vec::new();
 
-	// Group inherent impl blocks by type name
-	// Key: type name, Value: list of impl block info
+	// Group inherent impl blocks by type signature (including generics)
+	// Key: impl signature (generics + type with args), Value: list of impl block info
 	let mut inherent_impls: HashMap<String, Vec<ImplBlockInfo>> = HashMap::new();
 
 	for item in &file.items {
@@ -24,14 +24,12 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 			continue;
 		}
 
-		let type_name = match &*impl_block.self_ty {
-			syn::Type::Path(type_path) => type_path.path.segments.last().map(|s| s.ident.to_string()),
-			_ => None,
-		};
-
-		let Some(type_name) = type_name else {
-			continue;
-		};
+		// Build a signature that includes impl generics and the full self_ty
+		// e.g. "impl<R: LocalReader> LocalIssueSource<R>" vs "impl LocalIssueSource<FsReader>"
+		// These are different and should NOT be merged
+		let generics = &impl_block.generics;
+		let self_ty = &impl_block.self_ty;
+		let impl_signature = quote::quote!(#generics #self_ty).to_string();
 
 		let start_line = impl_block.span().start().line;
 		let start_byte = span_position_to_byte(content, start_line, impl_block.span().start().column);
@@ -56,7 +54,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		// Extract the items text (content between braces, excluding braces)
 		let items_text = content[brace_open_byte + 1..brace_close_byte].to_string();
 
-		inherent_impls.entry(type_name).or_default().push(ImplBlockInfo {
+		inherent_impls.entry(impl_signature).or_default().push(ImplBlockInfo {
 			start_line,
 			start_byte,
 			end_byte,
@@ -66,7 +64,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	}
 
 	// Find types with multiple inherent impl blocks
-	for (type_name, impl_blocks) in &inherent_impls {
+	for (impl_signature, impl_blocks) in &inherent_impls {
 		if impl_blocks.len() < 2 {
 			continue;
 		}
@@ -140,7 +138,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 			file: path_str.clone(),
 			line: impl_blocks[1].start_line,
 			column: 0,
-			message: format!("split `impl {type_name}` blocks should be joined into one"),
+			message: format!("split `impl {impl_signature}` blocks should be joined into one"),
 			fix,
 		});
 	}

@@ -72,6 +72,32 @@ fn impl_blocks_for_different_types_not_joined() {
 }
 
 #[test]
+fn impl_blocks_with_different_generic_params_not_joined() {
+	// impl<R: LocalReader> LocalIssueSource<R> and impl LocalIssueSource<FsReader>
+	// are different impl blocks and should NOT be joined
+	assert_check_passing(
+		r#"
+		struct FsReader;
+		struct GitReader;
+		trait LocalReader {}
+		struct LocalIssueSource<R> {
+			reader: R,
+		}
+		impl<R: LocalReader> LocalIssueSource<R> {
+			fn new() -> Self { todo!() }
+		}
+		impl LocalIssueSource<FsReader> {
+			fn submitted() -> Self { todo!() }
+		}
+		impl LocalIssueSource<GitReader> {
+			fn consensus() -> Self { todo!() }
+		}
+		"#,
+		&opts(),
+	);
+}
+
+#[test]
 fn cross_file_impl_blocks_not_detected() {
 	// Currently NOT detected (single-file scope)
 	assert_check_passing(
