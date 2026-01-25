@@ -1,16 +1,15 @@
 pub mod embed_simple_vars;
+pub mod ignored_error_comment;
 pub mod impl_folds;
 pub mod impl_follows_type;
 pub mod insta_snapshots;
 pub mod instrument;
 pub mod join_split_impls;
-pub mod let_underscore_comment;
 pub mod loops;
 pub mod no_chrono;
 pub mod no_tokio_spawn;
 pub mod pub_first;
 pub mod test_fn_prefix;
-pub mod unwrap_or_comment;
 pub mod use_bail;
 
 use std::{
@@ -60,12 +59,9 @@ pub struct RustCheckOptions {
 	/// Check that public items come before private items (default: true)
 	#[default = true]
 	pub pub_first: bool,
-	/// Check for //UNWRAP_OR comments on unwrap_or/unwrap_or_default/unwrap_or_else calls (default: true)
+	/// Check for //IGNORED_ERROR comments on unwrap_or/unwrap_or_default/unwrap_or_else and `let _ = ...` (default: true)
 	#[default = true]
-	pub unwrap_or_comment: bool,
-	/// Check for //LET_UNDERSCORE comments on `let _ = ...` patterns (default: true)
-	#[default = true]
-	pub let_underscore_comment: bool,
+	pub ignored_error_comment: bool,
 }
 
 #[derive(Clone, Default, derive_new::new)]
@@ -148,11 +144,8 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 				if opts.pub_first {
 					all_violations.extend(pub_first::check(&info.path, &info.contents, tree));
 				}
-				if opts.unwrap_or_comment {
-					all_violations.extend(unwrap_or_comment::check(&info.path, &info.contents, tree));
-				}
-				if opts.let_underscore_comment {
-					all_violations.extend(let_underscore_comment::check(&info.path, &info.contents, tree));
+				if opts.ignored_error_comment {
+					all_violations.extend(ignored_error_comment::check(&info.path, &info.contents, tree));
 				}
 			}
 		}
@@ -382,19 +375,8 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 				}
 			}
 
-			if first_fix.is_none() && opts.unwrap_or_comment {
-				for v in unwrap_or_comment::check(&info.path, &info.contents, tree) {
-					if let Some(fix) = v.fix.clone() {
-						first_fix = Some((v, fix));
-						break;
-					} else {
-						unfixable.push(v);
-					}
-				}
-			}
-
-			if first_fix.is_none() && opts.let_underscore_comment {
-				for v in let_underscore_comment::check(&info.path, &info.contents, tree) {
+			if first_fix.is_none() && opts.ignored_error_comment {
+				for v in ignored_error_comment::check(&info.path, &info.contents, tree) {
 					if let Some(fix) = v.fix.clone() {
 						first_fix = Some((v, fix));
 						break;

@@ -19,8 +19,7 @@ pub(crate) fn opts_for(check: &str) -> RustCheckOptions {
 		use_bail: check == "use_bail",
 		test_fn_prefix: check == "test_fn_prefix",
 		pub_first: check == "pub_first",
-		unwrap_or_comment: check == "unwrap_or_comment",
-		let_underscore_comment: check == "let_underscore_comment",
+		ignored_error_comment: check == "ignored_error_comment",
 	}
 }
 
@@ -128,8 +127,8 @@ pub(crate) fn test_case_assert_only(fixture_str: &str, opts: &RustCheckOptions) 
 
 fn collect_violations(root: &Path, opts: &RustCheckOptions, is_format_mode: bool) -> Vec<Violation> {
 	use codestyle::rust_checks::{
-		embed_simple_vars, impl_folds, impl_follows_type, insta_snapshots, instrument, join_split_impls, let_underscore_comment, loops, no_chrono, no_tokio_spawn, pub_first, test_fn_prefix,
-		unwrap_or_comment, use_bail,
+		embed_simple_vars, ignored_error_comment, impl_folds, impl_follows_type, insta_snapshots, instrument, join_split_impls, loops, no_chrono, no_tokio_spawn, pub_first, test_fn_prefix,
+		use_bail,
 	};
 
 	let file_infos = rust_checks::collect_rust_files(root);
@@ -173,11 +172,8 @@ fn collect_violations(root: &Path, opts: &RustCheckOptions, is_format_mode: bool
 			if opts.pub_first {
 				violations.extend(pub_first::check(&info.path, &info.contents, tree));
 			}
-			if opts.unwrap_or_comment {
-				violations.extend(unwrap_or_comment::check(&info.path, &info.contents, tree));
-			}
-			if opts.let_underscore_comment {
-				violations.extend(let_underscore_comment::check(&info.path, &info.contents, tree));
+			if opts.ignored_error_comment {
+				violations.extend(ignored_error_comment::check(&info.path, &info.contents, tree));
 			}
 		}
 	}
