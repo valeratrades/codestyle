@@ -3,7 +3,7 @@ use std::{collections::HashSet, path::Path};
 use proc_macro2::{Span, TokenStream, TokenTree};
 use syn::{ExprMacro, Macro, spanned::Spanned, visit::Visit};
 
-use super::{Fix, Violation, skip::has_skip_attr};
+use super::{Fix, Violation, skip::has_skip_marker};
 
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let mut visitor = FormatMacroVisitor::new(path, content);
@@ -188,35 +188,35 @@ impl<'a> FormatMacroVisitor<'a> {
 
 impl<'a> Visit<'a> for FormatMacroVisitor<'a> {
 	fn visit_item_fn(&mut self, node: &'a syn::ItemFn) {
-		if has_skip_attr(&node.attrs) {
+		if has_skip_marker(self.content, node.span()) {
 			return;
 		}
 		syn::visit::visit_item_fn(self, node);
 	}
 
 	fn visit_item_mod(&mut self, node: &'a syn::ItemMod) {
-		if has_skip_attr(&node.attrs) {
+		if has_skip_marker(self.content, node.span()) {
 			return;
 		}
 		syn::visit::visit_item_mod(self, node);
 	}
 
 	fn visit_item_impl(&mut self, node: &'a syn::ItemImpl) {
-		if has_skip_attr(&node.attrs) {
+		if has_skip_marker(self.content, node.span()) {
 			return;
 		}
 		syn::visit::visit_item_impl(self, node);
 	}
 
 	fn visit_expr_block(&mut self, node: &'a syn::ExprBlock) {
-		if has_skip_attr(&node.attrs) {
+		if has_skip_marker(self.content, node.span()) {
 			return;
 		}
 		syn::visit::visit_expr_block(self, node);
 	}
 
 	fn visit_local(&mut self, node: &'a syn::Local) {
-		if has_skip_attr(&node.attrs) {
+		if has_skip_marker(self.content, node.span()) {
 			return;
 		}
 		syn::visit::visit_local(self, node);

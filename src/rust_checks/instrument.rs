@@ -1,6 +1,6 @@
-use syn::ItemFn;
+use syn::{ItemFn, spanned::Spanned};
 
-use super::{FileInfo, Violation, skip::has_skip_attr};
+use super::{FileInfo, Violation, skip::has_skip_marker};
 
 pub fn check_instrument(file_info: &FileInfo) -> Vec<Violation> {
 	let mut violations = Vec::new();
@@ -8,7 +8,7 @@ pub fn check_instrument(file_info: &FileInfo) -> Vec<Violation> {
 	let path_str = file_info.path.display().to_string();
 
 	for func in &file_info.fn_items {
-		if has_skip_attr(&func.attrs) {
+		if has_skip_marker(&file_info.contents, func.span()) {
 			continue;
 		}
 		// Only check async functions

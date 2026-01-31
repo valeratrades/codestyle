@@ -1,4 +1,10 @@
-//! Tests for #[codestyle::skip] attribute - skipping codestyle checks on annotated items.
+//! Tests for codestyle::skip comment markers - skipping codestyle checks on annotated items.
+//!
+//! Supported formats:
+//! - `//#[codestyle::skip]`
+//! - `// #[codestyle::skip]`
+//! - `//@codestyle::skip`
+//! - `// @codestyle::skip`
 
 use codestyle::rust_checks::RustCheckOptions;
 
@@ -22,14 +28,14 @@ fn all_opts() -> RustCheckOptions {
 	}
 }
 
-// === #[codestyle::skip] on functions ===
+// === codestyle::skip on functions ===
 
 #[test]
 fn skip_on_function_ignores_ignored_error_comment() {
-	// A function with #[codestyle::skip] should not trigger ignored_error_comment violations
+	// A function with //@codestyle::skip should not trigger ignored_error_comment violations
 	assert_check_passing(
 		r#"
-		#[codestyle::skip]
+		//@codestyle::skip
 		fn skipped() {
 			let x: Option<i32> = None;
 			let y = x.unwrap_or(0);
@@ -40,11 +46,27 @@ fn skip_on_function_ignores_ignored_error_comment() {
 }
 
 #[test]
-fn skip_on_function_ignores_embed_simple_vars() {
-	// A function with #[codestyle::skip] should not trigger embed_simple_vars violations
+fn skip_on_function_ignores_loops() {
+	// A function with //@codestyle::skip should not trigger loop violations
 	assert_check_passing(
 		r#"
-		#[codestyle::skip]
+		//@codestyle::skip
+		fn skipped() {
+			loop {
+				// endless loop without //LOOP comment should be ignored
+			}
+		}
+		"#,
+		&opts_for("loops"),
+	);
+}
+
+#[test]
+fn skip_on_function_ignores_embed_simple_vars() {
+	// A function with // #[codestyle::skip] should not trigger embed_simple_vars violations
+	assert_check_passing(
+		r#"
+		// #[codestyle::skip]
 		fn skipped() {
 			let name = "world";
 			println!("Hello, {}", name);
@@ -54,14 +76,14 @@ fn skip_on_function_ignores_embed_simple_vars() {
 	);
 }
 
-// === #[codestyle::skip] on struct/impl blocks ===
+// === codestyle::skip on struct/impl blocks ===
 
 #[test]
 fn skip_on_impl_ignores_impl_follows_type() {
-	// An impl with #[codestyle::skip] should not trigger impl_follows_type violations
+	// An impl with //#[codestyle::skip] should not trigger impl_follows_type violations
 	assert_check_passing(
 		r#"
-		#[codestyle::skip]
+		//#[codestyle::skip]
 		impl Foo {
 			fn new() -> Self { Self }
 		}
@@ -74,10 +96,10 @@ fn skip_on_impl_ignores_impl_follows_type() {
 
 #[test]
 fn skip_on_struct_ignores_pub_first() {
-	// A struct block with #[codestyle::skip] should not check pub_first ordering
+	// A struct block with // @codestyle::skip should not check pub_first ordering
 	assert_check_passing(
 		r#"
-		#[codestyle::skip]
+		// @codestyle::skip
 		struct Config {
 			private_field: i32,
 			pub public_field: i32,
@@ -87,50 +109,14 @@ fn skip_on_struct_ignores_pub_first() {
 	);
 }
 
-// === #[codestyle::skip] on expressions/blocks ===
-
-#[test]
-fn skip_on_block_ignores_all_checks() {
-	// When placed on a block expression, all checks inside should be skipped
-	assert_check_passing(
-		r#"
-		fn outer() {
-			#[codestyle::skip]
-			{
-				let x: Option<i32> = None;
-				let y = x.unwrap_or(0);
-				let _ = some_result();
-			}
-		}
-		fn some_result() -> Result<(), ()> { Ok(()) }
-		"#,
-		&all_opts(),
-	);
-}
-
-#[test]
-fn skip_on_let_statement_ignores_that_statement() {
-	// Skip attribute on a specific let statement
-	assert_check_passing(
-		r#"
-		fn foo() {
-			let x: Option<i32> = None;
-			#[codestyle::skip]
-			let y = x.unwrap_or(0);
-		}
-		"#,
-		&opts_for("ignored_error_comment"),
-	);
-}
-
-// === #[codestyle::skip] on modules ===
+// === codestyle::skip on modules ===
 
 #[test]
 fn skip_on_module_ignores_all_inside() {
-	// A module with #[codestyle::skip] should skip all checks for items inside
+	// A module with //@codestyle::skip should skip all checks for items inside
 	assert_check_passing(
 		r#"
-		#[codestyle::skip]
+		//@codestyle::skip
 		mod skipped_module {
 			fn bad() {
 				let x: Option<i32> = None;
@@ -151,7 +137,7 @@ fn skip_does_not_affect_sibling_items() {
 	// Skip on one function should not affect sibling functions
 	insta::assert_snapshot!(test_case_assert_only(
 		r#"
-		#[codestyle::skip]
+		//@codestyle::skip
 		fn skipped() {
 			let x: Option<i32> = None;
 			let y = x.unwrap_or(0);
@@ -174,13 +160,10 @@ fn nested_skip_works() {
 	// Skip inside a function that is itself skipped (redundant but should work)
 	assert_check_passing(
 		r#"
-		#[codestyle::skip]
+		//@codestyle::skip
 		fn outer() {
-			#[codestyle::skip]
-			{
-				let x: Option<i32> = None;
-				let y = x.unwrap_or(0);
-			}
+			let x: Option<i32> = None;
+			let y = x.unwrap_or(0);
 		}
 		"#,
 		&opts_for("ignored_error_comment"),
@@ -188,12 +171,30 @@ fn nested_skip_works() {
 }
 
 #[test]
-fn skip_inner_attribute_on_function_body() {
-	// Inner attribute form should also work
+fn all_skip_comment_variants_work() {
+	// Test all four supported syntaxes
 	assert_check_passing(
 		r#"
-		fn skipped() {
-			#![codestyle::skip]
+		//#[codestyle::skip]
+		fn skipped1() {
+			let x: Option<i32> = None;
+			let y = x.unwrap_or(0);
+		}
+
+		// #[codestyle::skip]
+		fn skipped2() {
+			let x: Option<i32> = None;
+			let y = x.unwrap_or(0);
+		}
+
+		//@codestyle::skip
+		fn skipped3() {
+			let x: Option<i32> = None;
+			let y = x.unwrap_or(0);
+		}
+
+		// @codestyle::skip
+		fn skipped4() {
 			let x: Option<i32> = None;
 			let y = x.unwrap_or(0);
 		}

@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::Path};
 
 use syn::{Item, spanned::Spanned};
 
-use super::{Fix, Violation, skip::has_skip_attr};
+use super::{Fix, Violation, skip::has_skip_marker};
 
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	const RULE: &str = "join-split-impls";
@@ -19,8 +19,8 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 			continue;
 		};
 
-		// Skip if marked with #[codestyle::skip]
-		if has_skip_attr(&impl_block.attrs) {
+		// Skip if marked with codestyle::skip comment
+		if has_skip_marker(content, impl_block.span()) {
 			continue;
 		}
 
