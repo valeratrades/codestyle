@@ -8,26 +8,25 @@ use std::path::Path;
 use proc_macro2::Span;
 use syn::{Expr, ExprCall, ExprPath, spanned::Spanned, visit::Visit};
 
-use super::{Violation, skip::has_skip_marker};
+use super::{Violation, skip::SkipVisitor};
 
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
-	let mut visitor = TokioSpawnVisitor::new(path, content);
-	visitor.visit_file(file);
-	visitor.violations
+	let visitor = TokioSpawnVisitor::new(path);
+	let mut skip_visitor = SkipVisitor::new(visitor, content);
+	skip_visitor.visit_file(file);
+	skip_visitor.inner.violations
 }
 const GO_STATEMENT_HARMFUL_URL: &str = "https://vorpus.org/blog/notes-on-structured-concurrency-or-go-statement-considered-harmful/";
 
-struct TokioSpawnVisitor<'a> {
+struct TokioSpawnVisitor {
 	path_str: String,
-	content: &'a str,
 	violations: Vec<Violation>,
 }
 
-impl<'a> TokioSpawnVisitor<'a> {
-	fn new(path: &Path, content: &'a str) -> Self {
+impl TokioSpawnVisitor {
+	fn new(path: &Path) -> Self {
 		Self {
 			path_str: path.display().to_string(),
-			content,
 			violations: Vec::new(),
 		}
 	}
@@ -62,35 +61,7 @@ impl<'a> TokioSpawnVisitor<'a> {
 	}
 }
 
-impl<'a> Visit<'a> for TokioSpawnVisitor<'a> {
-	fn visit_item_fn(&mut self, node: &'a syn::ItemFn) {
-		if has_skip_marker(self.content, node.span()) {
-			return;
-		}
-		syn::visit::visit_item_fn(self, node);
-	}
-
-	fn visit_item_mod(&mut self, node: &'a syn::ItemMod) {
-		if has_skip_marker(self.content, node.span()) {
-			return;
-		}
-		syn::visit::visit_item_mod(self, node);
-	}
-
-	fn visit_item_impl(&mut self, node: &'a syn::ItemImpl) {
-		if has_skip_marker(self.content, node.span()) {
-			return;
-		}
-		syn::visit::visit_item_impl(self, node);
-	}
-
-	fn visit_expr_block(&mut self, node: &'a syn::ExprBlock) {
-		if has_skip_marker(self.content, node.span()) {
-			return;
-		}
-		syn::visit::visit_expr_block(self, node);
-	}
-
+impl<'a> Visit<'a> for TokioSpawnVisitor {
 	fn visit_expr_call(&mut self, node: &'a ExprCall) {
 		if let Expr::Path(ExprPath { path, .. }) = &*node.func
 			&& let Some(variant) = self.is_tokio_spawn_path(path)

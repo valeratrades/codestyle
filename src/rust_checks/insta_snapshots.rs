@@ -3,18 +3,21 @@ use std::{collections::HashSet, path::Path};
 use proc_macro2::{Span, TokenTree};
 use syn::{ExprMacro, ItemFn, Macro, spanned::Spanned, visit::Visit};
 
-use super::{Fix, Violation, skip::has_skip_marker};
+use super::{Fix, Violation, skip::SkipVisitor};
 
 pub fn check(path: &Path, content: &str, file: &syn::File, is_format_mode: bool) -> Vec<Violation> {
-	let mut visitor = InstaSnapshotVisitor::new(path, content, is_format_mode);
-	visitor.visit_file(file);
+	let visitor = InstaSnapshotVisitor::new(path, content, is_format_mode);
+	let mut skip_visitor = SkipVisitor::new(visitor, content);
+	skip_visitor.visit_file(file);
+	let mut violations = skip_visitor.inner.violations;
 
 	// Check for sequential snapshots in functions
-	let mut seq_visitor = SequentialSnapshotVisitor::new(path, content);
-	seq_visitor.visit_file(file);
-	visitor.violations.extend(seq_visitor.violations);
+	let seq_visitor = SequentialSnapshotVisitor::new(path);
+	let mut seq_skip_visitor = SkipVisitor::new(seq_visitor, content);
+	seq_skip_visitor.visit_file(file);
+	violations.extend(seq_skip_visitor.inner.violations);
 
-	visitor.violations
+	violations
 }
 const INSTA_SNAPSHOT_MACROS: &[&str] = &[
 	"assert_snapshot",
@@ -96,34 +99,6 @@ impl<'a> InstaSnapshotVisitor<'a> {
 }
 
 impl<'a> Visit<'a> for InstaSnapshotVisitor<'a> {
-	fn visit_item_fn(&mut self, node: &'a ItemFn) {
-		if has_skip_marker(self.content, node.span()) {
-			return;
-		}
-		syn::visit::visit_item_fn(self, node);
-	}
-
-	fn visit_item_mod(&mut self, node: &'a syn::ItemMod) {
-		if has_skip_marker(self.content, node.span()) {
-			return;
-		}
-		syn::visit::visit_item_mod(self, node);
-	}
-
-	fn visit_item_impl(&mut self, node: &'a syn::ItemImpl) {
-		if has_skip_marker(self.content, node.span()) {
-			return;
-		}
-		syn::visit::visit_item_impl(self, node);
-	}
-
-	fn visit_expr_block(&mut self, node: &'a syn::ExprBlock) {
-		if has_skip_marker(self.content, node.span()) {
-			return;
-		}
-		syn::visit::visit_expr_block(self, node);
-	}
-
 	fn visit_expr_macro(&mut self, node: &'a ExprMacro) {
 		self.check_insta_macro(&node.mac);
 		syn::visit::visit_expr_macro(self, node);
@@ -225,17 +200,15 @@ fn find_closing_paren_before(content: &str, max_pos: usize) -> Option<usize> {
 }
 
 /// Visitor that detects sequential snapshot assertions within the same function
-struct SequentialSnapshotVisitor<'a> {
+struct SequentialSnapshotVisitor {
 	path_str: String,
-	content: &'a str,
 	violations: Vec<Violation>,
 }
 
-impl<'a> SequentialSnapshotVisitor<'a> {
-	fn new(path: &Path, content: &'a str) -> Self {
+impl SequentialSnapshotVisitor {
+	fn new(path: &Path) -> Self {
 		Self {
 			path_str: path.display().to_string(),
-			content,
 			violations: Vec::new(),
 		}
 	}
@@ -276,20 +249,10 @@ impl<'a> SequentialSnapshotVisitor<'a> {
 	}
 }
 
-impl<'a> Visit<'a> for SequentialSnapshotVisitor<'a> {
+impl<'a> Visit<'a> for SequentialSnapshotVisitor {
 	fn visit_item_fn(&mut self, node: &'a ItemFn) {
-		if has_skip_marker(self.content, node.span()) {
-			return;
-		}
 		self.check_function_for_sequential_snapshots(node);
 		syn::visit::visit_item_fn(self, node);
-	}
-
-	fn visit_item_mod(&mut self, node: &'a syn::ItemMod) {
-		if has_skip_marker(self.content, node.span()) {
-			return;
-		}
-		syn::visit::visit_item_mod(self, node);
 	}
 }
 

@@ -5,14 +5,15 @@
 
 use std::path::Path;
 
-use syn::{Attribute, ItemFn, spanned::Spanned, visit::Visit};
+use syn::{Attribute, ItemFn, visit::Visit};
 
-use super::{Fix, Violation, skip::has_skip_marker};
+use super::{Fix, Violation, skip::SkipVisitor};
 
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
-	let mut visitor = TestFnPrefixVisitor::new(path, content);
-	visitor.visit_file(file);
-	visitor.violations
+	let visitor = TestFnPrefixVisitor::new(path, content);
+	let mut skip_visitor = SkipVisitor::new(visitor, content);
+	skip_visitor.visit_file(file);
+	skip_visitor.inner.violations
 }
 
 struct TestFnPrefixVisitor<'a> {
@@ -64,18 +65,8 @@ impl<'a> TestFnPrefixVisitor<'a> {
 
 impl<'a> Visit<'a> for TestFnPrefixVisitor<'a> {
 	fn visit_item_fn(&mut self, node: &'a ItemFn) {
-		if has_skip_marker(self.content, node.span()) {
-			return;
-		}
 		self.check_fn(node);
 		syn::visit::visit_item_fn(self, node);
-	}
-
-	fn visit_item_mod(&mut self, node: &'a syn::ItemMod) {
-		if has_skip_marker(self.content, node.span()) {
-			return;
-		}
-		syn::visit::visit_item_mod(self, node);
 	}
 }
 

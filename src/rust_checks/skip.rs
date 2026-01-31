@@ -9,6 +9,7 @@
 //! - `// @codestyle::skip`
 
 use proc_macro2::Span;
+use syn::visit::Visit;
 
 /// Check if the line before the given span contains a codestyle::skip marker.
 pub fn has_skip_marker(content: &str, span: Span) -> bool {
@@ -52,4 +53,60 @@ fn is_skip_comment(line: &str) -> bool {
 	}
 
 	false
+}
+
+/// A visitor wrapper that automatically skips items marked with codestyle::skip.
+///
+/// Wrap your visitor with this to get automatic skip handling without duplicating
+/// the skip logic in every check module.
+pub struct SkipVisitor<'a, V> {
+	pub inner: V,
+	pub content: &'a str,
+}
+
+impl<'a, V> SkipVisitor<'a, V> {
+	pub fn new(inner: V, content: &'a str) -> Self {
+		Self { inner, content }
+	}
+}
+
+/// Macro for container items that can have skip markers.
+/// For these, we check the skip marker, then delegate to the inner visitor.
+/// The inner visitor is responsible for both its checks AND recursion.
+macro_rules! impl_skip_visit_container {
+	($method:ident, $type:ty) => {
+		fn $method(&mut self, node: &'ast $type) {
+			if has_skip_marker(self.content, syn::spanned::Spanned::span(node)) {
+				return;
+			}
+			// Delegate to inner visitor - it handles its own checks and recursion
+			self.inner.$method(node);
+		}
+	};
+}
+
+impl<'ast, V: Visit<'ast>> Visit<'ast> for SkipVisitor<'_, V> {
+	impl_skip_visit_container!(visit_item_fn, syn::ItemFn);
+
+	impl_skip_visit_container!(visit_item_mod, syn::ItemMod);
+
+	impl_skip_visit_container!(visit_item_impl, syn::ItemImpl);
+
+	impl_skip_visit_container!(visit_item_struct, syn::ItemStruct);
+
+	impl_skip_visit_container!(visit_item_enum, syn::ItemEnum);
+
+	impl_skip_visit_container!(visit_item_trait, syn::ItemTrait);
+
+	impl_skip_visit_container!(visit_item_type, syn::ItemType);
+
+	impl_skip_visit_container!(visit_item_const, syn::ItemConst);
+
+	impl_skip_visit_container!(visit_item_static, syn::ItemStatic);
+
+	impl_skip_visit_container!(visit_item_use, syn::ItemUse);
+
+	impl_skip_visit_container!(visit_expr_block, syn::ExprBlock);
+
+	impl_skip_visit_container!(visit_local, syn::Local);
 }
