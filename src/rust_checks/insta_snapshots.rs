@@ -3,7 +3,7 @@ use std::{collections::HashSet, path::Path};
 use proc_macro2::{Span, TokenTree};
 use syn::{ExprMacro, ItemFn, Macro, spanned::Spanned, visit::Visit};
 
-use super::{Fix, Violation};
+use super::{Fix, Violation, skip::has_skip_attr};
 
 pub fn check(path: &Path, content: &str, file: &syn::File, is_format_mode: bool) -> Vec<Violation> {
 	let mut visitor = InstaSnapshotVisitor::new(path, content, is_format_mode);
@@ -96,6 +96,34 @@ impl<'a> InstaSnapshotVisitor<'a> {
 }
 
 impl<'a> Visit<'a> for InstaSnapshotVisitor<'a> {
+	fn visit_item_fn(&mut self, node: &'a ItemFn) {
+		if has_skip_attr(&node.attrs) {
+			return;
+		}
+		syn::visit::visit_item_fn(self, node);
+	}
+
+	fn visit_item_mod(&mut self, node: &'a syn::ItemMod) {
+		if has_skip_attr(&node.attrs) {
+			return;
+		}
+		syn::visit::visit_item_mod(self, node);
+	}
+
+	fn visit_item_impl(&mut self, node: &'a syn::ItemImpl) {
+		if has_skip_attr(&node.attrs) {
+			return;
+		}
+		syn::visit::visit_item_impl(self, node);
+	}
+
+	fn visit_expr_block(&mut self, node: &'a syn::ExprBlock) {
+		if has_skip_attr(&node.attrs) {
+			return;
+		}
+		syn::visit::visit_expr_block(self, node);
+	}
+
 	fn visit_expr_macro(&mut self, node: &'a ExprMacro) {
 		self.check_insta_macro(&node.mac);
 		syn::visit::visit_expr_macro(self, node);
@@ -248,8 +276,18 @@ impl SequentialSnapshotVisitor {
 
 impl<'a> Visit<'a> for SequentialSnapshotVisitor {
 	fn visit_item_fn(&mut self, node: &'a ItemFn) {
+		if has_skip_attr(&node.attrs) {
+			return;
+		}
 		self.check_function_for_sequential_snapshots(node);
 		syn::visit::visit_item_fn(self, node);
+	}
+
+	fn visit_item_mod(&mut self, node: &'a syn::ItemMod) {
+		if has_skip_attr(&node.attrs) {
+			return;
+		}
+		syn::visit::visit_item_mod(self, node);
 	}
 }
 

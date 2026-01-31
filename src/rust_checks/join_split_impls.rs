@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::Path};
 
 use syn::{Item, spanned::Spanned};
 
-use super::{Fix, Violation};
+use super::{Fix, Violation, skip::has_skip_attr};
 
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	const RULE: &str = "join-split-impls";
@@ -18,6 +18,11 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		let Item::Impl(impl_block) = item else {
 			continue;
 		};
+
+		// Skip if marked with #[codestyle::skip]
+		if has_skip_attr(&impl_block.attrs) {
+			continue;
+		}
 
 		// Skip trait impls - they can't be joined with inherent impls
 		if impl_block.trait_.is_some() {

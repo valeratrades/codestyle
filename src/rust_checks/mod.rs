@@ -9,6 +9,7 @@ pub mod loops;
 pub mod no_chrono;
 pub mod no_tokio_spawn;
 pub mod pub_first;
+pub mod skip;
 pub mod test_fn_prefix;
 pub mod use_bail;
 

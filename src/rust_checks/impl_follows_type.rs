@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::Path};
 
 use syn::{Item, ItemEnum, ItemImpl, ItemStruct, ItemUnion, spanned::Spanned};
 
-use super::{Fix, Violation};
+use super::{Fix, Violation, skip::has_skip_attr};
 
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	const RULE: &str = "impl-follows-type";
@@ -32,6 +32,11 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 			let Item::Impl(impl_block) = item else {
 				return None;
 			};
+
+			// Skip if marked with #[codestyle::skip]
+			if has_skip_attr(&impl_block.attrs) {
+				return None;
+			}
 
 			// Skip trait impls
 			if impl_block.trait_.is_some() {

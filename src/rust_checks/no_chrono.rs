@@ -8,7 +8,7 @@ use std::{collections::HashSet, path::Path};
 use proc_macro2::Span;
 use syn::{ItemUse, UseTree, visit::Visit};
 
-use super::Violation;
+use super::{Violation, skip::has_skip_attr};
 
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let mut visitor = ChronoVisitor::new(path, content);
@@ -87,7 +87,38 @@ impl<'a> ChronoVisitor<'a> {
 }
 
 impl<'a> Visit<'a> for ChronoVisitor<'a> {
+	fn visit_item_fn(&mut self, node: &'a syn::ItemFn) {
+		if has_skip_attr(&node.attrs) {
+			return;
+		}
+		syn::visit::visit_item_fn(self, node);
+	}
+
+	fn visit_item_mod(&mut self, node: &'a syn::ItemMod) {
+		if has_skip_attr(&node.attrs) {
+			return;
+		}
+		syn::visit::visit_item_mod(self, node);
+	}
+
+	fn visit_item_impl(&mut self, node: &'a syn::ItemImpl) {
+		if has_skip_attr(&node.attrs) {
+			return;
+		}
+		syn::visit::visit_item_impl(self, node);
+	}
+
+	fn visit_expr_block(&mut self, node: &'a syn::ExprBlock) {
+		if has_skip_attr(&node.attrs) {
+			return;
+		}
+		syn::visit::visit_expr_block(self, node);
+	}
+
 	fn visit_item_use(&mut self, node: &'a ItemUse) {
+		if has_skip_attr(&node.attrs) {
+			return;
+		}
 		self.check_use_tree(&node.tree, "");
 		syn::visit::visit_item_use(self, node);
 	}

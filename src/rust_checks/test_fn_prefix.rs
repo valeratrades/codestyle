@@ -7,7 +7,7 @@ use std::path::Path;
 
 use syn::{Attribute, ItemFn, visit::Visit};
 
-use super::{Fix, Violation};
+use super::{Fix, Violation, skip::has_skip_attr};
 
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let mut visitor = TestFnPrefixVisitor::new(path, content);
@@ -64,8 +64,18 @@ impl<'a> TestFnPrefixVisitor<'a> {
 
 impl<'a> Visit<'a> for TestFnPrefixVisitor<'a> {
 	fn visit_item_fn(&mut self, node: &'a ItemFn) {
+		if has_skip_attr(&node.attrs) {
+			return;
+		}
 		self.check_fn(node);
 		syn::visit::visit_item_fn(self, node);
+	}
+
+	fn visit_item_mod(&mut self, node: &'a syn::ItemMod) {
+		if has_skip_attr(&node.attrs) {
+			return;
+		}
+		syn::visit::visit_item_mod(self, node);
 	}
 }
 

@@ -6,7 +6,7 @@ use std::path::Path;
 
 use syn::{Item, Visibility, spanned::Spanned};
 
-use super::{Fix, Violation};
+use super::{Fix, Violation, skip::has_skip_attr};
 
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let path_str = path.display().to_string();
@@ -137,16 +137,16 @@ struct ItemInfo {
 
 /// Returns (is_pub, is_main_fn) for an item, or None if it should be skipped
 fn get_item_visibility_and_main(item: &Item) -> Option<(bool, bool)> {
-	let (vis, is_main_fn) = match item {
-		Item::Fn(f) => (Some(&f.vis), f.sig.ident == "main"),
-		Item::Struct(s) => (Some(&s.vis), false),
-		Item::Enum(e) => (Some(&e.vis), false),
-		Item::Type(t) => (Some(&t.vis), false),
-		Item::Const(c) => (Some(&c.vis), false),
-		Item::Static(s) => (Some(&s.vis), false),
-		Item::Trait(t) => (Some(&t.vis), false),
-		Item::Mod(m) => (Some(&m.vis), false),
-		Item::Union(u) => (Some(&u.vis), false),
+	let (vis, is_main_fn, attrs) = match item {
+		Item::Fn(f) => (Some(&f.vis), f.sig.ident == "main", &f.attrs),
+		Item::Struct(s) => (Some(&s.vis), false, &s.attrs),
+		Item::Enum(e) => (Some(&e.vis), false, &e.attrs),
+		Item::Type(t) => (Some(&t.vis), false, &t.attrs),
+		Item::Const(c) => (Some(&c.vis), false, &c.attrs),
+		Item::Static(s) => (Some(&s.vis), false, &s.attrs),
+		Item::Trait(t) => (Some(&t.vis), false, &t.attrs),
+		Item::Mod(m) => (Some(&m.vis), false, &m.attrs),
+		Item::Union(u) => (Some(&u.vis), false, &u.attrs),
 		Item::ExternCrate(_) => return None, // Skip extern crate declarations
 		Item::Use(_) => return None,         // Skip use statements - they have their own ordering conventions
 		Item::Impl(_) => return None,        // Skip impl blocks - they're handled by impl_follows_type
@@ -154,6 +154,11 @@ fn get_item_visibility_and_main(item: &Item) -> Option<(bool, bool)> {
 		Item::ForeignMod(_) => return None,  // Skip extern blocks
 		_ => return None,
 	};
+
+	// Skip if marked with #[codestyle::skip]
+	if has_skip_attr(attrs) {
+		return None;
+	}
 
 	let is_pub = matches!(vis, Some(Visibility::Public(_)));
 	Some((is_pub, is_main_fn))

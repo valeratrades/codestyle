@@ -1,12 +1,15 @@
 use syn::{Expr, Stmt, spanned::Spanned};
 
-use super::{FileInfo, Violation};
+use super::{FileInfo, Violation, skip::has_skip_attr};
 
 pub fn check_loops(file_info: &FileInfo) -> Vec<Violation> {
 	let mut violations = Vec::new();
 	let path_str = file_info.path.display().to_string();
 
 	for func in &file_info.fn_items {
+		if has_skip_attr(&func.attrs) {
+			continue;
+		}
 		collect_loop_issues_from_stmts(&func.block.stmts, &file_info.contents, &path_str, &mut violations);
 	}
 
