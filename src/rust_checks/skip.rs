@@ -17,6 +17,20 @@ pub fn has_skip_marker(content: &str, span: Span) -> bool {
 	has_skip_marker_at_line(content, line)
 }
 
+/// A visitor wrapper that automatically skips items marked with codestyle::skip.
+///
+/// Wrap your visitor with this to get automatic skip handling without duplicating
+/// the skip logic in every check module.
+pub struct SkipVisitor<'a, V> {
+	pub inner: V,
+	pub content: &'a str,
+}
+impl<'a, V> SkipVisitor<'a, V> {
+	pub fn new(inner: V, content: &'a str) -> Self {
+		Self { inner, content }
+	}
+}
+
 /// Check if the given line or the line above contains a codestyle::skip marker.
 fn has_skip_marker_at_line(content: &str, line: usize) -> bool {
 	let lines: Vec<&str> = content.lines().collect();
@@ -53,21 +67,6 @@ fn is_skip_comment(line: &str) -> bool {
 	}
 
 	false
-}
-
-/// A visitor wrapper that automatically skips items marked with codestyle::skip.
-///
-/// Wrap your visitor with this to get automatic skip handling without duplicating
-/// the skip logic in every check module.
-pub struct SkipVisitor<'a, V> {
-	pub inner: V,
-	pub content: &'a str,
-}
-
-impl<'a, V> SkipVisitor<'a, V> {
-	pub fn new(inner: V, content: &'a str) -> Self {
-		Self { inner, content }
-	}
 }
 
 /// Macro for container items that can have skip markers.
