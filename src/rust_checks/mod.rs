@@ -232,12 +232,17 @@ pub fn collect_rust_files(target_dir: &Path) -> Vec<FileInfo> {
 	}
 	file_infos
 }
-/// Format a single file iteratively - apply one fix at a time, re-parse, repeat
+/// Format a single file iteratively - apply one fix at a time, re-parse, repeat.
+/// Unfixable violations are only collected on the final pass (when no more fixes are found),
+/// ensuring line numbers are stable and no duplicates are reported.
 fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize, Vec<Violation>) {
 	let mut fixed_count = 0;
-	let mut unfixable = Vec::new();
 
-	while let Some(info) = parse_rust_file(file_path.to_path_buf()) {
+	loop {
+		let Some(info) = parse_rust_file(file_path.to_path_buf()) else {
+			break;
+		};
+
 		// Find the first fixable violation
 		let mut first_fix: Option<(Violation, Fix)> = None;
 
@@ -246,8 +251,6 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 				if let Some(fix) = v.fix.clone() {
 					first_fix = Some((v, fix));
 					break;
-				} else {
-					unfixable.push(v);
 				}
 			}
 		}
@@ -257,8 +260,6 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 				if let Some(fix) = v.fix.clone() {
 					first_fix = Some((v, fix));
 					break;
-				} else {
-					unfixable.push(v);
 				}
 			}
 		}
@@ -270,8 +271,6 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 					if let Some(fix) = v.fix.clone() {
 						first_fix = Some((v, fix));
 						break;
-					} else {
-						unfixable.push(v);
 					}
 				}
 			}
@@ -281,8 +280,6 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 					if let Some(fix) = v.fix.clone() {
 						first_fix = Some((v, fix));
 						break;
-					} else {
-						unfixable.push(v);
 					}
 				}
 			}
@@ -292,8 +289,6 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 					if let Some(fix) = v.fix.clone() {
 						first_fix = Some((v, fix));
 						break;
-					} else {
-						unfixable.push(v);
 					}
 				}
 			}
@@ -303,8 +298,6 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 					if let Some(fix) = v.fix.clone() {
 						first_fix = Some((v, fix));
 						break;
-					} else {
-						unfixable.push(v);
 					}
 				}
 			}
@@ -314,8 +307,6 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 					if let Some(fix) = v.fix.clone() {
 						first_fix = Some((v, fix));
 						break;
-					} else {
-						unfixable.push(v);
 					}
 				}
 			}
@@ -325,8 +316,6 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 					if let Some(fix) = v.fix.clone() {
 						first_fix = Some((v, fix));
 						break;
-					} else {
-						unfixable.push(v);
 					}
 				}
 			}
@@ -336,8 +325,6 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 					if let Some(fix) = v.fix.clone() {
 						first_fix = Some((v, fix));
 						break;
-					} else {
-						unfixable.push(v);
 					}
 				}
 			}
@@ -347,8 +334,6 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 					if let Some(fix) = v.fix.clone() {
 						first_fix = Some((v, fix));
 						break;
-					} else {
-						unfixable.push(v);
 					}
 				}
 			}
@@ -358,8 +343,6 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 					if let Some(fix) = v.fix.clone() {
 						first_fix = Some((v, fix));
 						break;
-					} else {
-						unfixable.push(v);
 					}
 				}
 			}
@@ -369,8 +352,6 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 					if let Some(fix) = v.fix.clone() {
 						first_fix = Some((v, fix));
 						break;
-					} else {
-						unfixable.push(v);
 					}
 				}
 			}
@@ -380,8 +361,6 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 					if let Some(fix) = v.fix.clone() {
 						first_fix = Some((v, fix));
 						break;
-					} else {
-						unfixable.push(v);
 					}
 				}
 			}
@@ -389,7 +368,8 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 
 		// Apply the fix if found
 		let Some((_violation, fix)) = first_fix else {
-			break;
+			// No more fixes - collect unfixable violations now (final pass)
+			return (fixed_count, collect_unfixable(&info, opts));
 		};
 
 		if fix.start_byte <= info.contents.len() && fix.end_byte <= info.contents.len() {
@@ -405,7 +385,56 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 		break;
 	}
 
-	(fixed_count, unfixable)
+	(fixed_count, Vec::new())
+}
+
+/// Collect all unfixable violations from a file (called only on final pass)
+fn collect_unfixable(info: &FileInfo, opts: &RustCheckOptions) -> Vec<Violation> {
+	let mut unfixable = Vec::new();
+
+	if opts.instrument {
+		unfixable.extend(instrument::check_instrument(info).into_iter().filter(|v| v.fix.is_none()));
+	}
+	if opts.loops {
+		unfixable.extend(loops::check_loops(info).into_iter().filter(|v| v.fix.is_none()));
+	}
+	if let Some(ref tree) = info.syntax_tree {
+		if opts.join_split_impls {
+			unfixable.extend(join_split_impls::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
+		}
+		if opts.impl_follows_type {
+			unfixable.extend(impl_follows_type::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
+		}
+		if opts.impl_folds {
+			unfixable.extend(impl_folds::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
+		}
+		if opts.embed_simple_vars {
+			unfixable.extend(embed_simple_vars::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
+		}
+		if opts.insta_inline_snapshot {
+			unfixable.extend(insta_snapshots::check(&info.path, &info.contents, tree, true).into_iter().filter(|v| v.fix.is_none()));
+		}
+		if opts.no_chrono {
+			unfixable.extend(no_chrono::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
+		}
+		if opts.no_tokio_spawn {
+			unfixable.extend(no_tokio_spawn::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
+		}
+		if opts.use_bail {
+			unfixable.extend(use_bail::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
+		}
+		if opts.test_fn_prefix {
+			unfixable.extend(test_fn_prefix::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
+		}
+		if opts.pub_first {
+			unfixable.extend(pub_first::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
+		}
+		if opts.ignored_error_comment {
+			unfixable.extend(ignored_error_comment::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
+		}
+	}
+
+	unfixable
 }
 
 fn find_src_dirs(root: &Path) -> Vec<PathBuf> {

@@ -141,7 +141,7 @@ fn unwrap_or_without_comment() {
 		&opts(),
 	), @"
 	[ignored-error-comment] /main.rs:3: `unwrap_or` without `//IGNORED_ERROR` comment
-	HINT: could the pattern be allowing to continue with corrupted state? Error out properly or explain why it's part of the intended logic.
+	HINT: Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
 	");
 }
 
@@ -157,7 +157,7 @@ fn unwrap_or_default_without_comment() {
 		&opts(),
 	), @"
 	[ignored-error-comment] /main.rs:3: `unwrap_or_default` without `//IGNORED_ERROR` comment
-	HINT: could the pattern be allowing to continue with corrupted state? Error out properly or explain why it's part of the intended logic.
+	HINT: Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
 	");
 }
 
@@ -173,7 +173,7 @@ fn unwrap_or_else_without_comment() {
 		&opts(),
 	), @"
 	[ignored-error-comment] /main.rs:3: `unwrap_or_else` without `//IGNORED_ERROR` comment
-	HINT: could the pattern be allowing to continue with corrupted state? Error out properly or explain why it's part of the intended logic.
+	HINT: Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
 	");
 }
 
@@ -191,7 +191,7 @@ fn nested_unwrap_or_without_comment() {
 		&opts(),
 	), @"
 	[ignored-error-comment] /main.rs:4: `unwrap_or` without `//IGNORED_ERROR` comment
-	HINT: could the pattern be allowing to continue with corrupted state? Error out properly or explain why it's part of the intended logic.
+	HINT: Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
 	");
 }
 
@@ -209,7 +209,7 @@ fn unwrap_or_in_closure() {
 		&opts(),
 	), @"
 	[ignored-error-comment] /main.rs:4: `unwrap_or` without `//IGNORED_ERROR` comment
-	HINT: could the pattern be allowing to continue with corrupted state? Error out properly or explain why it's part of the intended logic.
+	HINT: Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
 	");
 }
 
@@ -225,9 +225,9 @@ fn chained_unwrap_or_without_comment() {
 		&opts(),
 	), @"
 	[ignored-error-comment] /main.rs:3: `unwrap_or` without `//IGNORED_ERROR` comment
-	HINT: could the pattern be allowing to continue with corrupted state? Error out properly or explain why it's part of the intended logic.
+	HINT: Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
 	[ignored-error-comment] /main.rs:3: `unwrap_or` without `//IGNORED_ERROR` comment
-	HINT: could the pattern be allowing to continue with corrupted state? Error out properly or explain why it's part of the intended logic.
+	HINT: Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
 	");
 }
 

@@ -74,7 +74,7 @@ impl<'a> Visit<'a> for IgnoredErrorVisitor<'a> {
 					column: span_start.column,
 					message: format!(
 						"`{method_name}` without `//IGNORED_ERROR` comment\n\
-						HINT: could the pattern be allowing to continue with corrupted state? Error out properly or explain why it's part of the intended logic."
+						HINT: Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option."
 					),
 					fix: None,
 				});
