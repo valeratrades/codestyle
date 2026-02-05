@@ -409,13 +409,14 @@ fn static_preserved_during_reorder() {
 	"#);
 }
 
-// === Const-first ordering tests ===
+// === Const/type ordering tests ===
 
 #[test]
-fn pub_const_first_then_pub_main_then_other_pub_passes() {
+fn pub_const_type_main_then_other_pub_passes() {
 	assert_check_passing(
 		r#"
 		pub const VERSION: &str = "1.0";
+		pub type MyInt = i32;
 		pub fn main() {}
 		pub fn other() {}
 		fn private() {}
@@ -425,13 +426,15 @@ fn pub_const_first_then_pub_main_then_other_pub_passes() {
 }
 
 #[test]
-fn private_const_first_then_private_main_then_other_private_passes() {
+fn private_const_type_main_then_other_private_passes() {
 	assert_check_passing(
 		r#"
 		pub const VERSION: &str = "1.0";
+		pub type MyInt = i32;
 		pub fn main() {}
 		pub fn other() {}
 		const INTERNAL: u32 = 42;
+		type InternalInt = i64;
 		fn main() {}
 		fn other() {}
 		"#,
@@ -443,7 +446,7 @@ fn private_const_first_then_private_main_then_other_private_passes() {
 fn pub_const_not_first_in_pub_category() {
 	insta::assert_snapshot!(test_case(
 		r#"
-		pub fn main() {}
+		pub type MyInt = i32;
 		pub const VERSION: &str = "1.0";
 		"#,
 		&opts(),
@@ -453,24 +456,42 @@ fn pub_const_not_first_in_pub_category() {
 
 	# Format mode
 	pub const VERSION: &str = \"1.0\";
+	pub type MyInt = i32;
+	");
+}
+
+#[test]
+fn pub_type_not_first_before_main() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		pub fn main() {}
+		pub type MyInt = i32;
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:2: `type` should be at the top of its visibility category (after const)
+
+	# Format mode
+	pub type MyInt = i32;
 	pub fn main() {}
 	");
 }
 
 #[test]
-fn pub_const_not_first_before_other_pub() {
+fn pub_type_not_first_before_other_pub() {
 	insta::assert_snapshot!(test_case(
 		r#"
 		pub fn other() {}
-		pub const VERSION: &str = "1.0";
+		pub type MyInt = i32;
 		"#,
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:2: `const` should be at the top of its visibility category
+	[pub-first] /main.rs:2: `type` should be at the top of its visibility category (after const)
 
 	# Format mode
-	pub const VERSION: &str = \"1.0\";
+	pub type MyInt = i32;
 	pub fn other() {}
 	");
 }
@@ -480,7 +501,7 @@ fn private_const_not_first_in_private_category() {
 	insta::assert_snapshot!(test_case(
 		r#"
 		pub fn public() {}
-		fn main() {}
+		type InternalInt = i64;
 		fn other() {}
 		const INTERNAL: u32 = 42;
 		"#,
@@ -492,21 +513,47 @@ fn private_const_not_first_in_private_category() {
 	# Format mode
 	pub fn public() {}
 	const INTERNAL: u32 = 42;
+	type InternalInt = i64;
+	fn other() {}
+	");
+}
+
+#[test]
+fn private_type_not_first_in_private_category() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		pub fn public() {}
+		fn main() {}
+		fn other() {}
+		type InternalInt = i64;
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:4: `type` should be at the top of its visibility category (after const)
+
+	# Format mode
+	pub fn public() {}
+	type InternalInt = i64;
 	fn main() {}
 	fn other() {}
 	");
 }
 
 #[test]
-fn multiple_consts_stay_together_at_top() {
+fn multiple_consts_and_types_stay_together_at_top() {
 	assert_check_passing(
 		r#"
 		pub const A: u32 = 1;
 		pub const B: u32 = 2;
+		pub type PubInt = i32;
+		pub type PubStr = &'static str;
 		pub fn main() {}
 		pub fn other() {}
 		const C: u32 = 3;
 		const D: u32 = 4;
+		type PrivInt = i64;
+		type PrivStr = &'static str;
 		fn main() {}
 		fn other() {}
 		"#,
@@ -515,15 +562,17 @@ fn multiple_consts_stay_together_at_top() {
 }
 
 #[test]
-fn const_main_and_pub_ordering_combined() {
-	// This tests the full ordering: pub const, pub main, pub other, private const, private main, private other
+fn const_type_main_and_pub_ordering_combined() {
+	// This tests the full ordering: pub const, pub type, pub main, pub other, private const, private type, private main, private other
 	insta::assert_snapshot!(test_case(
 		r#"
 		fn helper() {}
 		pub struct Config;
+		type InternalInt = i64;
 		const INTERNAL: u32 = 42;
 		fn main() {}
 		pub fn run() {}
+		pub type PubInt = i32;
 		pub const VERSION: &str = "1.0";
 		pub fn main() {}
 		"#,
@@ -534,10 +583,12 @@ fn const_main_and_pub_ordering_combined() {
 
 	# Format mode
 	pub const VERSION: &str = \"1.0\";
+	pub type PubInt = i32;
 	pub fn main() {}
 	pub struct Config;
 	pub fn run() {}
 	const INTERNAL: u32 = 42;
+	type InternalInt = i64;
 	fn main() {}
 	fn helper() {}
 	");
