@@ -408,3 +408,137 @@ fn static_preserved_during_reorder() {
 	fn private() {}
 	"#);
 }
+
+// === Const-first ordering tests ===
+
+#[test]
+fn pub_const_first_then_pub_main_then_other_pub_passes() {
+	assert_check_passing(
+		r#"
+		pub const VERSION: &str = "1.0";
+		pub fn main() {}
+		pub fn other() {}
+		fn private() {}
+		"#,
+		&opts(),
+	);
+}
+
+#[test]
+fn private_const_first_then_private_main_then_other_private_passes() {
+	assert_check_passing(
+		r#"
+		pub const VERSION: &str = "1.0";
+		pub fn main() {}
+		pub fn other() {}
+		const INTERNAL: u32 = 42;
+		fn main() {}
+		fn other() {}
+		"#,
+		&opts(),
+	);
+}
+
+#[test]
+fn pub_const_not_first_in_pub_category() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		pub fn main() {}
+		pub const VERSION: &str = "1.0";
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:2: `const` should be at the top of its visibility category
+
+	# Format mode
+	pub const VERSION: &str = \"1.0\";
+	pub fn main() {}
+	");
+}
+
+#[test]
+fn pub_const_not_first_before_other_pub() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		pub fn other() {}
+		pub const VERSION: &str = "1.0";
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:2: `const` should be at the top of its visibility category
+
+	# Format mode
+	pub const VERSION: &str = \"1.0\";
+	pub fn other() {}
+	");
+}
+
+#[test]
+fn private_const_not_first_in_private_category() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		pub fn public() {}
+		fn main() {}
+		fn other() {}
+		const INTERNAL: u32 = 42;
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:4: `const` should be at the top of its visibility category
+
+	# Format mode
+	pub fn public() {}
+	const INTERNAL: u32 = 42;
+	fn main() {}
+	fn other() {}
+	");
+}
+
+#[test]
+fn multiple_consts_stay_together_at_top() {
+	assert_check_passing(
+		r#"
+		pub const A: u32 = 1;
+		pub const B: u32 = 2;
+		pub fn main() {}
+		pub fn other() {}
+		const C: u32 = 3;
+		const D: u32 = 4;
+		fn main() {}
+		fn other() {}
+		"#,
+		&opts(),
+	);
+}
+
+#[test]
+fn const_main_and_pub_ordering_combined() {
+	// This tests the full ordering: pub const, pub main, pub other, private const, private main, private other
+	insta::assert_snapshot!(test_case(
+		r#"
+		fn helper() {}
+		pub struct Config;
+		const INTERNAL: u32 = 42;
+		fn main() {}
+		pub fn run() {}
+		pub const VERSION: &str = "1.0";
+		pub fn main() {}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:2: public item should come before private items
+
+	# Format mode
+	pub const VERSION: &str = \"1.0\";
+	pub fn main() {}
+	pub struct Config;
+	pub fn run() {}
+	const INTERNAL: u32 = 42;
+	fn main() {}
+	fn helper() {}
+	");
+}

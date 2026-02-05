@@ -1,6 +1,6 @@
 //! Rule: public items should come before private items within each file.
 //!
-//! Within each visibility category, `main` function should be at the top.
+//! Within each visibility category, items are ordered: const, main, then everything else.
 
 use std::path::Path;
 
@@ -17,7 +17,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		.items
 		.iter()
 		.filter_map(|item| {
-			let (is_pub, is_main_fn) = get_item_visibility_and_main(item, content)?;
+			let (is_pub, is_main_fn, is_const) = get_item_visibility_and_main(item, content)?;
 
 			// Get the span start - this includes attributes but we need to find doc comments ourselves
 			let span_start_line = item.span().start().line;
@@ -35,6 +35,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 			Some(ItemInfo {
 				is_pub,
 				is_main_fn,
+				is_const,
 				start_line: span_start_line,
 				text_start,
 				text_end,
@@ -73,16 +74,63 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		}
 	}
 
-	// Check for main function ordering within visibility categories
-	// Find first pub non-main followed by pub main
-	let mut first_pub_non_main_idx: Option<usize> = None;
+	// Check for const ordering within visibility categories (const should be first)
+	// Find first pub non-const followed by pub const
+	let mut first_pub_non_const_idx: Option<usize> = None;
 	for (i, item) in items.iter().enumerate() {
 		if item.is_pub {
-			if !item.is_main_fn && first_pub_non_main_idx.is_none() {
-				first_pub_non_main_idx = Some(i);
+			if !item.is_const && first_pub_non_const_idx.is_none() {
+				first_pub_non_const_idx = Some(i);
+			}
+			if item.is_const {
+				if let Some(target_idx) = first_pub_non_const_idx {
+					let fix = create_move_fix(content, &items, i, target_idx);
+					return vec![Violation {
+						rule: RULE,
+						file: path_str,
+						line: item.start_line,
+						column: 0,
+						message: "`const` should be at the top of its visibility category".to_string(),
+						fix,
+					}];
+				}
+			}
+		}
+	}
+
+	// Find first private non-const followed by private const
+	let mut first_priv_non_const_idx: Option<usize> = None;
+	for (i, item) in items.iter().enumerate() {
+		if !item.is_pub {
+			if !item.is_const && first_priv_non_const_idx.is_none() {
+				first_priv_non_const_idx = Some(i);
+			}
+			if item.is_const {
+				if let Some(target_idx) = first_priv_non_const_idx {
+					let fix = create_move_fix(content, &items, i, target_idx);
+					return vec![Violation {
+						rule: RULE,
+						file: path_str,
+						line: item.start_line,
+						column: 0,
+						message: "`const` should be at the top of its visibility category".to_string(),
+						fix,
+					}];
+				}
+			}
+		}
+	}
+
+	// Check for main function ordering within visibility categories (main should be after const)
+	// Find first pub non-main non-const followed by pub main
+	let mut first_pub_non_main_non_const_idx: Option<usize> = None;
+	for (i, item) in items.iter().enumerate() {
+		if item.is_pub {
+			if !item.is_main_fn && !item.is_const && first_pub_non_main_non_const_idx.is_none() {
+				first_pub_non_main_non_const_idx = Some(i);
 			}
 			if item.is_main_fn {
-				if let Some(target_idx) = first_pub_non_main_idx {
+				if let Some(target_idx) = first_pub_non_main_non_const_idx {
 					let fix = create_move_fix(content, &items, i, target_idx);
 					return vec![Violation {
 						rule: RULE,
@@ -97,15 +145,15 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		}
 	}
 
-	// Find first private non-main followed by private main
-	let mut first_priv_non_main_idx: Option<usize> = None;
+	// Find first private non-main non-const followed by private main
+	let mut first_priv_non_main_non_const_idx: Option<usize> = None;
 	for (i, item) in items.iter().enumerate() {
 		if !item.is_pub {
-			if !item.is_main_fn && first_priv_non_main_idx.is_none() {
-				first_priv_non_main_idx = Some(i);
+			if !item.is_main_fn && !item.is_const && first_priv_non_main_non_const_idx.is_none() {
+				first_priv_non_main_non_const_idx = Some(i);
 			}
 			if item.is_main_fn {
-				if let Some(target_idx) = first_priv_non_main_idx {
+				if let Some(target_idx) = first_priv_non_main_non_const_idx {
 					let fix = create_move_fix(content, &items, i, target_idx);
 					return vec![Violation {
 						rule: RULE,
@@ -128,6 +176,7 @@ const RULE: &str = "pub-first";
 struct ItemInfo {
 	is_pub: bool,
 	is_main_fn: bool,
+	is_const: bool,
 	start_line: usize,
 	/// Byte offset where the item starts (including any preceding doc comments/attributes on the same "block")
 	text_start: usize,
@@ -135,18 +184,18 @@ struct ItemInfo {
 	text_end: usize,
 }
 
-/// Returns (is_pub, is_main_fn) for an item, or None if it should be skipped
-fn get_item_visibility_and_main(item: &Item, content: &str) -> Option<(bool, bool)> {
-	let (vis, is_main_fn) = match item {
-		Item::Fn(f) => (Some(&f.vis), f.sig.ident == "main"),
-		Item::Struct(s) => (Some(&s.vis), false),
-		Item::Enum(e) => (Some(&e.vis), false),
-		Item::Type(t) => (Some(&t.vis), false),
-		Item::Const(c) => (Some(&c.vis), false),
-		Item::Static(s) => (Some(&s.vis), false),
-		Item::Trait(t) => (Some(&t.vis), false),
-		Item::Mod(m) => (Some(&m.vis), false),
-		Item::Union(u) => (Some(&u.vis), false),
+/// Returns (is_pub, is_main_fn, is_const) for an item, or None if it should be skipped
+fn get_item_visibility_and_main(item: &Item, content: &str) -> Option<(bool, bool, bool)> {
+	let (vis, is_main_fn, is_const) = match item {
+		Item::Fn(f) => (Some(&f.vis), f.sig.ident == "main", false),
+		Item::Struct(s) => (Some(&s.vis), false, false),
+		Item::Enum(e) => (Some(&e.vis), false, false),
+		Item::Type(t) => (Some(&t.vis), false, false),
+		Item::Const(c) => (Some(&c.vis), false, true),
+		Item::Static(s) => (Some(&s.vis), false, false),
+		Item::Trait(t) => (Some(&t.vis), false, false),
+		Item::Mod(m) => (Some(&m.vis), false, false),
+		Item::Union(u) => (Some(&u.vis), false, false),
 		Item::ExternCrate(_) => return None, // Skip extern crate declarations
 		Item::Use(_) => return None,         // Skip use statements - they have their own ordering conventions
 		Item::Impl(_) => return None,        // Skip impl blocks - they're handled by impl_follows_type
@@ -161,7 +210,7 @@ fn get_item_visibility_and_main(item: &Item, content: &str) -> Option<(bool, boo
 	}
 
 	let is_pub = matches!(vis, Some(Visibility::Public(_)));
-	Some((is_pub, is_main_fn))
+	Some((is_pub, is_main_fn, is_const))
 }
 
 /// Creates a fix that moves item at `from_idx` to before item at `to_idx`.
