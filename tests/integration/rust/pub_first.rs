@@ -541,7 +541,7 @@ fn private_type_not_first_in_private_category() {
 }
 
 #[test]
-fn multiple_consts_and_types_stay_together_at_top() {
+fn multiple_consts_types_and_traits_stay_together_at_top() {
 	assert_check_passing(
 		r#"
 		pub const A: u32 = 1;
@@ -549,12 +549,14 @@ fn multiple_consts_and_types_stay_together_at_top() {
 		pub type PubInt = i32;
 		pub type PubStr = &'static str;
 		pub fn main() {}
+		pub trait PubTrait {}
 		pub fn other() {}
 		const C: u32 = 3;
 		const D: u32 = 4;
 		type PrivInt = i64;
 		type PrivStr = &'static str;
 		fn main() {}
+		trait PrivTrait {}
 		fn other() {}
 		"#,
 		&opts(),
@@ -562,15 +564,55 @@ fn multiple_consts_and_types_stay_together_at_top() {
 }
 
 #[test]
-fn const_type_main_and_pub_ordering_combined() {
-	// This tests the full ordering: pub const, pub type, pub main, pub other, private const, private type, private main, private other
+fn pub_trait_not_first_before_other_pub() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		pub fn other() {}
+		pub trait MyTrait {}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:2: `trait` should be at the top of its visibility category (after main)
+
+	# Format mode
+	pub trait MyTrait {}
+	pub fn other() {}
+	");
+}
+
+#[test]
+fn private_trait_not_first_in_private_category() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		pub fn public() {}
+		fn other() {}
+		trait InternalTrait {}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:3: `trait` should be at the top of its visibility category (after main)
+
+	# Format mode
+	pub fn public() {}
+	trait InternalTrait {}
+	fn other() {}
+	");
+}
+
+#[test]
+fn const_type_main_trait_and_pub_ordering_combined() {
+	// This tests the full ordering: pub const, pub type, pub main, pub trait, pub other, private const, private type, private main, private trait, private other
 	insta::assert_snapshot!(test_case(
 		r#"
 		fn helper() {}
 		pub struct Config;
+		trait InternalTrait {}
 		type InternalInt = i64;
 		const INTERNAL: u32 = 42;
 		fn main() {}
+		pub trait PubTrait {}
 		pub fn run() {}
 		pub type PubInt = i32;
 		pub const VERSION: &str = "1.0";
@@ -585,11 +627,13 @@ fn const_type_main_and_pub_ordering_combined() {
 	pub const VERSION: &str = \"1.0\";
 	pub type PubInt = i32;
 	pub fn main() {}
+	pub trait PubTrait {}
 	pub struct Config;
 	pub fn run() {}
 	const INTERNAL: u32 = 42;
 	type InternalInt = i64;
 	fn main() {}
+	trait InternalTrait {}
 	fn helper() {}
 	");
 }
