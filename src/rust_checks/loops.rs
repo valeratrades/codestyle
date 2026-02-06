@@ -2,8 +2,6 @@ use syn::{Expr, Stmt, spanned::Spanned};
 
 use super::{FileInfo, Violation, skip::has_skip_marker_for_rule};
 
-const RULE: &str = "loop-comment";
-
 pub fn check_loops(file_info: &FileInfo) -> Vec<Violation> {
 	let mut violations = Vec::new();
 	let path_str = file_info.path.display().to_string();
@@ -17,6 +15,7 @@ pub fn check_loops(file_info: &FileInfo) -> Vec<Violation> {
 
 	violations
 }
+const RULE: &str = "loop-comment";
 
 fn collect_loop_issues_from_stmts(stmts: &[Stmt], file_contents: &str, file_path: &str, violations: &mut Vec<Violation>) {
 	for stmt in stmts {

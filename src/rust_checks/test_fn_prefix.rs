@@ -9,14 +9,13 @@ use syn::{Attribute, ItemFn, visit::Visit};
 
 use super::{Fix, Violation, skip::SkipVisitor};
 
-const RULE: &str = "test-fn-prefix";
-
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let visitor = TestFnPrefixVisitor::new(path, content);
 	let mut skip_visitor = SkipVisitor::for_rule(visitor, content, RULE);
 	skip_visitor.visit_file(file);
 	skip_visitor.inner.violations
 }
+const RULE: &str = "test-fn-prefix";
 
 struct TestFnPrefixVisitor<'a> {
 	path_str: String,

@@ -5,9 +5,6 @@ use syn::{ExprMacro, ItemFn, Macro, spanned::Spanned, visit::Visit};
 
 use super::{Fix, Violation, skip::SkipVisitor};
 
-const RULE_INLINE: &str = "insta-inline-snapshot";
-const RULE_SEQUENTIAL: &str = "insta-sequential-snapshots";
-
 pub fn check(path: &Path, content: &str, file: &syn::File, is_format_mode: bool) -> Vec<Violation> {
 	let visitor = InstaSnapshotVisitor::new(path, content, is_format_mode);
 	let mut skip_visitor = SkipVisitor::for_rule(visitor, content, RULE_INLINE);
@@ -22,6 +19,8 @@ pub fn check(path: &Path, content: &str, file: &syn::File, is_format_mode: bool)
 
 	violations
 }
+const RULE_INLINE: &str = "insta-inline-snapshot";
+const RULE_SEQUENTIAL: &str = "insta-sequential-snapshots";
 
 const INSTA_SNAPSHOT_MACROS: &[&str] = &[
 	"assert_snapshot",

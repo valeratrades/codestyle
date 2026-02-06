@@ -4,8 +4,6 @@ use syn::{Item, ItemEnum, ItemImpl, ItemStruct, ItemUnion, spanned::Spanned};
 
 use super::{Fix, Violation, skip::has_skip_marker_for_rule};
 
-const RULE: &str = "impl-follows-type";
-
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let path_str = path.display().to_string();
 	let mut type_defs: HashMap<String, TypeDef> = HashMap::new();
@@ -112,6 +110,8 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 
 	violations
 }
+const RULE: &str = "impl-follows-type";
+
 struct TypeDef {
 	end_line: usize,
 	end_byte: usize,

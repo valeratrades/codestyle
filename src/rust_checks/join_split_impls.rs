@@ -4,8 +4,6 @@ use syn::{Item, spanned::Spanned};
 
 use super::{Fix, Violation, skip::has_skip_marker_for_rule};
 
-const RULE: &str = "join-split-impls";
-
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let path_str = path.display().to_string();
 	let mut violations = Vec::new();
@@ -150,6 +148,8 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 
 	violations
 }
+const RULE: &str = "join-split-impls";
+
 struct ImplBlockInfo {
 	start_line: usize,
 	start_byte: usize,

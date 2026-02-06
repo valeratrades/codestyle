@@ -10,14 +10,13 @@ use syn::{ItemUse, UseTree, visit::Visit};
 
 use super::{Violation, skip::SkipVisitor};
 
-const RULE: &str = "no-chrono";
-
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let visitor = ChronoVisitor::new(path);
 	let mut skip_visitor = SkipVisitor::for_rule(visitor, content, RULE);
 	skip_visitor.visit_file(file);
 	skip_visitor.inner.violations
 }
+const RULE: &str = "no-chrono";
 
 struct ChronoVisitor {
 	path_str: String,

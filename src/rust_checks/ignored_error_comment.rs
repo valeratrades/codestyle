@@ -12,13 +12,12 @@ use syn::{ExprMethodCall, Pat, PatWild, Stmt, spanned::Spanned, visit::Visit};
 
 use super::{Violation, skip::has_skip_marker_for_rule};
 
-const RULE: &str = "ignored-error-comment";
-
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let mut visitor = IgnoredErrorVisitor::new(path, content);
 	visitor.visit_file(file);
 	visitor.violations
 }
+const RULE: &str = "ignored-error-comment";
 
 struct IgnoredErrorVisitor<'a> {
 	path_str: String,

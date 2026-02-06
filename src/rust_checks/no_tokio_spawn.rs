@@ -10,15 +10,14 @@ use syn::{Expr, ExprCall, ExprPath, spanned::Spanned, visit::Visit};
 
 use super::{Violation, skip::SkipVisitor};
 
-const RULE: &str = "no-tokio-spawn";
-const GO_STATEMENT_HARMFUL_URL: &str = "https://vorpus.org/blog/notes-on-structured-concurrency-or-go-statement-considered-harmful/";
-
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let visitor = TokioSpawnVisitor::new(path);
 	let mut skip_visitor = SkipVisitor::for_rule(visitor, content, RULE);
 	skip_visitor.visit_file(file);
 	skip_visitor.inner.violations
 }
+const RULE: &str = "no-tokio-spawn";
+const GO_STATEMENT_HARMFUL_URL: &str = "https://vorpus.org/blog/notes-on-structured-concurrency-or-go-statement-considered-harmful/";
 
 struct TokioSpawnVisitor {
 	path_str: String,

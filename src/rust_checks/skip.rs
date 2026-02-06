@@ -16,7 +16,7 @@ use proc_macro2::Span;
 use syn::visit::Visit;
 
 /// Result of parsing a skip marker.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SkipMarker {
 	/// Skip all rules
 	All,

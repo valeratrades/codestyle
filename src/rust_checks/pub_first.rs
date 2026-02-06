@@ -8,8 +8,6 @@ use syn::{Item, Visibility, spanned::Spanned};
 
 use super::{Fix, Violation, skip::has_skip_marker_for_rule};
 
-const RULE: &str = "pub-first";
-
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let path_str = path.display().to_string();
 
@@ -268,6 +266,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 
 	vec![]
 }
+const RULE: &str = "pub-first";
 
 /// Represents an item with its visibility and position info
 struct ItemInfo {
