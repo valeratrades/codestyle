@@ -113,6 +113,7 @@ struct RustCheckOptionsArgs {
 impl From<RustCheckOptionsArgs> for RustCheckOptions {
 	fn from(args: RustCheckOptionsArgs) -> Self {
 		let defaults = RustCheckOptions::default();
+		//#[codestyle::skip]
 		Self {
 			instrument: args.instrument.unwrap_or(defaults.instrument),
 			loops: args.loops.unwrap_or(defaults.loops),

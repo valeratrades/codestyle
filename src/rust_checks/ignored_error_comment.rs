@@ -6,23 +6,24 @@
 //!
 //! A comment forces explicit acknowledgment of why ignoring the error is acceptable.
 
-use std::path::Path;
+use std::{ops::Range, path::Path};
 
-use syn::{ExprMethodCall, Pat, PatWild, Stmt, visit::Visit};
+use syn::{ExprMethodCall, Pat, PatWild, Stmt, spanned::Spanned, visit::Visit};
 
-use super::{Violation, skip::SkipVisitor};
+use super::{Violation, skip::has_skip_marker};
 
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
-	let visitor = IgnoredErrorVisitor::new(path, content);
-	let mut skip_visitor = SkipVisitor::new(visitor, content);
-	skip_visitor.visit_file(file);
-	skip_visitor.inner.violations
+	let mut visitor = IgnoredErrorVisitor::new(path, content);
+	visitor.visit_file(file);
+	visitor.violations
 }
 
 struct IgnoredErrorVisitor<'a> {
 	path_str: String,
 	content: &'a str,
 	violations: Vec<Violation>,
+	/// Stack of line ranges that are skipped due to codestyle::skip markers
+	skipped_ranges: Vec<Range<usize>>,
 }
 
 impl<'a> IgnoredErrorVisitor<'a> {
@@ -31,7 +32,12 @@ impl<'a> IgnoredErrorVisitor<'a> {
 			path_str: path.display().to_string(),
 			content,
 			violations: Vec::new(),
+			skipped_ranges: Vec::new(),
 		}
+	}
+
+	fn is_in_skipped_range(&self, line: usize) -> bool {
+		self.skipped_ranges.iter().any(|r| r.contains(&line))
 	}
 
 	fn has_ignored_error_comment(&self, line: usize) -> bool {
@@ -62,12 +68,46 @@ impl<'a> IgnoredErrorVisitor<'a> {
 	}
 }
 
+/// Macro to implement skip-aware visit methods for container types.
+/// If the container has a skip marker, add its line range to skipped_ranges during traversal.
+macro_rules! impl_skip_aware_visit {
+	($method:ident, $type:ty, $visit_fn:path) => {
+		fn $method(&mut self, node: &'a $type) {
+			let span = node.span();
+			let start_line = span.start().line;
+			let end_line = span.end().line;
+
+			if has_skip_marker(self.content, span) {
+				self.skipped_ranges.push(start_line..end_line + 1);
+				$visit_fn(self, node);
+				self.skipped_ranges.pop();
+			} else {
+				$visit_fn(self, node);
+			}
+		}
+	};
+}
+
 impl<'a> Visit<'a> for IgnoredErrorVisitor<'a> {
+	// Track skipped regions for various container types
+	impl_skip_aware_visit!(visit_item_fn, syn::ItemFn, syn::visit::visit_item_fn);
+
+	impl_skip_aware_visit!(visit_item_mod, syn::ItemMod, syn::visit::visit_item_mod);
+
+	impl_skip_aware_visit!(visit_item_impl, syn::ItemImpl, syn::visit::visit_item_impl);
+
+	impl_skip_aware_visit!(visit_impl_item_fn, syn::ImplItemFn, syn::visit::visit_impl_item_fn);
+
+	impl_skip_aware_visit!(visit_expr_struct, syn::ExprStruct, syn::visit::visit_expr_struct);
+
+	impl_skip_aware_visit!(visit_expr_block, syn::ExprBlock, syn::visit::visit_expr_block);
+
 	fn visit_expr_method_call(&mut self, node: &'a ExprMethodCall) {
 		let method_name = node.method.to_string();
 		if matches!(method_name.as_str(), "unwrap_or" | "unwrap_or_default" | "unwrap_or_else") {
 			let span_start = node.method.span().start();
-			if !self.has_ignored_error_comment(span_start.line) {
+			// Skip if in a skipped region or has the per-line comment
+			if !self.is_in_skipped_range(span_start.line) && !self.has_ignored_error_comment(span_start.line) {
 				self.violations.push(Violation {
 					rule: "ignored-error-comment",
 					file: self.path_str.clone(),
@@ -90,7 +130,8 @@ impl<'a> Visit<'a> for IgnoredErrorVisitor<'a> {
 			&& local.init.is_some()
 		{
 			let span_start = wild.underscore_token.span.start();
-			if !self.has_ignored_error_comment(span_start.line) {
+			// Skip if in a skipped region or has the per-line comment
+			if !self.is_in_skipped_range(span_start.line) && !self.has_ignored_error_comment(span_start.line) {
 				self.violations.push(Violation {
 					rule: "ignored-error-comment",
 					file: self.path_str.clone(),
