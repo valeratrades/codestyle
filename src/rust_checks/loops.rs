@@ -1,13 +1,15 @@
 use syn::{Expr, Stmt, spanned::Spanned};
 
-use super::{FileInfo, Violation, skip::has_skip_marker};
+use super::{FileInfo, Violation, skip::has_skip_marker_for_rule};
+
+const RULE: &str = "loop-comment";
 
 pub fn check_loops(file_info: &FileInfo) -> Vec<Violation> {
 	let mut violations = Vec::new();
 	let path_str = file_info.path.display().to_string();
 
 	for func in &file_info.fn_items {
-		if has_skip_marker(&file_info.contents, func.span()) {
+		if has_skip_marker_for_rule(&file_info.contents, func.span(), RULE) {
 			continue;
 		}
 		collect_loop_issues_from_stmts(&func.block.stmts, &file_info.contents, &path_str, &mut violations);
@@ -37,7 +39,7 @@ fn check_expr_for_loops(expr: &Expr, file_contents: &str, file_path: &str, viola
 			let span_start = loop_expr.loop_token.span().start();
 			if !has_loop_comment(file_contents, span_start.line) {
 				violations.push(Violation {
-					rule: "loop-comment",
+					rule: RULE,
 					file: file_path.to_string(),
 					line: span_start.line,
 					column: span_start.column,

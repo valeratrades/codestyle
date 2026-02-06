@@ -10,9 +10,11 @@ use syn::{Expr, ExprCall, ExprMacro, ExprReturn, ItemUse, Macro, UseTree, spanne
 
 use super::{Fix, Violation, skip::SkipVisitor};
 
+const RULE: &str = "use-bail";
+
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let visitor = UseBailVisitor::new(path, content, file);
-	let mut skip_visitor = SkipVisitor::new(visitor, content);
+	let mut skip_visitor = SkipVisitor::for_rule(visitor, content, RULE);
 	skip_visitor.visit_file(file);
 	skip_visitor.inner.violations
 }
@@ -172,7 +174,7 @@ impl<'a> UseBailVisitor<'a> {
 		let fix = self.create_fix(return_expr, macro_expr);
 
 		self.violations.push(Violation {
-			rule: "use-bail",
+			rule: RULE,
 			file: self.path_str.clone(),
 			line: return_expr.span().start().line,
 			column: return_expr.span().start().column,

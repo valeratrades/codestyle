@@ -6,7 +6,9 @@ use std::path::Path;
 
 use syn::{Item, Visibility, spanned::Spanned};
 
-use super::{Fix, Violation, skip::has_skip_marker};
+use super::{Fix, Violation, skip::has_skip_marker_for_rule};
+
+const RULE: &str = "pub-first";
 
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let path_str = path.display().to_string();
@@ -266,7 +268,6 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 
 	vec![]
 }
-const RULE: &str = "pub-first";
 
 /// Represents an item with its visibility and position info
 struct ItemInfo {
@@ -303,7 +304,7 @@ fn get_item_visibility_and_main(item: &Item, content: &str) -> Option<(bool, boo
 	};
 
 	// Skip if marked with codestyle::skip comment
-	if has_skip_marker(content, item.span()) {
+	if has_skip_marker_for_rule(content, item.span(), RULE) {
 		return None;
 	}
 

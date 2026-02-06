@@ -2,11 +2,11 @@ use std::{collections::HashMap, path::Path};
 
 use syn::{Item, ItemEnum, ItemImpl, ItemStruct, ItemUnion, spanned::Spanned};
 
-use super::{Fix, Violation, skip::has_skip_marker};
+use super::{Fix, Violation, skip::has_skip_marker_for_rule};
+
+const RULE: &str = "impl-follows-type";
 
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
-	const RULE: &str = "impl-follows-type";
-
 	let path_str = path.display().to_string();
 	let mut type_defs: HashMap<String, TypeDef> = HashMap::new();
 	let mut violations = Vec::new();
@@ -34,7 +34,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 			};
 
 			// Skip if marked with codestyle::skip comment
-			if has_skip_marker(content, impl_block.span()) {
+			if has_skip_marker_for_rule(content, impl_block.span(), RULE) {
 				return None;
 			}
 

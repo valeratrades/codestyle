@@ -2,11 +2,11 @@ use std::{collections::HashMap, path::Path};
 
 use syn::{Item, spanned::Spanned};
 
-use super::{Fix, Violation, skip::has_skip_marker};
+use super::{Fix, Violation, skip::has_skip_marker_for_rule};
+
+const RULE: &str = "join-split-impls";
 
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
-	const RULE: &str = "join-split-impls";
-
 	let path_str = path.display().to_string();
 	let mut violations = Vec::new();
 
@@ -20,7 +20,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		};
 
 		// Skip if marked with codestyle::skip comment
-		if has_skip_marker(content, impl_block.span()) {
+		if has_skip_marker_for_rule(content, impl_block.span(), RULE) {
 			continue;
 		}
 

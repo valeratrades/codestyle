@@ -2,7 +2,9 @@ use std::path::Path;
 
 use syn::{Item, spanned::Spanned};
 
-use super::{Fix, Violation, skip::has_skip_marker};
+use super::{Fix, Violation, skip::has_skip_marker_for_rule};
+
+const RULE: &str = "impl-folds";
 
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let path_str = path.display().to_string();
@@ -14,7 +16,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		};
 
 		// Skip if marked with codestyle::skip comment
-		if has_skip_marker(content, impl_block.span()) {
+		if has_skip_marker_for_rule(content, impl_block.span(), RULE) {
 			continue;
 		}
 
@@ -87,7 +89,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 
 	violations
 }
-const RULE: &str = "impl-folds";
+
 const OPEN_MARKER: &str = "/*{{{1*/";
 const CLOSE_MARKER: &str = "//,}}}1";
 

@@ -10,7 +10,9 @@ use std::{ops::Range, path::Path};
 
 use syn::{ExprMethodCall, Pat, PatWild, Stmt, spanned::Spanned, visit::Visit};
 
-use super::{Violation, skip::has_skip_marker};
+use super::{Violation, skip::has_skip_marker_for_rule};
+
+const RULE: &str = "ignored-error-comment";
 
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let mut visitor = IgnoredErrorVisitor::new(path, content);
@@ -69,7 +71,7 @@ impl<'a> IgnoredErrorVisitor<'a> {
 }
 
 /// Macro to implement skip-aware visit methods for container types.
-/// If the container has a skip marker, add its line range to skipped_ranges during traversal.
+/// If the container has a skip marker (all or for this rule), add its line range to skipped_ranges.
 macro_rules! impl_skip_aware_visit {
 	($method:ident, $type:ty, $visit_fn:path) => {
 		fn $method(&mut self, node: &'a $type) {
@@ -77,7 +79,7 @@ macro_rules! impl_skip_aware_visit {
 			let start_line = span.start().line;
 			let end_line = span.end().line;
 
-			if has_skip_marker(self.content, span) {
+			if has_skip_marker_for_rule(self.content, span, RULE) {
 				self.skipped_ranges.push(start_line..end_line + 1);
 				$visit_fn(self, node);
 				self.skipped_ranges.pop();
@@ -109,7 +111,7 @@ impl<'a> Visit<'a> for IgnoredErrorVisitor<'a> {
 			// Skip if in a skipped region or has the per-line comment
 			if !self.is_in_skipped_range(span_start.line) && !self.has_ignored_error_comment(span_start.line) {
 				self.violations.push(Violation {
-					rule: "ignored-error-comment",
+					rule: RULE,
 					file: self.path_str.clone(),
 					line: span_start.line,
 					column: span_start.column,
@@ -133,7 +135,7 @@ impl<'a> Visit<'a> for IgnoredErrorVisitor<'a> {
 			// Skip if in a skipped region or has the per-line comment
 			if !self.is_in_skipped_range(span_start.line) && !self.has_ignored_error_comment(span_start.line) {
 				self.violations.push(Violation {
-					rule: "ignored-error-comment",
+					rule: RULE,
 					file: self.path_str.clone(),
 					line: span_start.line,
 					column: span_start.column,

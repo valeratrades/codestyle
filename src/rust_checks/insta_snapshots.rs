@@ -5,20 +5,24 @@ use syn::{ExprMacro, ItemFn, Macro, spanned::Spanned, visit::Visit};
 
 use super::{Fix, Violation, skip::SkipVisitor};
 
+const RULE_INLINE: &str = "insta-inline-snapshot";
+const RULE_SEQUENTIAL: &str = "insta-sequential-snapshots";
+
 pub fn check(path: &Path, content: &str, file: &syn::File, is_format_mode: bool) -> Vec<Violation> {
 	let visitor = InstaSnapshotVisitor::new(path, content, is_format_mode);
-	let mut skip_visitor = SkipVisitor::new(visitor, content);
+	let mut skip_visitor = SkipVisitor::for_rule(visitor, content, RULE_INLINE);
 	skip_visitor.visit_file(file);
 	let mut violations = skip_visitor.inner.violations;
 
 	// Check for sequential snapshots in functions
 	let seq_visitor = SequentialSnapshotVisitor::new(path);
-	let mut seq_skip_visitor = SkipVisitor::new(seq_visitor, content);
+	let mut seq_skip_visitor = SkipVisitor::for_rule(seq_visitor, content, RULE_SEQUENTIAL);
 	seq_skip_visitor.visit_file(file);
 	violations.extend(seq_skip_visitor.inner.violations);
 
 	violations
 }
+
 const INSTA_SNAPSHOT_MACROS: &[&str] = &[
 	"assert_snapshot",
 	"assert_debug_snapshot",
@@ -86,7 +90,7 @@ impl<'a> InstaSnapshotVisitor<'a> {
 			// In format mode, we provide a fix to add @""
 			let fix = if self.is_format_mode { create_add_inline_snapshot_fix(mac, self.content) } else { None };
 			self.violations.push(Violation {
-				rule: "insta-inline-snapshot",
+				rule: RULE_INLINE,
 				file: self.path_str.clone(),
 				line: start_line(mac.span()),
 				column: start_column(mac.span()),
@@ -234,7 +238,7 @@ impl SequentialSnapshotVisitor {
 			let first_line = collector.snapshots[0].0;
 			for (line, column) in collector.snapshots.into_iter().skip(1) {
 				self.violations.push(Violation {
-					rule: "insta-sequential-snapshots",
+					rule: RULE_SEQUENTIAL,
 					file: self.path_str.clone(),
 					line,
 					column,

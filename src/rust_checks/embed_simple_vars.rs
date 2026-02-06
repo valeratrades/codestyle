@@ -5,12 +5,15 @@ use syn::{ExprMacro, Macro, spanned::Spanned, visit::Visit};
 
 use super::{Fix, Violation, skip::SkipVisitor};
 
+const RULE: &str = "embed-simple-vars";
+
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let visitor = FormatMacroVisitor::new(path, content);
-	let mut skip_visitor = SkipVisitor::new(visitor, content);
+	let mut skip_visitor = SkipVisitor::for_rule(visitor, content, RULE);
 	skip_visitor.visit_file(file);
 	skip_visitor.inner.violations
 }
+
 const FORMAT_MACROS: &[&str] = &[
 	// std formatting
 	"format", "write", "writeln", "print", "println", "eprint", "eprintln", "format_args", // std panicking/unreachable
@@ -173,7 +176,7 @@ impl<'a> FormatMacroVisitor<'a> {
 				format!("{{{}}}", placeholder.specifier)
 			};
 			self.violations.push(Violation {
-				rule: "embed-simple-vars",
+				rule: RULE,
 				file: self.path_str.clone(),
 				line: arg_span.start().line,
 				column: arg_span.start().column,

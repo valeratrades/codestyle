@@ -1,10 +1,16 @@
 //! Tests for codestyle::skip comment markers - skipping codestyle checks on annotated items.
 //!
-//! Supported formats:
+//! Supported formats for skipping all rules:
 //! - `//#[codestyle::skip]`
 //! - `// #[codestyle::skip]`
 //! - `//@codestyle::skip`
 //! - `// @codestyle::skip`
+//!
+//! Supported formats for skipping specific rules:
+//! - `//#[codestyle::skip(rule-name)]`
+//! - `// #[codestyle::skip(rule-name)]`
+//! - `//@codestyle::skip(rule-name)`
+//! - `// @codestyle::skip(rule-name)`
 
 use codestyle::rust_checks::RustCheckOptions;
 
@@ -220,4 +226,114 @@ fn without_skip_violations_are_detected() {
 	[ignored-error-comment] /main.rs:3: `unwrap_or` without `//IGNORED_ERROR` comment
 	HINT: Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
 	");
+}
+
+// === Rule-specific skip ===
+
+#[test]
+fn skip_specific_rule_only_skips_that_rule() {
+	// skip(ignored-error-comment) should skip that rule but still check others
+	assert_check_passing(
+		r#"
+		//#[codestyle::skip(ignored-error-comment)]
+		fn skipped_unwrap() {
+			let x: Option<i32> = None;
+			let y = x.unwrap_or(0);
+		}
+		"#,
+		&opts_for("ignored_error_comment"),
+	);
+}
+
+#[test]
+fn skip_specific_rule_does_not_affect_other_rules() {
+	// skip(pub-first) should not skip ignored-error-comment
+	insta::assert_snapshot!(test_case_assert_only(
+		r#"
+		//#[codestyle::skip(pub-first)]
+		fn not_skipped_for_unwrap() {
+			let x: Option<i32> = None;
+			let y = x.unwrap_or(0);
+		}
+		"#,
+		&opts_for("ignored_error_comment"),
+	), @"
+	[ignored-error-comment] /main.rs:4: `unwrap_or` without `//IGNORED_ERROR` comment
+	HINT: Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
+	");
+}
+
+#[test]
+fn skip_specific_rule_at_syntax() {
+	// @codestyle::skip(rule) syntax should also work
+	assert_check_passing(
+		r#"
+		//@codestyle::skip(ignored-error-comment)
+		fn skipped() {
+			let x: Option<i32> = None;
+			let y = x.unwrap_or(0);
+		}
+		"#,
+		&opts_for("ignored_error_comment"),
+	);
+}
+
+#[test]
+fn skip_specific_rule_with_spaces() {
+	// Spaces inside parens should be trimmed
+	assert_check_passing(
+		r#"
+		// #[codestyle::skip( ignored-error-comment )]
+		fn skipped() {
+			let x: Option<i32> = None;
+			let y = x.unwrap_or(0);
+		}
+		"#,
+		&opts_for("ignored_error_comment"),
+	);
+}
+
+#[test]
+fn skip_specific_rule_pub_first() {
+	// skip(pub-first) should skip pub-first check
+	assert_check_passing(
+		r#"
+		//#[codestyle::skip(pub-first)]
+		fn private_fn() {}
+		pub fn public_fn() {}
+		"#,
+		&opts_for("pub_first"),
+	);
+}
+
+#[test]
+fn skip_specific_rule_loop_comment() {
+	// skip(loop-comment) should skip loop check
+	assert_check_passing(
+		r#"
+		//#[codestyle::skip(loop-comment)]
+		fn endless() {
+			loop {
+				// no LOOP comment needed
+			}
+		}
+		"#,
+		&opts_for("loops"),
+	);
+}
+
+#[test]
+fn skip_all_still_works_with_parens_style() {
+	// Just checking skip-all still works after adding rule-specific support
+	assert_check_passing(
+		r#"
+		//#[codestyle::skip]
+		fn skipped_all() {
+			let x: Option<i32> = None;
+			let y = x.unwrap_or(0);
+			loop {}
+		}
+		"#,
+		&all_opts(),
+	);
 }

@@ -1,6 +1,8 @@
 use syn::{ItemFn, spanned::Spanned};
 
-use super::{FileInfo, Violation, skip::has_skip_marker};
+use super::{FileInfo, Violation, skip::has_skip_marker_for_rule};
+
+const RULE: &str = "instrument";
 
 pub fn check_instrument(file_info: &FileInfo) -> Vec<Violation> {
 	let mut violations = Vec::new();
@@ -8,7 +10,7 @@ pub fn check_instrument(file_info: &FileInfo) -> Vec<Violation> {
 	let path_str = file_info.path.display().to_string();
 
 	for func in &file_info.fn_items {
-		if has_skip_marker(&file_info.contents, func.span()) {
+		if has_skip_marker_for_rule(&file_info.contents, func.span(), RULE) {
 			continue;
 		}
 		// Only check async functions
@@ -24,7 +26,7 @@ pub fn check_instrument(file_info: &FileInfo) -> Vec<Violation> {
 
 		let span_start = func.sig.ident.span().start();
 		violations.push(Violation {
-			rule: "instrument",
+			rule: RULE,
 			file: path_str.clone(),
 			line: span_start.line,
 			column: span_start.column,

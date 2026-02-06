@@ -10,9 +10,11 @@ use syn::{ItemUse, UseTree, visit::Visit};
 
 use super::{Violation, skip::SkipVisitor};
 
+const RULE: &str = "no-chrono";
+
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let visitor = ChronoVisitor::new(path);
-	let mut skip_visitor = SkipVisitor::new(visitor, content);
+	let mut skip_visitor = SkipVisitor::for_rule(visitor, content, RULE);
 	skip_visitor.visit_file(file);
 	skip_visitor.inner.violations
 }
@@ -40,7 +42,7 @@ impl ChronoVisitor {
 		self.seen_spans.insert(key);
 
 		self.violations.push(Violation {
-			rule: "no-chrono",
+			rule: RULE,
 			file: self.path_str.clone(),
 			line: span.start().line,
 			column: span.start().column,
