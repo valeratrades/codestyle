@@ -409,152 +409,21 @@ fn static_preserved_during_reorder() {
 	"#);
 }
 
-// === Const/type ordering tests ===
+// === Const/type at top, then pub/private ordering tests ===
+// New ordering: const (all), type (all), pub items (main > trait > other), private items (main > trait > other)
 
 #[test]
-fn pub_const_type_main_then_other_pub_passes() {
-	assert_check_passing(
-		r#"
-		pub const VERSION: &str = "1.0";
-		pub type MyInt = i32;
-		pub fn main() {}
-		pub fn other() {}
-		fn private() {}
-		"#,
-		&opts(),
-	);
-}
-
-#[test]
-fn private_const_type_main_then_other_private_passes() {
-	assert_check_passing(
-		r#"
-		pub const VERSION: &str = "1.0";
-		pub type MyInt = i32;
-		pub fn main() {}
-		pub fn other() {}
-		const INTERNAL: u32 = 42;
-		type InternalInt = i64;
-		fn main() {}
-		fn other() {}
-		"#,
-		&opts(),
-	);
-}
-
-#[test]
-fn pub_const_not_first_in_pub_category() {
-	insta::assert_snapshot!(test_case(
-		r#"
-		pub type MyInt = i32;
-		pub const VERSION: &str = "1.0";
-		"#,
-		&opts(),
-	), @"
-	# Assert mode
-	[pub-first] /main.rs:2: `const` should be at the top of its visibility category
-
-	# Format mode
-	pub const VERSION: &str = \"1.0\";
-	pub type MyInt = i32;
-	");
-}
-
-#[test]
-fn pub_type_not_first_before_main() {
-	insta::assert_snapshot!(test_case(
-		r#"
-		pub fn main() {}
-		pub type MyInt = i32;
-		"#,
-		&opts(),
-	), @"
-	# Assert mode
-	[pub-first] /main.rs:2: `type` should be at the top of its visibility category (after const)
-
-	# Format mode
-	pub type MyInt = i32;
-	pub fn main() {}
-	");
-}
-
-#[test]
-fn pub_type_not_first_before_other_pub() {
-	insta::assert_snapshot!(test_case(
-		r#"
-		pub fn other() {}
-		pub type MyInt = i32;
-		"#,
-		&opts(),
-	), @"
-	# Assert mode
-	[pub-first] /main.rs:2: `type` should be at the top of its visibility category (after const)
-
-	# Format mode
-	pub type MyInt = i32;
-	pub fn other() {}
-	");
-}
-
-#[test]
-fn private_const_not_first_in_private_category() {
-	insta::assert_snapshot!(test_case(
-		r#"
-		pub fn public() {}
-		type InternalInt = i64;
-		fn other() {}
-		const INTERNAL: u32 = 42;
-		"#,
-		&opts(),
-	), @"
-	# Assert mode
-	[pub-first] /main.rs:4: `const` should be at the top of its visibility category
-
-	# Format mode
-	pub fn public() {}
-	const INTERNAL: u32 = 42;
-	type InternalInt = i64;
-	fn other() {}
-	");
-}
-
-#[test]
-fn private_type_not_first_in_private_category() {
-	insta::assert_snapshot!(test_case(
-		r#"
-		pub fn public() {}
-		fn main() {}
-		fn other() {}
-		type InternalInt = i64;
-		"#,
-		&opts(),
-	), @"
-	# Assert mode
-	[pub-first] /main.rs:4: `type` should be at the top of its visibility category (after const)
-
-	# Format mode
-	pub fn public() {}
-	type InternalInt = i64;
-	fn main() {}
-	fn other() {}
-	");
-}
-
-#[test]
-fn multiple_consts_types_and_traits_stay_together_at_top() {
+fn correct_ordering_passes() {
+	// Full correct ordering: const, type, pub main, pub trait, pub other, private main, private trait, private other
 	assert_check_passing(
 		r#"
 		pub const A: u32 = 1;
-		pub const B: u32 = 2;
+		const B: u32 = 2;
 		pub type PubInt = i32;
-		pub type PubStr = &'static str;
+		type PrivInt = i64;
 		pub fn main() {}
 		pub trait PubTrait {}
 		pub fn other() {}
-		const C: u32 = 3;
-		const D: u32 = 4;
-		type PrivInt = i64;
-		type PrivStr = &'static str;
 		fn main() {}
 		trait PrivTrait {}
 		fn other() {}
@@ -564,7 +433,117 @@ fn multiple_consts_types_and_traits_stay_together_at_top() {
 }
 
 #[test]
-fn pub_trait_not_first_before_other_pub() {
+fn const_after_type_needs_reordering() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		pub type MyInt = i32;
+		pub const VERSION: &str = "1.0";
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:2: `const` should come before all other items
+
+	# Format mode
+	pub const VERSION: &str = \"1.0\";
+	pub type MyInt = i32;
+	");
+}
+
+#[test]
+fn const_after_fn_needs_reordering() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		pub fn main() {}
+		const VERSION: u32 = 1;
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:2: `const` should come before all other items
+
+	# Format mode
+	const VERSION: u32 = 1;
+	pub fn main() {}
+	");
+}
+
+#[test]
+fn type_after_fn_needs_reordering() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		pub fn main() {}
+		type MyInt = i32;
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:2: `type` should come before all other items (after const)
+
+	# Format mode
+	type MyInt = i32;
+	pub fn main() {}
+	");
+}
+
+#[test]
+fn type_after_struct_needs_reordering() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		pub struct Foo;
+		pub type MyInt = i32;
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:2: `type` should come before all other items (after const)
+
+	# Format mode
+	pub type MyInt = i32;
+	pub struct Foo;
+	");
+}
+
+#[test]
+fn private_const_after_pub_fn_needs_reordering() {
+	// Even private const should come before pub fn
+	insta::assert_snapshot!(test_case(
+		r#"
+		pub fn public() {}
+		const INTERNAL: u32 = 42;
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:2: `const` should come before all other items
+
+	# Format mode
+	const INTERNAL: u32 = 42;
+	pub fn public() {}
+	");
+}
+
+#[test]
+fn private_type_after_pub_fn_needs_reordering() {
+	// Even private type should come before pub fn
+	insta::assert_snapshot!(test_case(
+		r#"
+		pub fn public() {}
+		type InternalInt = i64;
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:2: `type` should come before all other items (after const)
+
+	# Format mode
+	type InternalInt = i64;
+	pub fn public() {}
+	");
+}
+
+#[test]
+fn pub_trait_not_first_in_pub_category() {
 	insta::assert_snapshot!(test_case(
 		r#"
 		pub fn other() {}
@@ -602,8 +581,8 @@ fn private_trait_not_first_in_private_category() {
 }
 
 #[test]
-fn const_type_main_trait_and_pub_ordering_combined() {
-	// This tests the full ordering: pub const, pub type, pub main, pub trait, pub other, private const, private type, private main, private trait, private other
+fn full_ordering_combined() {
+	// This tests the full ordering: const (all), type (all), pub main, pub trait, pub other, private main, private trait, private other
 	insta::assert_snapshot!(test_case(
 		r#"
 		fn helper() {}
@@ -621,17 +600,17 @@ fn const_type_main_trait_and_pub_ordering_combined() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:2: public item should come before private items
+	[pub-first] /main.rs:5: `const` should come before all other items
 
 	# Format mode
+	const INTERNAL: u32 = 42;
 	pub const VERSION: &str = \"1.0\";
+	type InternalInt = i64;
 	pub type PubInt = i32;
 	pub fn main() {}
 	pub trait PubTrait {}
 	pub struct Config;
 	pub fn run() {}
-	const INTERNAL: u32 = 42;
-	type InternalInt = i64;
 	fn main() {}
 	trait InternalTrait {}
 	fn helper() {}

@@ -1,6 +1,8 @@
-//! Rule: public items should come before private items within each file.
-//!
-//! Within each visibility category, items are ordered: const, type, main, trait, then everything else.
+//! Rule: items are ordered as follows:
+//! 1. All const items (regardless of visibility)
+//! 2. All type items (regardless of visibility)
+//! 3. All pub items (main > trait > other)
+//! 4. All private items (main > trait > other)
 
 use std::path::Path;
 
@@ -49,21 +51,62 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		return vec![];
 	}
 
-	// Find first violation: a private item followed by a public item
-	// or within same visibility category, a non-main followed by main
-	let mut first_private_idx: Option<usize> = None;
-
+	// 1. Check const ordering - all const items should come first (regardless of visibility)
+	let mut first_non_const_idx: Option<usize> = None;
 	for (i, item) in items.iter().enumerate() {
-		// Track first private item
+		if !item.is_const && first_non_const_idx.is_none() {
+			first_non_const_idx = Some(i);
+		}
+		if item.is_const {
+			if let Some(target_idx) = first_non_const_idx {
+				let fix = create_move_fix(content, &items, i, target_idx);
+				return vec![Violation {
+					rule: RULE,
+					file: path_str,
+					line: item.start_line,
+					column: 0,
+					message: "`const` should come before all other items".to_string(),
+					fix,
+				}];
+			}
+		}
+	}
+
+	// 2. Check type ordering - all type items should come after const but before everything else
+	let mut first_non_const_non_type_idx: Option<usize> = None;
+	for (i, item) in items.iter().enumerate() {
+		if !item.is_const && !item.is_type && first_non_const_non_type_idx.is_none() {
+			first_non_const_non_type_idx = Some(i);
+		}
+		if item.is_type {
+			if let Some(target_idx) = first_non_const_non_type_idx {
+				let fix = create_move_fix(content, &items, i, target_idx);
+				return vec![Violation {
+					rule: RULE,
+					file: path_str,
+					line: item.start_line,
+					column: 0,
+					message: "`type` should come before all other items (after const)".to_string(),
+					fix,
+				}];
+			}
+		}
+	}
+
+	// 3. Check pub/private ordering - pub items should come before private (excluding const/type)
+	let mut first_private_idx: Option<usize> = None;
+	for (i, item) in items.iter().enumerate() {
+		// Skip const and type - they're already handled
+		if item.is_const || item.is_type {
+			continue;
+		}
+
 		if !item.is_pub && first_private_idx.is_none() {
 			first_private_idx = Some(i);
 		}
-
-		// Check if we found a public item after a private one
 		if item.is_pub {
-			if let Some(priv_idx) = first_private_idx {
-				// This public item should be moved before the first private item
-				let fix = create_move_fix(content, &items, i, priv_idx);
+			if let Some(target_idx) = first_private_idx {
+				let fix = create_move_fix(content, &items, i, target_idx);
 				return vec![Violation {
 					rule: RULE,
 					file: path_str,
@@ -76,110 +119,15 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		}
 	}
 
-	// Check for const ordering within visibility categories (const should be first)
-	// Find first pub non-const followed by pub const
-	let mut first_pub_non_const_idx: Option<usize> = None;
+	// 4. Check main function ordering within pub items (main should be first among pub non-const/non-type)
+	let mut first_pub_non_main_non_trait_idx: Option<usize> = None;
 	for (i, item) in items.iter().enumerate() {
-		if item.is_pub {
-			if !item.is_const && first_pub_non_const_idx.is_none() {
-				first_pub_non_const_idx = Some(i);
-			}
-			if item.is_const {
-				if let Some(target_idx) = first_pub_non_const_idx {
-					let fix = create_move_fix(content, &items, i, target_idx);
-					return vec![Violation {
-						rule: RULE,
-						file: path_str,
-						line: item.start_line,
-						column: 0,
-						message: "`const` should be at the top of its visibility category".to_string(),
-						fix,
-					}];
-				}
-			}
-		}
-	}
-
-	// Find first private non-const followed by private const
-	let mut first_priv_non_const_idx: Option<usize> = None;
-	for (i, item) in items.iter().enumerate() {
-		if !item.is_pub {
-			if !item.is_const && first_priv_non_const_idx.is_none() {
-				first_priv_non_const_idx = Some(i);
-			}
-			if item.is_const {
-				if let Some(target_idx) = first_priv_non_const_idx {
-					let fix = create_move_fix(content, &items, i, target_idx);
-					return vec![Violation {
-						rule: RULE,
-						file: path_str,
-						line: item.start_line,
-						column: 0,
-						message: "`const` should be at the top of its visibility category".to_string(),
-						fix,
-					}];
-				}
-			}
-		}
-	}
-
-	// Check for type ordering within visibility categories (type should be after const)
-	// Find first pub non-type non-const followed by pub type
-	let mut first_pub_non_type_non_const_idx: Option<usize> = None;
-	for (i, item) in items.iter().enumerate() {
-		if item.is_pub {
-			if !item.is_type && !item.is_const && first_pub_non_type_non_const_idx.is_none() {
-				first_pub_non_type_non_const_idx = Some(i);
-			}
-			if item.is_type {
-				if let Some(target_idx) = first_pub_non_type_non_const_idx {
-					let fix = create_move_fix(content, &items, i, target_idx);
-					return vec![Violation {
-						rule: RULE,
-						file: path_str,
-						line: item.start_line,
-						column: 0,
-						message: "`type` should be at the top of its visibility category (after const)".to_string(),
-						fix,
-					}];
-				}
-			}
-		}
-	}
-
-	// Find first private non-type non-const followed by private type
-	let mut first_priv_non_type_non_const_idx: Option<usize> = None;
-	for (i, item) in items.iter().enumerate() {
-		if !item.is_pub {
-			if !item.is_type && !item.is_const && first_priv_non_type_non_const_idx.is_none() {
-				first_priv_non_type_non_const_idx = Some(i);
-			}
-			if item.is_type {
-				if let Some(target_idx) = first_priv_non_type_non_const_idx {
-					let fix = create_move_fix(content, &items, i, target_idx);
-					return vec![Violation {
-						rule: RULE,
-						file: path_str,
-						line: item.start_line,
-						column: 0,
-						message: "`type` should be at the top of its visibility category (after const)".to_string(),
-						fix,
-					}];
-				}
-			}
-		}
-	}
-
-	// Check for main function ordering within visibility categories (main should be after const and type)
-	// Find first pub non-main non-const non-type non-trait followed by pub main
-	let mut first_pub_non_main_idx: Option<usize> = None;
-	for (i, item) in items.iter().enumerate() {
-		if item.is_pub {
-			if !item.is_main_fn && !item.is_const && !item.is_type && !item.is_trait && first_pub_non_main_idx.is_none() {
-				first_pub_non_main_idx = Some(i);
+		if item.is_pub && !item.is_const && !item.is_type {
+			if !item.is_main_fn && !item.is_trait && first_pub_non_main_non_trait_idx.is_none() {
+				first_pub_non_main_non_trait_idx = Some(i);
 			}
 			if item.is_main_fn {
-				if let Some(target_idx) = first_pub_non_main_idx {
+				if let Some(target_idx) = first_pub_non_main_non_trait_idx {
 					let fix = create_move_fix(content, &items, i, target_idx);
 					return vec![Violation {
 						rule: RULE,
@@ -194,35 +142,11 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		}
 	}
 
-	// Find first private non-main non-const non-type non-trait followed by private main
-	let mut first_priv_non_main_idx: Option<usize> = None;
-	for (i, item) in items.iter().enumerate() {
-		if !item.is_pub {
-			if !item.is_main_fn && !item.is_const && !item.is_type && !item.is_trait && first_priv_non_main_idx.is_none() {
-				first_priv_non_main_idx = Some(i);
-			}
-			if item.is_main_fn {
-				if let Some(target_idx) = first_priv_non_main_idx {
-					let fix = create_move_fix(content, &items, i, target_idx);
-					return vec![Violation {
-						rule: RULE,
-						file: path_str,
-						line: item.start_line,
-						column: 0,
-						message: "`main` function should be at the top of its visibility category".to_string(),
-						fix,
-					}];
-				}
-			}
-		}
-	}
-
-	// Check for trait ordering within visibility categories (trait should be after main)
-	// Find first pub non-trait non-const non-type non-main followed by pub trait
+	// 5. Check trait ordering within pub items (trait should be after main)
 	let mut first_pub_other_idx: Option<usize> = None;
 	for (i, item) in items.iter().enumerate() {
-		if item.is_pub {
-			if !item.is_trait && !item.is_const && !item.is_type && !item.is_main_fn && first_pub_other_idx.is_none() {
+		if item.is_pub && !item.is_const && !item.is_type {
+			if !item.is_trait && !item.is_main_fn && first_pub_other_idx.is_none() {
 				first_pub_other_idx = Some(i);
 			}
 			if item.is_trait {
@@ -241,11 +165,34 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		}
 	}
 
-	// Find first private non-trait non-const non-type non-main followed by private trait
+	// 6. Check main function ordering within private items
+	let mut first_priv_non_main_non_trait_idx: Option<usize> = None;
+	for (i, item) in items.iter().enumerate() {
+		if !item.is_pub && !item.is_const && !item.is_type {
+			if !item.is_main_fn && !item.is_trait && first_priv_non_main_non_trait_idx.is_none() {
+				first_priv_non_main_non_trait_idx = Some(i);
+			}
+			if item.is_main_fn {
+				if let Some(target_idx) = first_priv_non_main_non_trait_idx {
+					let fix = create_move_fix(content, &items, i, target_idx);
+					return vec![Violation {
+						rule: RULE,
+						file: path_str,
+						line: item.start_line,
+						column: 0,
+						message: "`main` function should be at the top of its visibility category".to_string(),
+						fix,
+					}];
+				}
+			}
+		}
+	}
+
+	// 7. Check trait ordering within private items
 	let mut first_priv_other_idx: Option<usize> = None;
 	for (i, item) in items.iter().enumerate() {
-		if !item.is_pub {
-			if !item.is_trait && !item.is_const && !item.is_type && !item.is_main_fn && first_priv_other_idx.is_none() {
+		if !item.is_pub && !item.is_const && !item.is_type {
+			if !item.is_trait && !item.is_main_fn && first_priv_other_idx.is_none() {
 				first_priv_other_idx = Some(i);
 			}
 			if item.is_trait {
