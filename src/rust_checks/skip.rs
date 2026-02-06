@@ -24,13 +24,6 @@ pub enum SkipMarker {
 	Rule(String),
 }
 
-/// Check if the line before the given span contains a codestyle::skip marker.
-/// Returns `true` if there's a skip-all marker.
-pub fn has_skip_marker(content: &str, span: Span) -> bool {
-	let line = span.start().line;
-	has_skip_marker_at_line(content, line)
-}
-
 /// Check if the line before the given span contains a codestyle::skip marker for a specific rule.
 /// Returns `true` if there's a skip-all marker OR a skip marker for the specified rule.
 pub fn has_skip_marker_for_rule(content: &str, span: Span, rule: &str) -> bool {
@@ -61,11 +54,6 @@ pub struct SkipVisitor<'a, V> {
 	pub rule: Option<&'a str>,
 }
 impl<'a, V> SkipVisitor<'a, V> {
-	/// Create a SkipVisitor that only checks for skip-all markers.
-	pub fn new(inner: V, content: &'a str) -> Self {
-		Self { inner, content, rule: None }
-	}
-
 	/// Create a SkipVisitor that checks for skip-all markers and rule-specific markers.
 	pub fn for_rule(inner: V, content: &'a str, rule: &'a str) -> Self {
 		Self { inner, content, rule: Some(rule) }
@@ -79,11 +67,6 @@ impl<'a, V> SkipVisitor<'a, V> {
 			None => false,
 		}
 	}
-}
-
-/// Check if the given line or the line above contains a codestyle::skip marker (skip-all only).
-fn has_skip_marker_at_line(content: &str, line: usize) -> bool {
-	matches!(get_skip_marker_at_line(content, line), Some(SkipMarker::All))
 }
 
 /// Get the skip marker at the given line or the line above.
@@ -250,9 +233,9 @@ mod tests {
 	}
 
 	#[test]
-	fn has_skip_marker_all_ignores_specific() {
-		// has_skip_marker (skip-all only) should NOT match rule-specific skips
+	fn skip_all_ignores_specific() {
+		// skip-all check should NOT match rule-specific skips
 		let content = "//#[codestyle::skip(pub-first)]\nfn foo() {}";
-		assert!(!has_skip_marker_at_line(content, 2));
+		assert!(!matches!(get_skip_marker_at_line(content, 2), Some(SkipMarker::All)));
 	}
 }

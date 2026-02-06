@@ -89,10 +89,10 @@ fn is_test_attr(attr: &Attribute) -> bool {
 	}
 
 	// Check for #[tokio::test] or similar paths ending in "test"
-	if let Some(last) = path.segments.last() {
-		if last.ident == "test" {
-			return true;
-		}
+	if let Some(last) = path.segments.last()
+		&& last.ident == "test"
+	{
+		return true;
 	}
 
 	false

@@ -57,18 +57,18 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		if !item.is_const && first_non_const_idx.is_none() {
 			first_non_const_idx = Some(i);
 		}
-		if item.is_const {
-			if let Some(target_idx) = first_non_const_idx {
-				let fix = create_move_fix(content, &items, i, target_idx);
-				return vec![Violation {
-					rule: RULE,
-					file: path_str,
-					line: item.start_line,
-					column: 0,
-					message: "`const` should come before all other items".to_string(),
-					fix,
-				}];
-			}
+		if item.is_const
+			&& let Some(target_idx) = first_non_const_idx
+		{
+			let fix = create_move_fix(content, &items, i, target_idx);
+			return vec![Violation {
+				rule: RULE,
+				file: path_str,
+				line: item.start_line,
+				column: 0,
+				message: "`const` should come before all other items".to_string(),
+				fix,
+			}];
 		}
 	}
 
@@ -78,18 +78,18 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		if !item.is_const && !item.is_type && first_non_const_non_type_idx.is_none() {
 			first_non_const_non_type_idx = Some(i);
 		}
-		if item.is_type {
-			if let Some(target_idx) = first_non_const_non_type_idx {
-				let fix = create_move_fix(content, &items, i, target_idx);
-				return vec![Violation {
-					rule: RULE,
-					file: path_str,
-					line: item.start_line,
-					column: 0,
-					message: "`type` should come before all other items (after const)".to_string(),
-					fix,
-				}];
-			}
+		if item.is_type
+			&& let Some(target_idx) = first_non_const_non_type_idx
+		{
+			let fix = create_move_fix(content, &items, i, target_idx);
+			return vec![Violation {
+				rule: RULE,
+				file: path_str,
+				line: item.start_line,
+				column: 0,
+				message: "`type` should come before all other items (after const)".to_string(),
+				fix,
+			}];
 		}
 	}
 
@@ -104,18 +104,18 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		if !item.is_pub && first_private_idx.is_none() {
 			first_private_idx = Some(i);
 		}
-		if item.is_pub {
-			if let Some(target_idx) = first_private_idx {
-				let fix = create_move_fix(content, &items, i, target_idx);
-				return vec![Violation {
-					rule: RULE,
-					file: path_str,
-					line: item.start_line,
-					column: 0,
-					message: "public item should come before private items".to_string(),
-					fix,
-				}];
-			}
+		if item.is_pub
+			&& let Some(target_idx) = first_private_idx
+		{
+			let fix = create_move_fix(content, &items, i, target_idx);
+			return vec![Violation {
+				rule: RULE,
+				file: path_str,
+				line: item.start_line,
+				column: 0,
+				message: "public item should come before private items".to_string(),
+				fix,
+			}];
 		}
 	}
 
@@ -126,18 +126,18 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 			if !item.is_main_fn && !item.is_trait && first_pub_non_main_non_trait_idx.is_none() {
 				first_pub_non_main_non_trait_idx = Some(i);
 			}
-			if item.is_main_fn {
-				if let Some(target_idx) = first_pub_non_main_non_trait_idx {
-					let fix = create_move_fix(content, &items, i, target_idx);
-					return vec![Violation {
-						rule: RULE,
-						file: path_str,
-						line: item.start_line,
-						column: 0,
-						message: "`main` function should be at the top of its visibility category".to_string(),
-						fix,
-					}];
-				}
+			if item.is_main_fn
+				&& let Some(target_idx) = first_pub_non_main_non_trait_idx
+			{
+				let fix = create_move_fix(content, &items, i, target_idx);
+				return vec![Violation {
+					rule: RULE,
+					file: path_str,
+					line: item.start_line,
+					column: 0,
+					message: "`main` function should be at the top of its visibility category".to_string(),
+					fix,
+				}];
 			}
 		}
 	}
@@ -149,18 +149,18 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 			if !item.is_trait && !item.is_main_fn && first_pub_other_idx.is_none() {
 				first_pub_other_idx = Some(i);
 			}
-			if item.is_trait {
-				if let Some(target_idx) = first_pub_other_idx {
-					let fix = create_move_fix(content, &items, i, target_idx);
-					return vec![Violation {
-						rule: RULE,
-						file: path_str,
-						line: item.start_line,
-						column: 0,
-						message: "`trait` should be at the top of its visibility category (after main)".to_string(),
-						fix,
-					}];
-				}
+			if item.is_trait
+				&& let Some(target_idx) = first_pub_other_idx
+			{
+				let fix = create_move_fix(content, &items, i, target_idx);
+				return vec![Violation {
+					rule: RULE,
+					file: path_str,
+					line: item.start_line,
+					column: 0,
+					message: "`trait` should be at the top of its visibility category (after main)".to_string(),
+					fix,
+				}];
 			}
 		}
 	}
@@ -172,18 +172,18 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 			if !item.is_main_fn && !item.is_trait && first_priv_non_main_non_trait_idx.is_none() {
 				first_priv_non_main_non_trait_idx = Some(i);
 			}
-			if item.is_main_fn {
-				if let Some(target_idx) = first_priv_non_main_non_trait_idx {
-					let fix = create_move_fix(content, &items, i, target_idx);
-					return vec![Violation {
-						rule: RULE,
-						file: path_str,
-						line: item.start_line,
-						column: 0,
-						message: "`main` function should be at the top of its visibility category".to_string(),
-						fix,
-					}];
-				}
+			if item.is_main_fn
+				&& let Some(target_idx) = first_priv_non_main_non_trait_idx
+			{
+				let fix = create_move_fix(content, &items, i, target_idx);
+				return vec![Violation {
+					rule: RULE,
+					file: path_str,
+					line: item.start_line,
+					column: 0,
+					message: "`main` function should be at the top of its visibility category".to_string(),
+					fix,
+				}];
 			}
 		}
 	}
@@ -195,18 +195,18 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 			if !item.is_trait && !item.is_main_fn && first_priv_other_idx.is_none() {
 				first_priv_other_idx = Some(i);
 			}
-			if item.is_trait {
-				if let Some(target_idx) = first_priv_other_idx {
-					let fix = create_move_fix(content, &items, i, target_idx);
-					return vec![Violation {
-						rule: RULE,
-						file: path_str,
-						line: item.start_line,
-						column: 0,
-						message: "`trait` should be at the top of its visibility category (after main)".to_string(),
-						fix,
-					}];
-				}
+			if item.is_trait
+				&& let Some(target_idx) = first_priv_other_idx
+			{
+				let fix = create_move_fix(content, &items, i, target_idx);
+				return vec![Violation {
+					rule: RULE,
+					file: path_str,
+					line: item.start_line,
+					column: 0,
+					message: "`trait` should be at the top of its visibility category (after main)".to_string(),
+					fix,
+				}];
 			}
 		}
 	}
