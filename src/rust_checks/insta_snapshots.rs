@@ -5,6 +5,21 @@ use syn::{ExprMacro, ItemFn, Macro, spanned::Spanned, visit::Visit};
 
 use super::{Fix, Violation, skip::SkipVisitor};
 
+const RULE_INLINE: &str = "insta-inline-snapshot";
+const RULE_SEQUENTIAL: &str = "insta-sequential-snapshots";
+const INSTA_SNAPSHOT_MACROS: &[&str] = &[
+	"assert_snapshot",
+	"assert_debug_snapshot",
+	"assert_display_snapshot",
+	"assert_json_snapshot",
+	"assert_yaml_snapshot",
+	"assert_ron_snapshot",
+	"assert_toml_snapshot",
+	"assert_csv_snapshot",
+	"assert_compact_json_snapshot",
+	"assert_compact_debug_snapshot",
+];
+const ASSERT_MACROS: &[&str] = &["assert", "assert_eq", "assert_ne", "debug_assert", "debug_assert_eq", "debug_assert_ne"];
 pub fn check(path: &Path, content: &str, file: &syn::File, is_format_mode: bool) -> Vec<Violation> {
 	let visitor = InstaSnapshotVisitor::new(path, content, is_format_mode);
 	let mut skip_visitor = SkipVisitor::for_rule(visitor, content, RULE_INLINE);
@@ -19,21 +34,6 @@ pub fn check(path: &Path, content: &str, file: &syn::File, is_format_mode: bool)
 
 	violations
 }
-const RULE_INLINE: &str = "insta-inline-snapshot";
-const RULE_SEQUENTIAL: &str = "insta-sequential-snapshots";
-
-const INSTA_SNAPSHOT_MACROS: &[&str] = &[
-	"assert_snapshot",
-	"assert_debug_snapshot",
-	"assert_display_snapshot",
-	"assert_json_snapshot",
-	"assert_yaml_snapshot",
-	"assert_ron_snapshot",
-	"assert_toml_snapshot",
-	"assert_csv_snapshot",
-	"assert_compact_json_snapshot",
-	"assert_compact_debug_snapshot",
-];
 
 struct InstaSnapshotVisitor<'a> {
 	path_str: String,
@@ -201,8 +201,6 @@ fn find_closing_paren_before(content: &str, max_pos: usize) -> Option<usize> {
 	}
 	None
 }
-
-const ASSERT_MACROS: &[&str] = &["assert", "assert_eq", "assert_ne", "debug_assert", "debug_assert_eq", "debug_assert_ne"];
 
 /// Visitor that detects repeated assertions of the same group within the same function.
 /// Assertions are split into two groups: snapshot macros and non-snapshot assert macros.

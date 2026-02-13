@@ -2,6 +2,7 @@ use syn::{ItemFn, spanned::Spanned};
 
 use super::{FileInfo, Violation, skip::has_skip_marker_for_rule};
 
+const RULE: &str = "instrument";
 pub fn check_instrument(file_info: &FileInfo) -> Vec<Violation> {
 	let mut violations = Vec::new();
 	let filename = file_info.path.file_name().and_then(|f| f.to_str()).unwrap_or("");
@@ -34,7 +35,6 @@ pub fn check_instrument(file_info: &FileInfo) -> Vec<Violation> {
 	}
 	violations
 }
-const RULE: &str = "instrument";
 
 fn has_instrument_attr(func: &ItemFn) -> bool {
 	func.attrs.iter().any(|attr| attr.path().is_ident("instrument"))

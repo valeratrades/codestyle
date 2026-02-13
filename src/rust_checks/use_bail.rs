@@ -10,13 +10,13 @@ use syn::{Expr, ExprCall, ExprMacro, ExprReturn, ItemUse, Macro, UseTree, spanne
 
 use super::{Fix, Violation, skip::SkipVisitor};
 
+const RULE: &str = "use-bail";
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let visitor = UseBailVisitor::new(path, content, file);
 	let mut skip_visitor = SkipVisitor::for_rule(visitor, content, RULE);
 	skip_visitor.visit_file(file);
 	skip_visitor.inner.violations
 }
-const RULE: &str = "use-bail";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ErrorCrate {

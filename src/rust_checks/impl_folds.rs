@@ -4,6 +4,9 @@ use syn::{Item, spanned::Spanned};
 
 use super::{Fix, Violation, skip::has_skip_marker_for_rule};
 
+const RULE: &str = "impl-folds";
+const OPEN_MARKER: &str = "/*{{{1*/";
+const CLOSE_MARKER: &str = "//,}}}1";
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let path_str = path.display().to_string();
 	let mut violations = Vec::new();
@@ -87,10 +90,6 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 
 	violations
 }
-const RULE: &str = "impl-folds";
-
-const OPEN_MARKER: &str = "/*{{{1*/";
-const CLOSE_MARKER: &str = "//,}}}1";
 
 fn check_close_marker_after_impl(content: &str, impl_end_byte: usize) -> bool {
 	let after = &content[impl_end_byte..];
