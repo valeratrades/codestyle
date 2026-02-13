@@ -347,10 +347,7 @@ fn sequential_snapshots_three_in_function() {
 		}
 		"#,
 		&opts(),
-	), @"
-	[insta-sequential-snapshots] /main.rs:3: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests
-	[insta-sequential-snapshots] /main.rs:4: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests
-	");
+	), @"[insta-sequential-snapshots] /main.rs:3: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests");
 }
 
 #[test]
@@ -384,6 +381,75 @@ fn multiple_violations_inline_and_sequential() {
 	[insta-inline-snapshot] /main.rs:2: `assert_snapshot!` must use inline snapshot with `@r""` or `@""`
 	[insta-inline-snapshot] /main.rs:4: `assert_debug_snapshot!` must use inline snapshot with `@r""` or `@""`
 	[insta-sequential-snapshots] /main.rs:3: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests
-	[insta-sequential-snapshots] /main.rs:4: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests
 	"#);
+}
+
+// === Cross-group: snapshot + assert is fine ===
+
+#[test]
+fn snapshot_and_assert_eq_passes() {
+	assert_check_passing(
+		r#"
+		fn test() {
+			insta::assert_snapshot!(a, @"");
+			assert_eq!(x, y);
+		}
+		"#,
+		&opts(),
+	);
+}
+
+#[test]
+fn snapshot_and_assert_passes() {
+	assert_check_passing(
+		r#"
+		fn test() {
+			assert!(condition);
+			insta::assert_debug_snapshot!(a, @"");
+		}
+		"#,
+		&opts(),
+	);
+}
+
+// === Non-snapshot assert group violations ===
+
+#[test]
+fn sequential_asserts_two_in_function() {
+	insta::assert_snapshot!(test_case_assert_only(
+		r#"
+		fn test() {
+			assert_eq!(a, b);
+			assert_eq!(c, d);
+		}
+		"#,
+		&opts(),
+	), @"[insta-sequential-snapshots] /main.rs:3: multiple assert macros in one test (first at line 2); split into separate tests");
+}
+
+#[test]
+fn sequential_asserts_mixed_variants() {
+	insta::assert_snapshot!(test_case_assert_only(
+		r#"
+		fn test() {
+			assert!(condition);
+			assert_ne!(a, b);
+		}
+		"#,
+		&opts(),
+	), @"[insta-sequential-snapshots] /main.rs:3: multiple assert macros in one test (first at line 2); split into separate tests");
+}
+
+#[test]
+fn sequential_asserts_three_warns_once() {
+	insta::assert_snapshot!(test_case_assert_only(
+		r#"
+		fn test() {
+			assert!(a);
+			assert_eq!(b, c);
+			assert_ne!(d, e);
+		}
+		"#,
+		&opts(),
+	), @"[insta-sequential-snapshots] /main.rs:3: multiple assert macros in one test (first at line 2); split into separate tests");
 }
