@@ -265,7 +265,7 @@ impl SequentialSnapshotVisitor {
 				column: second.1,
 				message: format!(
 					"multiple assert macros in one test (first at line {}); \
-					split into separate tests",
+					consider joining into a single snapshot assert",
 					first.0,
 				),
 				fix: None,
