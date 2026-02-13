@@ -136,6 +136,44 @@ fn skip_on_module_ignores_all_inside() {
 	);
 }
 
+// === Skip with attributes above ===
+
+#[test]
+fn skip_between_attribute_and_item_is_detected() {
+	// A skip comment placed between #[cfg(test)] and `mod tests` should work
+	assert_check_passing(
+		r#"
+		#[cfg(test)]
+		//#[codestyle::skip(sequential-asserts)]
+		mod tests {
+			fn test_a() {
+				assert_eq!(1, 1);
+				assert_eq!(2, 2);
+			}
+		}
+		"#,
+		&opts_for("insta_inline_snapshot"),
+	);
+}
+
+#[test]
+fn skip_above_attribute_is_detected() {
+	// A skip comment placed above #[cfg(test)] should also work
+	assert_check_passing(
+		r#"
+		//#[codestyle::skip(sequential-asserts)]
+		#[cfg(test)]
+		mod tests {
+			fn test_a() {
+				assert_eq!(1, 1);
+				assert_eq!(2, 2);
+			}
+		}
+		"#,
+		&opts_for("insta_inline_snapshot"),
+	);
+}
+
 // === Edge cases ===
 
 #[test]

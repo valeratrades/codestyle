@@ -60,8 +60,8 @@ impl<'a, V> SkipVisitor<'a, V> {
 	}
 
 	fn should_skip(&self, span: Span) -> bool {
-		let line = span.start().line;
-		match get_skip_marker_at_line(self.content, line) {
+		let start_line = span.start().line;
+		match get_skip_marker_in_header(self.content, start_line) {
 			Some(SkipMarker::All) => true,
 			Some(SkipMarker::Rule(r)) => self.rule.is_some_and(|rule| r == rule),
 			None => false,
@@ -86,6 +86,35 @@ fn get_skip_marker_at_line(content: &str, line: usize) -> Option<SkipMarker> {
 		let prev_line = lines[line - 2];
 		if let Some(marker) = parse_skip_comment(prev_line) {
 			return Some(marker);
+		}
+	}
+
+	None
+}
+
+/// Get a skip marker from the item header area.
+///
+/// For items with attributes (e.g. `#[cfg(test)]`), the span starts at the first
+/// attribute, but a skip comment may be placed between the attribute and the item
+/// keyword. This function checks:
+/// 1. The line above the span start (standard position)
+/// 2. Lines from the span start forward through attributes and comments
+fn get_skip_marker_in_header(content: &str, start_line: usize) -> Option<SkipMarker> {
+	// First check the standard position (line above span start)
+	if let Some(marker) = get_skip_marker_at_line(content, start_line) {
+		return Some(marker);
+	}
+
+	// Scan forward from the span start through attribute/comment lines
+	let lines: Vec<&str> = content.lines().collect();
+	for idx in start_line..lines.len() {
+		let trimmed = lines[idx].trim();
+		if let Some(marker) = parse_skip_comment(trimmed) {
+			return Some(marker);
+		}
+		// Stop scanning when we hit a line that is neither an attribute nor a comment
+		if !trimmed.starts_with("#[") && !trimmed.starts_with("//") {
+			break;
 		}
 	}
 
@@ -177,7 +206,7 @@ impl<'ast, V: Visit<'ast>> Visit<'ast> for SkipVisitor<'_, V> {
 }
 
 #[cfg(test)]
-//[codestyle::skip(sequential-asserts)]
+//#[codestyle::skip(sequential-asserts)]
 mod tests {
 	use super::*;
 
