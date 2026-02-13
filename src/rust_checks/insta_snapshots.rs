@@ -6,7 +6,8 @@ use syn::{ExprMacro, ItemFn, Macro, spanned::Spanned, visit::Visit};
 use super::{Fix, Violation, skip::SkipVisitor};
 
 const RULE_INLINE: &str = "insta-inline-snapshot";
-const RULE_SEQUENTIAL: &str = "sequential-asserts";
+const RULE_SEQUENTIAL: &str = "insta-sequential-snapshots";
+
 const INSTA_SNAPSHOT_MACROS: &[&str] = &[
 	"assert_snapshot",
 	"assert_debug_snapshot",
@@ -19,7 +20,7 @@ const INSTA_SNAPSHOT_MACROS: &[&str] = &[
 	"assert_compact_json_snapshot",
 	"assert_compact_debug_snapshot",
 ];
-const ASSERT_MACROS: &[&str] = &["assert", "assert_eq", "assert_ne", "debug_assert", "debug_assert_eq", "debug_assert_ne"];
+
 pub fn check(path: &Path, content: &str, file: &syn::File, is_format_mode: bool) -> Vec<Violation> {
 	let visitor = InstaSnapshotVisitor::new(path, content, is_format_mode);
 	let mut skip_visitor = SkipVisitor::for_rule(visitor, content, RULE_INLINE);
@@ -202,9 +203,7 @@ fn find_closing_paren_before(content: &str, max_pos: usize) -> Option<usize> {
 	None
 }
 
-/// Visitor that detects repeated assertions of the same group within the same function.
-/// Assertions are split into two groups: snapshot macros and non-snapshot assert macros.
-/// Multiple of the same group is a violation; mixing groups is fine.
+/// Visitor that detects sequential snapshot assertions within the same function
 struct SequentialSnapshotVisitor {
 	path_str: String,
 	violations: Vec<Violation>,
@@ -229,16 +228,11 @@ impl SequentialSnapshotVisitor {
 		mac.path.segments.len() == 1 || (mac.path.segments.len() == 2 && mac.path.segments.first().map(|s| s.ident.to_string()).as_deref() == Some("insta"))
 	}
 
-	fn is_assert_macro(mac: &Macro) -> bool {
-		let macro_name = mac.path.segments.last().map(|s| s.ident.to_string()).unwrap_or_default();
-		mac.path.segments.len() == 1 && ASSERT_MACROS.contains(&macro_name.as_str())
-	}
-
 	fn check_function_for_sequential_snapshots(&mut self, func: &ItemFn) {
-		let mut collector = AssertCollector::default();
+		// Collect all snapshot macros in the function
+		let mut collector = SnapshotCollector::default();
 		collector.visit_block(&func.block);
 
-		// Report once per group that has duplicates
 		if collector.snapshots.len() > 1 {
 			let first = &collector.snapshots[0];
 			let second = &collector.snapshots[1];
@@ -255,22 +249,6 @@ impl SequentialSnapshotVisitor {
 				fix: None,
 			});
 		}
-		if collector.asserts.len() > 1 {
-			let first = &collector.asserts[0];
-			let second = &collector.asserts[1];
-			self.violations.push(Violation {
-				rule: RULE_SEQUENTIAL,
-				file: self.path_str.clone(),
-				line: second.0,
-				column: second.1,
-				message: format!(
-					"multiple assert macros in one test (first at line {}); \
-					consider joining into a single snapshot assert",
-					first.0,
-				),
-				fix: None,
-			});
-		}
 	}
 }
 
@@ -281,33 +259,25 @@ impl<'a> Visit<'a> for SequentialSnapshotVisitor {
 	}
 }
 
-/// Collects assertion macro positions within a block, split into two groups:
-/// snapshot macros and non-snapshot assert macros.
+/// Collects all insta snapshot macro positions within a block (recursively)
 #[derive(Default)]
-struct AssertCollector {
+struct SnapshotCollector {
 	snapshots: Vec<(usize, usize)>, // (line, column)
-	asserts: Vec<(usize, usize)>,
 }
 
-impl<'a> Visit<'a> for AssertCollector {
+impl<'a> Visit<'a> for SnapshotCollector {
 	fn visit_expr_macro(&mut self, node: &'a ExprMacro) {
-		let span = node.mac.span();
-		let pos = (span.start().line, span.start().column);
 		if SequentialSnapshotVisitor::is_insta_snapshot_macro(&node.mac) {
-			self.snapshots.push(pos);
-		} else if SequentialSnapshotVisitor::is_assert_macro(&node.mac) {
-			self.asserts.push(pos);
+			let span = node.mac.span();
+			self.snapshots.push((span.start().line, span.start().column));
 		}
 		syn::visit::visit_expr_macro(self, node);
 	}
 
 	fn visit_macro(&mut self, node: &'a Macro) {
-		let span = node.span();
-		let pos = (span.start().line, span.start().column);
 		if SequentialSnapshotVisitor::is_insta_snapshot_macro(node) {
-			self.snapshots.push(pos);
-		} else if SequentialSnapshotVisitor::is_assert_macro(node) {
-			self.asserts.push(pos);
+			let span = node.span();
+			self.snapshots.push((span.start().line, span.start().column));
 		}
 		syn::visit::visit_macro(self, node);
 	}

@@ -206,7 +206,6 @@ impl<'ast, V: Visit<'ast>> Visit<'ast> for SkipVisitor<'_, V> {
 }
 
 #[cfg(test)]
-//#[codestyle::skip(sequential-asserts)]
 mod tests {
 	use super::*;
 
