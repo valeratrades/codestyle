@@ -6,7 +6,7 @@ use syn::{ExprMacro, ItemFn, Macro, spanned::Spanned, visit::Visit};
 use super::{Fix, Violation, skip::SkipVisitor};
 
 const RULE_INLINE: &str = "insta-inline-snapshot";
-const RULE_SEQUENTIAL: &str = "insta-sequential-snapshots";
+const RULE_SEQUENTIAL: &str = "sequential-asserts";
 const INSTA_SNAPSHOT_MACROS: &[&str] = &[
 	"assert_snapshot",
 	"assert_debug_snapshot",

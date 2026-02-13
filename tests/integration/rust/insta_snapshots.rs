@@ -308,7 +308,7 @@ fn format_deletes_pending_snap_files() {
 	"#);
 }
 
-// === Violation cases (insta-sequential-snapshots - no autofix) ===
+// === Violation cases (sequential-asserts - no autofix) ===
 
 #[test]
 fn sequential_snapshots_two_in_function() {
@@ -320,7 +320,7 @@ fn sequential_snapshots_two_in_function() {
 		}
 		"#,
 		&opts(),
-	), @"[insta-sequential-snapshots] /main.rs:3: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests");
+	), @"[sequential-asserts] /main.rs:3: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests");
 }
 
 #[test]
@@ -333,7 +333,7 @@ fn sequential_snapshots_different_variants() {
 		}
 		"#,
 		&opts(),
-	), @"[insta-sequential-snapshots] /main.rs:3: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests");
+	), @"[sequential-asserts] /main.rs:3: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests");
 }
 
 #[test]
@@ -347,7 +347,7 @@ fn sequential_snapshots_three_in_function() {
 		}
 		"#,
 		&opts(),
-	), @"[insta-sequential-snapshots] /main.rs:3: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests");
+	), @"[sequential-asserts] /main.rs:3: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests");
 }
 
 #[test]
@@ -361,7 +361,7 @@ fn sequential_snapshots_separated_by_statement() {
 		}
 		"#,
 		&opts(),
-	), @"[insta-sequential-snapshots] /main.rs:4: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests");
+	), @"[sequential-asserts] /main.rs:4: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests");
 }
 
 // === Mixed: both inline-snapshot and sequential violations ===
@@ -380,7 +380,7 @@ fn multiple_violations_inline_and_sequential() {
 	), @r#"
 	[insta-inline-snapshot] /main.rs:2: `assert_snapshot!` must use inline snapshot with `@r""` or `@""`
 	[insta-inline-snapshot] /main.rs:4: `assert_debug_snapshot!` must use inline snapshot with `@r""` or `@""`
-	[insta-sequential-snapshots] /main.rs:3: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests
+	[sequential-asserts] /main.rs:3: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests
 	"#);
 }
 
@@ -424,7 +424,7 @@ fn sequential_asserts_two_in_function() {
 		}
 		"#,
 		&opts(),
-	), @"[insta-sequential-snapshots] /main.rs:3: multiple assert macros in one test (first at line 2); split into separate tests");
+	), @"[sequential-asserts] /main.rs:3: multiple assert macros in one test (first at line 2); consider joining into a single snapshot assert");
 }
 
 #[test]
@@ -437,7 +437,7 @@ fn sequential_asserts_mixed_variants() {
 		}
 		"#,
 		&opts(),
-	), @"[insta-sequential-snapshots] /main.rs:3: multiple assert macros in one test (first at line 2); split into separate tests");
+	), @"[sequential-asserts] /main.rs:3: multiple assert macros in one test (first at line 2); consider joining into a single snapshot assert");
 }
 
 #[test]
@@ -451,5 +451,5 @@ fn sequential_asserts_three_warns_once() {
 		}
 		"#,
 		&opts(),
-	), @"[insta-sequential-snapshots] /main.rs:3: multiple assert macros in one test (first at line 2); split into separate tests");
+	), @"[sequential-asserts] /main.rs:3: multiple assert macros in one test (first at line 2); consider joining into a single snapshot assert");
 }
