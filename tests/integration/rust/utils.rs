@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use codestyle::rust_checks::{self, RustCheckOptions, Violation};
-use v_fixtures::{Fixture, render_fixture};
+use v_fixtures::Fixture;
 
 pub(crate) fn opts_for(check: &str) -> RustCheckOptions {
 	RustCheckOptions {
@@ -79,7 +79,7 @@ pub(crate) fn test_case(fixture_str: &str, opts: &RustCheckOptions) -> String {
 	let temp_format = fixture.write_to_tempdir();
 	rust_checks::run_format(&temp_format.root, opts);
 	let result = temp_format.read_all_from_disk();
-	let format_out = render_fixture(&result);
+	let format_out = result.render();
 
 	// Verify formatted output passes the check
 	let format_violations = collect_violations(&temp_format.root, opts, false);

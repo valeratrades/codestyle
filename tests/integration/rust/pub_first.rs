@@ -409,6 +409,20 @@ fn static_preserved_during_reorder() {
 	"#);
 }
 
+#[test]
+fn mod_declarations_are_ignored() {
+	// mod ordering is handled by rustfmt, so pub_first should skip them entirely
+	assert_check_passing(
+		r#"
+		mod z_private;
+		pub mod a_public;
+		pub fn public() {}
+		fn private() {}
+		"#,
+		&opts(),
+	);
+}
+
 // === Const/type at top, then pub/private ordering tests ===
 // New ordering: const (all), type (all), pub items (main > trait > other), private items (main > trait > other)
 

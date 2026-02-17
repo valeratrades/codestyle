@@ -239,7 +239,7 @@ fn get_item_visibility_and_main(item: &Item, content: &str) -> Option<(bool, boo
 		Item::Const(c) => (Some(&c.vis), false, true, false, false),
 		Item::Static(s) => (Some(&s.vis), false, false, false, false),
 		Item::Trait(t) => (Some(&t.vis), false, false, false, true),
-		Item::Mod(m) => (Some(&m.vis), false, false, false, false),
+		Item::Mod(_) => return None, //HACK: skip `mod` - sorting these conflicts with `rustfmt`'s module reordering
 		Item::Union(u) => (Some(&u.vis), false, false, false, false),
 		Item::ExternCrate(_) => return None, // Skip extern crate declarations
 		Item::Use(_) => return None,         // Skip use statements - they have their own ordering conventions
