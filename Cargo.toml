@@ -19,8 +19,8 @@ bin-dir = "{ bin }{ binary-ext }"
 pkg-fmt = "tgz"
 
 [dependencies]
-clap = { version = "^4.5.4", features = ["derive"] }
-color-eyre = "^0.6.3"
+clap = { version = "^4.5.59", features = ["derive"] }
+color-eyre = "^0.6.5"
 derive-new = "^0"
 miette = { version = "^7", features = ["fancy"] }
 proc-macro2 = { version = "^1", features = ["span-locations"] }
@@ -28,13 +28,13 @@ quote = "^1"
 smart-default = "^0.7"
 syn = { version = "^2", features = ["full", "parsing", "extra-traits", "visit"] }
 tempfile = "^3"
-v_utils = { version = "^2.15.19", features = ["io", "macros", "cli", "xdg"] }
+v_utils = { version = "^2.15.29", features = ["io", "macros", "cli", "xdg"] }
 walkdir = "^2"
 
 [dev-dependencies]
 insta = "^1"
 trybuild = "^1"
-v_fixtures = "^0.3"
+v_fixtures = "^0.3.4"
 
 [[test]]
 name = "rust"
