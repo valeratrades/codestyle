@@ -61,7 +61,7 @@ pub struct RustCheckOptions {
 	#[default = true]
 	pub pub_first: bool,
 	/// Check for //IGNORED_ERROR comments on unwrap_or/unwrap_or_default/unwrap_or_else and `let _ = ...` (default: true)
-	#[default = true]
+	#[default = false] // useful, but too many false positives. Sadly, the time commitment might not be worth it, unless I somehow make this smarter
 	pub ignored_error_comment: bool,
 }
 
