@@ -29,7 +29,10 @@
           lastSupportedVersion = "nightly-2026-01-03";
           langs = [ "rs" ];
           jobs.default = true;
-          release.default = true;
+          release = {
+            default = true;
+            trigger = [ "tag" ];
+          };
         };
         rs = v-utils.rs {
           inherit pkgs rust;

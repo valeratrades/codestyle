@@ -1,7 +1,7 @@
 //! Lint to disallow usage of `tokio::spawn`.
 //!
 //! Spawning unstructured tasks leads to difficult-to-reason-about concurrency.
-//! See: "Go statement considered harmful" - https://vorpus.org/blog/notes-on-structured-concurrency-or-go-statement-considered-harmful/
+//! See: "Go statement considered harmful" - <https://vorpus.org/blog/notes-on-structured-concurrency-or-go-statement-considered-harmful>
 
 use std::path::Path;
 

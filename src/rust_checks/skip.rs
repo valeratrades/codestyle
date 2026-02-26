@@ -107,8 +107,8 @@ fn get_skip_marker_in_header(content: &str, start_line: usize) -> Option<SkipMar
 
 	// Scan forward from the span start through attribute/comment lines
 	let lines: Vec<&str> = content.lines().collect();
-	for idx in start_line..lines.len() {
-		let trimmed = lines[idx].trim();
+	for line in lines.iter().skip(start_line) {
+		let trimmed = line.trim();
 		if let Some(marker) = parse_skip_comment(trimmed) {
 			return Some(marker);
 		}
