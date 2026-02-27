@@ -24,16 +24,21 @@
         pname = manifest.name;
         stdenv = pkgs.stdenvAdapters.useMoldLinker pkgs.stdenv;
 
-        github = v-utils.github {
-          inherit pkgs pname;
-          lastSupportedVersion = "nightly-2026-01-03";
-          langs = [ "rs" ];
-          jobs.default = true;
-          release = {
-            default = true;
-            trigger = [ "tag" ];
+        github =
+          let
+            jobDeps = { packages = [ "mold" ]; debug = true; };
+          in
+          v-utils.github {
+            inherit pkgs pname;
+            lastSupportedVersion = "nightly-2026-01-03";
+            langs = [ "rs" ];
+            jobs.default = true;
+            jobs.warnings.install = jobDeps;
+            release = {
+              default = true;
+              trigger = [ "tag" ];
+            };
           };
-        };
         rs = v-utils.rs {
           inherit pkgs rust;
           style = {
