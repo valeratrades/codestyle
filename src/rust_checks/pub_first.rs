@@ -120,99 +120,52 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		}
 	}
 
-	// 4. Check main function ordering within pub items (main should be first among pub non-const/non-type)
-	let mut first_pub_non_main_non_trait_idx: Option<usize> = None;
-	for (i, item) in items.iter().enumerate() {
-		if item.is_pub && !item.is_const && !item.is_type {
-			if !item.is_main_fn && !item.is_trait && first_pub_non_main_non_trait_idx.is_none() {
-				first_pub_non_main_non_trait_idx = Some(i);
-			}
-			if item.is_main_fn
-				&& let Some(target_idx) = first_pub_non_main_non_trait_idx
-			{
-				let fix = create_move_fix(content, &items, i, target_idx);
-				return vec![Violation {
-					rule: RULE,
-					file: path_str,
-					line: item.start_line,
-					column: 0,
-					message: "`main` function should be at the top of its visibility category".to_string(),
-					fix,
-				}];
-			}
-		}
-	}
-
-	// 5. Check trait ordering within pub items (trait should be after main)
-	let mut first_pub_other_idx: Option<usize> = None;
-	for (i, item) in items.iter().enumerate() {
-		if item.is_pub && !item.is_const && !item.is_type {
-			if !item.is_trait && !item.is_main_fn && first_pub_other_idx.is_none() {
-				first_pub_other_idx = Some(i);
-			}
-			if item.is_trait
-				&& let Some(target_idx) = first_pub_other_idx
-			{
-				let fix = create_move_fix(content, &items, i, target_idx);
-				return vec![Violation {
-					rule: RULE,
-					file: path_str,
-					line: item.start_line,
-					column: 0,
-					message: "`trait` should be at the top of its visibility category (after main)".to_string(),
-					fix,
-				}];
-			}
-		}
-	}
-
-	// 6. Check main function ordering within private items
-	let mut first_priv_non_main_non_trait_idx: Option<usize> = None;
-	for (i, item) in items.iter().enumerate() {
-		if !item.is_pub && !item.is_const && !item.is_type {
-			if !item.is_main_fn && !item.is_trait && first_priv_non_main_non_trait_idx.is_none() {
-				first_priv_non_main_non_trait_idx = Some(i);
-			}
-			if item.is_main_fn
-				&& let Some(target_idx) = first_priv_non_main_non_trait_idx
-			{
-				let fix = create_move_fix(content, &items, i, target_idx);
-				return vec![Violation {
-					rule: RULE,
-					file: path_str,
-					line: item.start_line,
-					column: 0,
-					message: "`main` function should be at the top of its visibility category".to_string(),
-					fix,
-				}];
-			}
-		}
-	}
-
-	// 7. Check trait ordering within private items
-	let mut first_priv_other_idx: Option<usize> = None;
-	for (i, item) in items.iter().enumerate() {
-		if !item.is_pub && !item.is_const && !item.is_type {
-			if !item.is_trait && !item.is_main_fn && first_priv_other_idx.is_none() {
-				first_priv_other_idx = Some(i);
-			}
-			if item.is_trait
-				&& let Some(target_idx) = first_priv_other_idx
-			{
-				let fix = create_move_fix(content, &items, i, target_idx);
-				return vec![Violation {
-					rule: RULE,
-					file: path_str,
-					line: item.start_line,
-					column: 0,
-					message: "`trait` should be at the top of its visibility category (after main)".to_string(),
-					fix,
-				}];
+	// 4-7. Within each visibility category (pub/private), check main-first and trait-before-other ordering
+	for is_pub in [true, false] {
+		for (is_target, message) in [
+			(
+				(|item: &ItemInfo| item.is_main_fn) as fn(&ItemInfo) -> bool,
+				"`main` function should be at the top of its visibility category",
+			),
+			(
+				(|item: &ItemInfo| item.is_trait) as fn(&ItemInfo) -> bool,
+				"`trait` should be at the top of its visibility category (after main)",
+			),
+		] {
+			if let Some(v) = check_kind_ordering(&items, content, &path_str, is_pub, is_target, message) {
+				return vec![v];
 			}
 		}
 	}
 
 	vec![]
+}
+
+/// Check that items of a specific kind (main/trait) appear before other items
+/// within a visibility category (pub/private), excluding const and type items.
+fn check_kind_ordering(items: &[ItemInfo], content: &str, path_str: &str, is_pub: bool, is_target: fn(&ItemInfo) -> bool, message: &str) -> Option<Violation> {
+	let mut first_other_idx: Option<usize> = None;
+	for (i, item) in items.iter().enumerate() {
+		if item.is_pub == is_pub && !item.is_const && !item.is_type {
+			if !item.is_main_fn && !item.is_trait && first_other_idx.is_none() {
+				first_other_idx = Some(i);
+			}
+			if is_target(item)
+				&& let Some(target_idx) = first_other_idx
+			{
+				let fix = create_move_fix(content, items, i, target_idx);
+				return Some(Violation {
+					rule: RULE,
+					file: path_str.to_string(),
+					line: item.start_line,
+					column: 0,
+					message: message.to_string(),
+					fix,
+				});
+			}
+		}
+	}
+	None
 }
 
 /// Represents an item with its visibility and position info
