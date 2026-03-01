@@ -190,6 +190,59 @@ fn multiple_impl_blocks_with_code_in_between() {
 }
 
 #[test]
+fn nested_type_between_struct_and_impl_with_own_impl_below() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		struct Outer {
+			inner: Inner,
+		}
+
+		struct Inner {
+			value: i32,
+		}
+
+		impl Outer {
+			fn get_inner(&self) -> i32 { self.inner.value }
+			fn compute(&self) -> i32 {
+				self.inner.value * 2
+			}
+		}
+
+		fn unrelated() -> i32 { 42 }
+
+		impl Inner {
+			fn new(v: i32) -> Self { Self { value: v } }
+		}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[impl-follows-type] /main.rs:9: `impl Outer` should follow type definition (line 3), but has 5 blank line(s)
+	[impl-follows-type] /main.rs:18: `impl Inner` should follow type definition (line 7), but has 10 blank line(s)
+
+	# Format mode
+	struct Outer {
+		inner: Inner,
+	}
+	impl Outer {
+		fn get_inner(&self) -> i32 { self.inner.value }
+		fn compute(&self) -> i32 {
+			self.inner.value * 2
+		}
+	}
+
+	struct Inner {
+		value: i32,
+	}
+	impl Inner {
+		fn new(v: i32) -> Self { Self { value: v } }
+	}
+
+	fn unrelated() -> i32 { 42 }
+	");
+}
+
+#[test]
 fn interleaved_types_and_impls() {
 	insta::assert_snapshot!(test_case(
 		r#"
