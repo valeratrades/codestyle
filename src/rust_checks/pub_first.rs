@@ -1,8 +1,8 @@
 //! Rule: items are ordered as follows:
 //! 1. All const items (regardless of visibility)
 //! 2. All type items (regardless of visibility)
-//! 3. All pub items (main > trait > other)
-//! 4. All private items (main > trait > other)
+//! 3. All pub items (Cli > main > trait > other)
+//! 4. All private items (Cli > main > trait > other)
 
 use std::path::Path;
 
@@ -20,7 +20,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		.items
 		.iter()
 		.filter_map(|item| {
-			let (is_pub, is_main_fn, is_const, is_type, is_trait) = get_item_visibility_and_main(item, content)?;
+			let (is_pub, is_main_fn, is_const, is_type, is_trait, is_cli_struct) = get_item_visibility_and_main(item, content)?;
 
 			// Get the span start - this includes attributes but we need to find doc comments ourselves
 			let span_start_line = item.span().start().line;
@@ -41,6 +41,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 				is_const,
 				is_type,
 				is_trait,
+				is_cli_struct,
 				start_line: span_start_line,
 				text_start,
 				text_end,
@@ -120,19 +121,26 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		}
 	}
 
-	// 4-7. Within each visibility category (pub/private), check main-first and trait-before-other ordering
+	// 4-7. Within each visibility category (pub/private), check ordering: Cli > main > trait > other
 	for is_pub in [true, false] {
-		for (is_target, message) in [
+		for (is_target, is_higher_priority, message) in [
+			(
+				(|item: &ItemInfo| item.is_cli_struct) as fn(&ItemInfo) -> bool,
+				(|_: &ItemInfo| false) as fn(&ItemInfo) -> bool,
+				"`struct Cli` should be at the top of its visibility category",
+			),
 			(
 				(|item: &ItemInfo| item.is_main_fn) as fn(&ItemInfo) -> bool,
-				"`main` function should be at the top of its visibility category",
+				(|item: &ItemInfo| item.is_cli_struct) as fn(&ItemInfo) -> bool,
+				"`main` function should be at the top of its visibility category (after Cli)",
 			),
 			(
 				(|item: &ItemInfo| item.is_trait) as fn(&ItemInfo) -> bool,
+				(|item: &ItemInfo| item.is_cli_struct || item.is_main_fn) as fn(&ItemInfo) -> bool,
 				"`trait` should be at the top of its visibility category (after main)",
 			),
 		] {
-			if let Some(v) = check_kind_ordering(&items, content, &path_str, is_pub, is_target, message) {
+			if let Some(v) = check_kind_ordering(&items, content, &path_str, is_pub, is_target, is_higher_priority, message) {
 				return vec![v];
 			}
 		}
@@ -141,17 +149,26 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	vec![]
 }
 
-/// Check that items of a specific kind (main/trait) appear before other items
+/// Check that items of a specific kind (main/trait/struct) appear before lower-priority items
 /// within a visibility category (pub/private), excluding const and type items.
-fn check_kind_ordering(items: &[ItemInfo], content: &str, path_str: &str, is_pub: bool, is_target: fn(&ItemInfo) -> bool, message: &str) -> Option<Violation> {
-	let mut first_other_idx: Option<usize> = None;
+/// `is_higher_priority` identifies items that are allowed to appear before the target kind.
+fn check_kind_ordering(
+	items: &[ItemInfo],
+	content: &str,
+	path_str: &str,
+	is_pub: bool,
+	is_target: fn(&ItemInfo) -> bool,
+	is_higher_priority: fn(&ItemInfo) -> bool,
+	message: &str,
+) -> Option<Violation> {
+	let mut first_lower_idx: Option<usize> = None;
 	for (i, item) in items.iter().enumerate() {
 		if item.is_pub == is_pub && !item.is_const && !item.is_type {
-			if !item.is_main_fn && !item.is_trait && first_other_idx.is_none() {
-				first_other_idx = Some(i);
+			if !is_target(item) && !is_higher_priority(item) && first_lower_idx.is_none() {
+				first_lower_idx = Some(i);
 			}
 			if is_target(item)
-				&& let Some(target_idx) = first_other_idx
+				&& let Some(target_idx) = first_lower_idx
 			{
 				let fix = create_move_fix(content, items, i, target_idx);
 				return Some(Violation {
@@ -175,6 +192,7 @@ struct ItemInfo {
 	is_const: bool,
 	is_type: bool,
 	is_trait: bool,
+	is_cli_struct: bool,
 	start_line: usize,
 	/// Byte offset where the item starts (including any preceding doc comments/attributes on the same "block")
 	text_start: usize,
@@ -182,18 +200,18 @@ struct ItemInfo {
 	text_end: usize,
 }
 
-/// Returns (is_pub, is_main_fn, is_const, is_type, is_trait) for an item, or None if it should be skipped
-fn get_item_visibility_and_main(item: &Item, content: &str) -> Option<(bool, bool, bool, bool, bool)> {
-	let (vis, is_main_fn, is_const, is_type, is_trait) = match item {
-		Item::Fn(f) => (Some(&f.vis), f.sig.ident == "main", false, false, false),
-		Item::Struct(s) => (Some(&s.vis), false, false, false, false),
-		Item::Enum(e) => (Some(&e.vis), false, false, false, false),
-		Item::Type(t) => (Some(&t.vis), false, false, true, false),
-		Item::Const(c) => (Some(&c.vis), false, true, false, false),
-		Item::Static(s) => (Some(&s.vis), false, false, false, false),
-		Item::Trait(t) => (Some(&t.vis), false, false, false, true),
+/// Returns (is_pub, is_main_fn, is_const, is_type, is_trait, is_cli_struct) for an item, or None if it should be skipped
+fn get_item_visibility_and_main(item: &Item, content: &str) -> Option<(bool, bool, bool, bool, bool, bool)> {
+	let (vis, is_main_fn, is_const, is_type, is_trait, is_cli_struct) = match item {
+		Item::Fn(f) => (Some(&f.vis), f.sig.ident == "main", false, false, false, false),
+		Item::Struct(s) => (Some(&s.vis), false, false, false, false, s.ident == "Cli"),
+		Item::Enum(e) => (Some(&e.vis), false, false, false, false, false),
+		Item::Type(t) => (Some(&t.vis), false, false, true, false, false),
+		Item::Const(c) => (Some(&c.vis), false, true, false, false, false),
+		Item::Static(s) => (Some(&s.vis), false, false, false, false, false),
+		Item::Trait(t) => (Some(&t.vis), false, false, false, true, false),
 		Item::Mod(_) => return None, //HACK: skip `mod` - sorting these conflicts with `rustfmt`'s module reordering
-		Item::Union(u) => (Some(&u.vis), false, false, false, false),
+		Item::Union(u) => (Some(&u.vis), false, false, false, false, false),
 		Item::ExternCrate(_) => return None, // Skip extern crate declarations
 		Item::Use(_) => return None,         // Skip use statements - they have their own ordering conventions
 		Item::Impl(_) => return None,        // Skip impl blocks - they're handled by impl_follows_type
@@ -208,7 +226,7 @@ fn get_item_visibility_and_main(item: &Item, content: &str) -> Option<(bool, boo
 	}
 
 	let is_pub = matches!(vis, Some(Visibility::Public(_)));
-	Some((is_pub, is_main_fn, is_const, is_type, is_trait))
+	Some((is_pub, is_main_fn, is_const, is_type, is_trait, is_cli_struct))
 }
 
 /// Creates a fix that moves item at `from_idx` to before item at `to_idx`.

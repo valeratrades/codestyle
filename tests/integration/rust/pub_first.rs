@@ -161,7 +161,7 @@ fn main_not_first_in_pub_category() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:2: `main` function should be at the top of its visibility category
+	[pub-first] /main.rs:2: `main` function should be at the top of its visibility category (after Cli)
 
 	# Format mode
 	pub fn main() {}
@@ -180,7 +180,7 @@ fn main_not_first_in_private_category() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:3: `main` function should be at the top of its visibility category
+	[pub-first] /main.rs:3: `main` function should be at the top of its visibility category (after Cli)
 
 	# Format mode
 	pub fn public() {}
@@ -213,6 +213,49 @@ fn complex_reordering() {
 	fn helper() {}
 	struct Internal;
 	");
+}
+
+// === struct Cli ordering tests ===
+
+#[test]
+fn cli_struct_above_main() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		fn main() {}
+		struct Cli {}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:2: `struct Cli` should be at the top of its visibility category
+
+	# Format mode
+	struct Cli {}
+	fn main() {}
+	");
+}
+
+#[test]
+fn cli_struct_already_above_main_passes() {
+	assert_check_passing(
+		r#"
+		struct Cli {}
+		fn main() {}
+		"#,
+		&opts(),
+	);
+}
+
+#[test]
+fn non_cli_struct_does_not_get_special_ordering() {
+	// Only `struct Cli` is special — other structs follow normal rules
+	assert_check_passing(
+		r#"
+		pub fn other() {}
+		pub struct Config;
+		"#,
+		&opts(),
+	);
 }
 
 // === Bug reproduction tests - these should pass after fix ===
@@ -424,11 +467,11 @@ fn mod_declarations_are_ignored() {
 }
 
 // === Const/type at top, then pub/private ordering tests ===
-// New ordering: const (all), type (all), pub items (main > trait > other), private items (main > trait > other)
+// Ordering: const (all), type (all), pub items (Cli > main > trait > other), private items (same)
 
 #[test]
 fn correct_ordering_passes() {
-	// Full correct ordering: const, type, pub main, pub trait, pub other, private main, private trait, private other
+	// Full correct ordering: const, type, pub Cli, pub main, pub trait, pub other, private Cli, private main, private trait, private other
 	assert_check_passing(
 		r#"
 		pub const A: u32 = 1;
@@ -612,13 +655,13 @@ fn full_ordering_combined() {
 		pub fn main() {}
 		"#,
 		&opts(),
-	), @"
+	), @r#"
 	# Assert mode
 	[pub-first] /main.rs:5: `const` should come before all other items
 
 	# Format mode
 	const INTERNAL: u32 = 42;
-	pub const VERSION: &str = \"1.0\";
+	pub const VERSION: &str = "1.0";
 	type InternalInt = i64;
 	pub type PubInt = i32;
 	pub fn main() {}
@@ -628,5 +671,5 @@ fn full_ordering_combined() {
 	fn main() {}
 	trait InternalTrait {}
 	fn helper() {}
-	");
+	"#);
 }
