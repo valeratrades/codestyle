@@ -848,3 +848,150 @@ fn full_ordering_combined() {
 	fn helper() {}
 	"#);
 }
+
+#[test]
+fn main_not_moved_above_mod_and_use() {
+	// main/clap items should never be placed above mod/use statements
+	insta::assert_snapshot!(test_case(
+		r#"
+		mod foo;
+		mod bar;
+
+		use std::io;
+		use std::path::Path;
+
+		fn other() {}
+		fn main() {}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:8: `main` function should be at the top of its visibility category (after clap types)
+
+	# Format mode
+	mod foo;
+	mod bar;
+
+	use std::io;
+	use std::path::Path;
+
+	fn main() {}
+	fn other() {}
+	");
+}
+
+#[test]
+fn clap_parser_not_moved_above_mod_and_use() {
+	// Parser struct should not be placed above mod/use statements
+	insta::assert_snapshot!(test_case(
+		r#"
+		mod foo;
+
+		use clap::Parser;
+
+		fn other() {}
+
+		#[derive(Parser)]
+		struct Cli {}
+
+		fn main() {}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:7: Parser struct should be at the top of its visibility category
+
+	# Format mode
+	mod foo;
+
+	use clap::Parser;
+
+	#[derive(Parser)]
+	struct Cli {}
+	fn main() {}
+	fn other() {}
+	");
+}
+
+#[test]
+fn pub_item_not_moved_above_mod_and_use() {
+	// pub item should not be placed above mod/use statements
+	insta::assert_snapshot!(test_case(
+		r#"
+		mod foo;
+
+		use std::io;
+
+		struct Private;
+		pub struct Public;
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:6: public item should come before private items
+
+	# Format mode
+	mod foo;
+
+	use std::io;
+
+	pub struct Public;
+	struct Private;
+	");
+}
+
+#[test]
+fn const_not_moved_above_mod() {
+	// const should not be placed above mod statements
+	insta::assert_snapshot!(test_case(
+		r#"
+		mod foo;
+
+		use std::io;
+
+		pub fn run() {}
+		const VERSION: u32 = 1;
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:6: `const` should come before all other items
+
+	# Format mode
+	mod foo;
+
+	use std::io;
+
+	const VERSION: u32 = 1;
+	pub fn run() {}
+	");
+}
+
+#[test]
+fn mod_between_clap_items_not_scrambled() {
+	// When mod/use are between clap items, moving items shouldn't scramble mod/use
+	insta::assert_snapshot!(test_case(
+		r#"
+		#[derive(Parser)]
+		struct Cli {}
+		fn main() {}
+		mod foo;
+		use foo::Bar;
+		#[derive(Subcommand)]
+		enum Commands {}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:6: Subcommand enum should come after Parser
+
+	# Format mode
+	#[derive(Parser)]
+	struct Cli {}
+	mod foo;
+	use foo::Bar;
+	#[derive(Subcommand)]
+	enum Commands {}
+	fn main() {}
+	");
+}

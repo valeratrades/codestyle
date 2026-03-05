@@ -14,6 +14,21 @@ const RULE: &str = "pub-first";
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let path_str = path.display().to_string();
 
+	// Collect byte ranges of mod/use/extern-crate items so the fix can avoid displacing
+	// them when reordering. These conventionally live at the top of the file.
+	let anchor_ranges: Vec<(usize, usize)> = file
+		.items
+		.iter()
+		.filter(|item| matches!(item, Item::Mod(_) | Item::Use(_) | Item::ExternCrate(_)))
+		.filter_map(|item| {
+			let start_byte = span_position_to_byte(content, item.span().start().line, item.span().start().column)?;
+			let end_byte = span_position_to_byte(content, item.span().end().line, item.span().end().column)?;
+			let text_start = find_item_text_start(content, start_byte);
+			let text_end = find_line_end(content, end_byte);
+			Some((text_start, text_end))
+		})
+		.collect();
+
 	// Collect all top-level items with their visibility and positions
 	// We need to track the text boundaries carefully to include doc comments
 	let items: Vec<ItemInfo> = file
@@ -64,7 +79,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		if item.is_const
 			&& let Some(target_idx) = first_non_const_idx
 		{
-			let fix = create_move_fix(content, &items, i, target_idx);
+			let fix = create_move_fix(content, &items, &anchor_ranges, i, target_idx);
 			return vec![Violation {
 				rule: RULE,
 				file: path_str,
@@ -85,7 +100,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		if item.is_type
 			&& let Some(target_idx) = first_non_const_non_type_idx
 		{
-			let fix = create_move_fix(content, &items, i, target_idx);
+			let fix = create_move_fix(content, &items, &anchor_ranges, i, target_idx);
 			return vec![Violation {
 				rule: RULE,
 				file: path_str,
@@ -111,7 +126,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		if item.is_pub
 			&& let Some(target_idx) = first_private_idx
 		{
-			let fix = create_move_fix(content, &items, i, target_idx);
+			let fix = create_move_fix(content, &items, &anchor_ranges, i, target_idx);
 			return vec![Violation {
 				rule: RULE,
 				file: path_str,
@@ -157,7 +172,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 				"`trait` should be at the top of its visibility category (after main)",
 			),
 		] {
-			if let Some(v) = check_kind_ordering(&items, content, &path_str, is_pub, is_target, is_higher_priority, message) {
+			if let Some(v) = check_kind_ordering(&items, &anchor_ranges, content, &path_str, is_pub, is_target, is_higher_priority, message) {
 				return vec![v];
 			}
 		}
@@ -171,6 +186,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 /// `is_higher_priority` identifies items that are allowed to appear before the target kind.
 fn check_kind_ordering(
 	items: &[ItemInfo],
+	anchor_ranges: &[(usize, usize)],
 	content: &str,
 	path_str: &str,
 	is_pub: bool,
@@ -187,7 +203,7 @@ fn check_kind_ordering(
 			if is_target(item)
 				&& let Some(target_idx) = first_lower_idx
 			{
-				let fix = create_move_fix(content, items, i, target_idx);
+				let fix = create_move_fix(content, items, anchor_ranges, i, target_idx);
 				return Some(Violation {
 					rule: RULE,
 					file: path_str.to_string(),
@@ -279,71 +295,86 @@ fn has_clap_derive(attrs: &[syn::Attribute], trait_name: &str) -> bool {
 }
 
 /// Creates a fix that moves item at `from_idx` to before item at `to_idx`.
-fn create_move_fix(content: &str, items: &[ItemInfo], from_idx: usize, to_idx: usize) -> Option<Fix> {
+///
+/// Anchor items (mod/use/extern crate) in the gap between from and to are kept before the
+/// reordered code items — the moved item is placed after all anchors.
+fn create_move_fix(content: &str, items: &[ItemInfo], anchor_ranges: &[(usize, usize)], from_idx: usize, to_idx: usize) -> Option<Fix> {
 	if from_idx <= to_idx {
-		return None; // Item is already in correct position or before target
+		return None;
 	}
 
 	let from_item = &items[from_idx];
 	let to_item = &items[to_idx];
 
-	// Extract the text of the item to move (from text_start to text_end)
 	let item_text = &content[from_item.text_start..from_item.text_end];
 
-	// We need to:
-	// 1. Remove the item from its current position (including trailing newline if present)
-	// 2. Insert it at the target position
-
-	// Determine if there's a trailing newline after the item to remove
 	let remove_end = if from_item.text_end < content.len() && content.as_bytes()[from_item.text_end] == b'\n' {
 		from_item.text_end + 1
 	} else {
 		from_item.text_end
 	};
 
-	// Build the replacement:
-	// - From the start of the target item's text to the end of the removed item's text
-	// - We insert the moved item before the target, then keep everything in between, minus the original item
-
 	let insert_pos = to_item.text_start;
 
-	// Build the new content for the range [insert_pos, remove_end)
-	let mut replacement = String::new();
+	// Collect anchor items in the gap between to_item and from_item.
+	// These must stay above the reordered code items.
+	let mut gap_anchors: Vec<(usize, usize)> = anchor_ranges
+		.iter()
+		.filter(|(start, _)| *start >= to_item.text_start && *start < from_item.text_start)
+		.copied()
+		.collect();
+	gap_anchors.sort_by_key(|(start, _)| *start);
 
-	// Add the moved item
+	if gap_anchors.is_empty() {
+		// Simple case: no anchors in the gap, just move the item
+		let mut replacement = String::new();
+		replacement.push_str(item_text);
+		replacement.push('\n');
+		replacement.push_str(&content[insert_pos..from_item.text_start]);
+
+		return Some(Fix {
+			start_byte: insert_pos,
+			end_byte: remove_end,
+			replacement,
+		});
+	}
+
+	// Complex case: anchor items exist in the gap. We reconstruct the range as:
+	// 1. All anchor items (with their surrounding whitespace) - kept first
+	// 2. The moved item (from_item)
+	// 3. All non-anchor gap content (the other code items and their whitespace)
+	//
+	// Walk through the gap collecting anchor text and non-anchor text separately.
+	let mut anchor_text = String::new();
+	let mut code_text = String::new();
+	let mut pos = insert_pos;
+
+	for (anchor_start, anchor_end) in &gap_anchors {
+		// Text before this anchor (could be code items, whitespace)
+		if pos < *anchor_start {
+			code_text.push_str(&content[pos..*anchor_start]);
+		}
+		// The anchor itself (including its line)
+		let anchor_line_end = find_line_end(content, *anchor_end);
+		let anchor_chunk_end = if anchor_line_end < content.len() && content.as_bytes()[anchor_line_end] == b'\n' {
+			anchor_line_end + 1
+		} else {
+			anchor_line_end
+		};
+		anchor_text.push_str(&content[*anchor_start..anchor_chunk_end]);
+		pos = anchor_chunk_end;
+	}
+
+	// Remaining gap content after the last anchor
+	if pos < from_item.text_start {
+		code_text.push_str(&content[pos..from_item.text_start]);
+	}
+
+	let mut replacement = String::new();
+	replacement.push_str(&anchor_text);
 	replacement.push_str(item_text);
 	replacement.push('\n');
-
-	// Add everything that was between insert_pos and from_item.text_start
-	replacement.push_str(&content[insert_pos..from_item.text_start]);
-
-	// Skip the item we're moving (from from_item.text_start to remove_end)
-	// Add everything from from_item.text_end to original end - but we're replacing the whole range
-
-	// Actually let me reconsider the fix boundaries...
-	// We're replacing [insert_pos, remove_end) with:
-	//   moved_item + "\n" + content[insert_pos..from_item.text_start]
-	// This effectively removes the trailing content[from_item.text_start..remove_end] and prepends it at insert_pos
-
-	// Wait, that's not quite right either. Let me be more precise:
-	// Original: ... [insert_pos] <to_item> ... <stuff> ... <from_item> [remove_end] ...
-	// Desired:  ... [insert_pos] <from_item>\n<to_item> ... <stuff> ... [remove_end] ...
-	//
-	// The replacement range is [insert_pos, remove_end)
-	// The replacement content is: <from_item>\n + content[insert_pos..from_item.text_start]
-
-	// Hmm, but that loses anything between from_item.text_end and remove_end (which should just be the newline we're handling)
-
-	// Let me recalculate:
-	// Original range [insert_pos, remove_end) contains:
-	//   content[insert_pos..from_item.text_start] + content[from_item.text_start..from_item.text_end] + content[from_item.text_end..remove_end]
-	// = middle_stuff + from_item_text + trailing_newline
-	//
-	// We want to replace with:
-	//   from_item_text + "\n" + middle_stuff
-	// = from_item_text + "\n" + content[insert_pos..from_item.text_start]
-
-	// That looks right. The trailing newline after from_item is consumed and we add our own newline after the moved item.
+	replacement.push_str(&code_text);
 
 	Some(Fix {
 		start_byte: insert_pos,
