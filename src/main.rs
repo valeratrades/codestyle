@@ -2,6 +2,12 @@ use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
 
+#[derive(Parser)]
+#[command(author, version = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ")"), about, long_about = None)]
+struct Cli {
+	#[command(subcommand)]
+	command: Commands,
+}
 fn main() {
 	v_utils::clientside!();
 	let cli = Cli::parse();
@@ -21,13 +27,6 @@ fn main() {
 mod rust_checks;
 
 use rust_checks::RustCheckOptions;
-
-#[derive(Parser)]
-#[command(author, version = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ")"), about, long_about = None)]
-struct Cli {
-	#[command(subcommand)]
-	command: Commands,
-}
 
 #[derive(Subcommand)]
 enum Commands {
