@@ -111,22 +111,26 @@ struct RustCheckOptionsArgs {
 
 impl From<RustCheckOptionsArgs> for RustCheckOptions {
 	fn from(args: RustCheckOptionsArgs) -> Self {
-		let defaults = RustCheckOptions::default();
-		//#[codestyle::skip]
-		Self {
-			instrument: args.instrument.unwrap_or(defaults.instrument),
-			loops: args.loops.unwrap_or(defaults.loops),
-			join_split_impls: args.join_split_impls.unwrap_or(defaults.join_split_impls),
-			impl_folds: args.impl_folds.unwrap_or(defaults.impl_folds),
-			impl_follows_type: args.impl_follows_type.unwrap_or(defaults.impl_follows_type),
-			embed_simple_vars: args.embed_simple_vars.unwrap_or(defaults.embed_simple_vars),
-			insta_inline_snapshot: args.insta_inline_snapshot.unwrap_or(defaults.insta_inline_snapshot),
-			no_chrono: args.no_chrono.unwrap_or(defaults.no_chrono),
-			no_tokio_spawn: args.no_tokio_spawn.unwrap_or(defaults.no_tokio_spawn),
-			use_bail: args.use_bail.unwrap_or(defaults.use_bail),
-			test_fn_prefix: args.test_fn_prefix.unwrap_or(defaults.test_fn_prefix),
-			pub_first: args.pub_first.unwrap_or(defaults.pub_first),
-			ignored_error_comment: args.ignored_error_comment.unwrap_or(defaults.ignored_error_comment),
+		let d = RustCheckOptions::default();
+		macro_rules! or_default {
+			($($field:ident),+ $(,)?) => {
+				Self { $($field: args.$field.unwrap_or(d.$field)),+ }
+			};
 		}
+		or_default!(
+			instrument,
+			loops,
+			join_split_impls,
+			impl_folds,
+			impl_follows_type,
+			embed_simple_vars,
+			insta_inline_snapshot,
+			no_chrono,
+			no_tokio_spawn,
+			use_bail,
+			test_fn_prefix,
+			pub_first,
+			ignored_error_comment,
+		)
 	}
 }
