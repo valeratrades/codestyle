@@ -161,7 +161,7 @@ fn main_not_first_in_pub_category() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:2: `main` function should be at the top of its visibility category (after Cli)
+	[pub-first] /main.rs:2: `main` function should be at the top of its visibility category (after clap types)
 
 	# Format mode
 	pub fn main() {}
@@ -180,7 +180,7 @@ fn main_not_first_in_private_category() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:3: `main` function should be at the top of its visibility category (after Cli)
+	[pub-first] /main.rs:3: `main` function should be at the top of its visibility category (after clap types)
 
 	# Format mode
 	pub fn public() {}
@@ -215,30 +215,33 @@ fn complex_reordering() {
 	");
 }
 
-// === struct Cli ordering tests ===
+// === clap type ordering tests (Parser > Subcommand > Args > main) ===
 
 #[test]
-fn cli_struct_above_main() {
+fn parser_struct_above_main() {
 	insta::assert_snapshot!(test_case(
 		r#"
 		fn main() {}
+		#[derive(Parser)]
 		struct Cli {}
 		"#,
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:2: `struct Cli` should be at the top of its visibility category
+	[pub-first] /main.rs:2: Parser struct should be at the top of its visibility category
 
 	# Format mode
+	#[derive(Parser)]
 	struct Cli {}
 	fn main() {}
 	");
 }
 
 #[test]
-fn cli_struct_already_above_main_passes() {
+fn parser_struct_already_above_main_passes() {
 	assert_check_passing(
 		r#"
+		#[derive(Parser)]
 		struct Cli {}
 		fn main() {}
 		"#,
@@ -247,12 +250,185 @@ fn cli_struct_already_above_main_passes() {
 }
 
 #[test]
-fn non_cli_struct_does_not_get_special_ordering() {
-	// Only `struct Cli` is special — other structs follow normal rules
+fn non_clap_struct_not_special() {
 	assert_check_passing(
 		r#"
 		pub fn other() {}
 		pub struct Config;
+		"#,
+		&opts(),
+	);
+}
+
+#[test]
+fn subcommand_between_parser_and_main() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		#[derive(Parser)]
+		struct Cli {}
+		fn main() {}
+		#[derive(Subcommand)]
+		enum Commands {}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:4: Subcommand enum should come after Parser
+
+	# Format mode
+	#[derive(Parser)]
+	struct Cli {}
+	#[derive(Subcommand)]
+	enum Commands {}
+	fn main() {}
+	");
+}
+
+#[test]
+fn subcommand_already_between_parser_and_main_passes() {
+	assert_check_passing(
+		r#"
+		#[derive(Parser)]
+		struct Cli {}
+		#[derive(Subcommand)]
+		enum Commands {}
+		fn main() {}
+		"#,
+		&opts(),
+	);
+}
+
+#[test]
+fn subcommand_with_clap_path() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		#[derive(clap::Parser)]
+		struct Cli {}
+		fn main() {}
+		#[derive(clap::Subcommand)]
+		enum Commands {}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:4: Subcommand enum should come after Parser
+
+	# Format mode
+	#[derive(clap::Parser)]
+	struct Cli {}
+	#[derive(clap::Subcommand)]
+	enum Commands {}
+	fn main() {}
+	");
+}
+
+#[test]
+fn args_between_subcommand_and_main() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		#[derive(Parser)]
+		struct Cli {}
+		#[derive(Subcommand)]
+		enum Commands {}
+		fn main() {}
+		#[derive(Args)]
+		struct BuildArgs {}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:6: Args struct should come after Subcommand
+
+	# Format mode
+	#[derive(Parser)]
+	struct Cli {}
+	#[derive(Subcommand)]
+	enum Commands {}
+	#[derive(Args)]
+	struct BuildArgs {}
+	fn main() {}
+	");
+}
+
+#[test]
+fn args_already_between_subcommand_and_main_passes() {
+	assert_check_passing(
+		r#"
+		#[derive(Parser)]
+		struct Cli {}
+		#[derive(Subcommand)]
+		enum Commands {}
+		#[derive(Args)]
+		struct BuildArgs {}
+		fn main() {}
+		"#,
+		&opts(),
+	);
+}
+
+#[test]
+fn full_clap_ordering() {
+	// Parser > Subcommand > Args > main > other
+	insta::assert_snapshot!(test_case(
+		r#"
+		fn helper() {}
+		fn main() {}
+		#[derive(Args)]
+		struct BuildArgs {}
+		#[derive(Subcommand)]
+		enum Commands {}
+		#[derive(Parser)]
+		struct Cli {}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:7: Parser struct should be at the top of its visibility category
+
+	# Format mode
+	#[derive(Parser)]
+	struct Cli {}
+	#[derive(Subcommand)]
+	enum Commands {}
+	#[derive(Args)]
+	struct BuildArgs {}
+	fn main() {}
+	fn helper() {}
+	");
+}
+
+#[test]
+fn clap_ordering_without_main() {
+	// clap ordering still applies even without fn main
+	insta::assert_snapshot!(test_case(
+		r#"
+		fn other() {}
+		#[derive(Subcommand)]
+		enum Commands {}
+		#[derive(Parser)]
+		struct Cli {}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:4: Parser struct should be at the top of its visibility category
+
+	# Format mode
+	#[derive(Parser)]
+	struct Cli {}
+	#[derive(Subcommand)]
+	enum Commands {}
+	fn other() {}
+	");
+}
+
+#[test]
+fn plain_struct_cli_not_special() {
+	// struct Cli without #[derive(Parser)] is not special
+	assert_check_passing(
+		r#"
+		fn other() {}
+		struct Cli {}
 		"#,
 		&opts(),
 	);
@@ -467,11 +643,10 @@ fn mod_declarations_are_ignored() {
 }
 
 // === Const/type at top, then pub/private ordering tests ===
-// Ordering: const (all), type (all), pub items (Cli > main > trait > other), private items (same)
+// Ordering: const (all), type (all), pub items (Parser > Subcommand > Args > main > trait > other), private items (same)
 
 #[test]
 fn correct_ordering_passes() {
-	// Full correct ordering: const, type, pub Cli, pub main, pub trait, pub other, private Cli, private main, private trait, private other
 	assert_check_passing(
 		r#"
 		pub const A: u32 = 1;
