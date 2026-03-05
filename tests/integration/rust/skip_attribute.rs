@@ -18,6 +18,7 @@ use crate::utils::{assert_check_passing, opts_for, test_case_assert_only};
 
 fn all_opts() -> RustCheckOptions {
 	RustCheckOptions {
+		cargo_dep_ordering: false,
 		instrument: false,
 		loops: true,
 		join_split_impls: true,

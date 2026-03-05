@@ -3,6 +3,7 @@
 //! Each module contains individual #[test] functions that can run in parallel,
 //! enabling proper insta snapshot workflow (all failures at once, accept all at once).
 
+mod cargo_dep_ordering;
 mod embed_simple_vars;
 mod ignored_error_comment;
 mod impl_blocks;

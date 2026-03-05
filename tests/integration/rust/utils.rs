@@ -7,6 +7,7 @@ use v_fixtures::Fixture;
 
 pub(crate) fn opts_for(check: &str) -> RustCheckOptions {
 	RustCheckOptions {
+		cargo_dep_ordering: check == "cargo_dep_ordering",
 		instrument: check == "instrument",
 		join_split_impls: check == "join_split_impls",
 		impl_folds: check == "impl_folds",

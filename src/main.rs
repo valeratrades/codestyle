@@ -56,6 +56,10 @@ enum RustMode {
 
 #[derive(Args)]
 struct RustCheckOptionsArgs {
+	/// Order and group dependencies in Cargo.toml [default: true]
+	#[arg(long)]
+	cargo_dep_ordering: Option<bool>,
+
 	/// Check for #[instrument] on async functions [default: false]
 	#[arg(long)]
 	instrument: Option<bool>,
@@ -118,6 +122,7 @@ impl From<RustCheckOptionsArgs> for RustCheckOptions {
 			};
 		}
 		or_default!(
+			cargo_dep_ordering,
 			instrument,
 			loops,
 			join_split_impls,

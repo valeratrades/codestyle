@@ -1,3 +1,4 @@
+pub mod cargo_dep_ordering;
 pub mod embed_simple_vars;
 pub mod ignored_error_comment;
 pub mod impl_folds;
@@ -24,6 +25,9 @@ use walkdir::WalkDir;
 
 #[derive(Clone, SmartDefault)]
 pub struct RustCheckOptions {
+	/// Order and group dependencies in Cargo.toml (default: true)
+	#[default = true]
+	pub cargo_dep_ordering: bool,
 	/// Check for #[instrument] on async functions (default: false)
 	#[default = false]
 	pub instrument: bool,
@@ -104,6 +108,15 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 
 	let mut all_violations = Vec::new();
 
+	// Cargo.toml checks
+	if opts.cargo_dep_ordering {
+		for toml_path in collect_cargo_tomls(target_dir) {
+			if let Ok(content) = fs::read_to_string(&toml_path) {
+				all_violations.extend(cargo_dep_ordering::check(&toml_path, &content));
+			}
+		}
+	}
+
 	for src_dir in src_dirs {
 		let file_infos = collect_rust_files(&src_dir);
 		for info in &file_infos {
@@ -183,6 +196,28 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 
 	let mut fixed_count = 0;
 	let mut unfixable_violations = Vec::new();
+
+	// Cargo.toml checks
+	if opts.cargo_dep_ordering {
+		for toml_path in collect_cargo_tomls(target_dir) {
+			if let Ok(content) = fs::read_to_string(&toml_path) {
+				let violations = cargo_dep_ordering::check(&toml_path, &content);
+				for v in violations {
+					if let Some(fix) = v.fix {
+						if fix.start_byte <= content.len() && fix.end_byte <= content.len() {
+							let mut new_content = content.clone();
+							new_content.replace_range(fix.start_byte..fix.end_byte, &fix.replacement);
+							if fs::write(&toml_path, new_content).is_ok() {
+								fixed_count += 1;
+							}
+						}
+					} else {
+						unfixable_violations.push(v);
+					}
+				}
+			}
+		}
+	}
 
 	// Process files iteratively - when a fix is applied, re-check that file
 	for src_dir in src_dirs {
@@ -447,13 +482,30 @@ fn find_src_dirs(root: &Path) -> Vec<PathBuf> {
 		return vec![];
 	}
 
+	let members = resolve_workspace_members(root);
+	if members.is_empty() {
+		return collect_standard_dirs(root);
+	}
+
+	let mut dirs = Vec::new();
+	for member_root in members {
+		dirs.extend(collect_standard_dirs(&member_root));
+	}
+	dirs
+}
+
+/// Parse workspace members from Cargo.toml, expanding glob patterns.
+/// Returns resolved directory paths for each member.
+/// Returns empty vec if no [workspace] section or no members found.
+fn resolve_workspace_members(root: &Path) -> Vec<PathBuf> {
+	let cargo_toml = root.join("Cargo.toml");
 	let content = match fs::read_to_string(&cargo_toml) {
 		Ok(c) => c,
-		Err(_) => return collect_standard_dirs(root),
+		Err(_) => return vec![],
 	};
 
 	let mut in_workspace = false;
-	let mut members = Vec::new();
+	let mut patterns = Vec::new();
 
 	for line in content.lines() {
 		let trimmed = line.trim();
@@ -469,29 +521,62 @@ fn find_src_dirs(root: &Path) -> Vec<PathBuf> {
 			let list = &line[start + 1..end];
 			for member in list.split(',') {
 				let member = member.trim().trim_matches('"').trim_matches('\'');
-				if !member.is_empty() && !member.contains('*') {
-					members.push(member.to_string());
+				if !member.is_empty() {
+					patterns.push(member.to_string());
 				}
 			}
 		}
 	}
 
-	if members.is_empty() {
-		return collect_standard_dirs(root);
+	let mut members = Vec::new();
+	for pattern in patterns {
+		if pattern.contains('*') {
+			// Simple glob: only support trailing `*` after a prefix, e.g. `foo_*`
+			let prefix = pattern.trim_end_matches('*');
+			let (parent, name_prefix) = if let Some(slash) = prefix.rfind('/') {
+				(root.join(&prefix[..slash]), &prefix[slash + 1..])
+			} else {
+				(root.to_path_buf(), prefix)
+			};
+
+			if let Ok(entries) = fs::read_dir(&parent) {
+				for entry in entries.filter_map(Result::ok) {
+					let name = entry.file_name();
+					let name = name.to_string_lossy();
+					if name.starts_with(name_prefix) && entry.path().is_dir() {
+						members.push(entry.path());
+					}
+				}
+			}
+		} else {
+			members.push(root.join(&pattern));
+		}
 	}
 
-	let mut dirs = Vec::new();
-	for m in members {
-		let member_root = root.join(&m);
-		dirs.extend(collect_standard_dirs(&member_root));
-	}
-	dirs
+	members
 }
 
 /// Collect standard Rust directories: src/, tests/, examples/, benches/
 fn collect_standard_dirs(root: &Path) -> Vec<PathBuf> {
 	let standard_dirs = ["src", "tests", "examples", "benches"];
 	standard_dirs.iter().map(|d| root.join(d)).filter(|p| p.exists()).collect()
+}
+
+/// Collect all Cargo.toml files in the workspace that may have [dependencies].
+/// For a workspace root, returns member Cargo.tomls. For a standalone crate, returns its Cargo.toml.
+fn collect_cargo_tomls(root: &Path) -> Vec<PathBuf> {
+	let cargo_toml = root.join("Cargo.toml");
+	if !cargo_toml.exists() {
+		return vec![];
+	}
+
+	let members = resolve_workspace_members(root);
+	if members.is_empty() {
+		// Standalone crate
+		return vec![cargo_toml];
+	}
+
+	members.into_iter().map(|m| m.join("Cargo.toml")).filter(|p| p.exists()).collect()
 }
 
 fn parse_rust_file(path: PathBuf) -> Option<FileInfo> {
