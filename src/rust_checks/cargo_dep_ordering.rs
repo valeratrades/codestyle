@@ -25,7 +25,7 @@ struct DepEntry {
 	group: DepGroup,
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum DepGroup {
 	/// Path dependencies (value contains `path = "../`)
 	Path = 0,
