@@ -521,6 +521,42 @@ insta.workspace = true
 }
 
 #[test]
+fn commented_out_patch_section_preserved() {
+	// Commented-out [patch.crates-io] lines after deps must not be nuked
+	let input = r#"[dev-dependencies]
+insta = "1.46"
+v_fixtures = { version = "^0.3.4" }
+walkdir = "2"
+
+#[patch.crates-io]
+#v_utils = { path = "../v_utils/v_utils" }
+#v_fixtures = { path = "../v_fixtures" }
+
+[[test]]
+name = "integration"
+"#;
+	assert!(check(input).is_empty());
+}
+
+#[test]
+fn trailing_comments_preserved_in_reorder() {
+	let input = r#"[dependencies]
+serde.workspace = true
+tokio = "1"
+
+# this comment should survive
+"#;
+	let expected = r#"[dependencies]
+tokio = "1"
+
+serde.workspace = true
+
+# this comment should survive
+"#;
+	assert_eq!(format(input), expected);
+}
+
+#[test]
 fn section_followed_by_double_bracket() {
 	let input = r#"[dev-dependencies]
 v_fixtures = "^0.3.4"

@@ -43,24 +43,36 @@ fn check_section(content: &str, section_header: &str, path_str: &str) -> Option<
 		return None;
 	}
 
-	let entries = parse_entries(body);
+	let (entries, deps_end_offset) = parse_entries(body);
 	if entries.is_empty() {
 		return None;
 	}
 
-	let formatted = format_entries(&entries);
-	let current = body.trim_end_matches('\n');
+	// Only replace up to where the last dep entry ends, preserving trailing comments
+	let deps_end = section_body_start + deps_end_offset;
 
-	if current == formatted {
+	let formatted = format_entries(&entries);
+	let current = &content[section_body_start..deps_end].trim_end_matches('\n');
+
+	if *current == formatted {
 		return None;
 	}
 
 	// Find line number of the section header
 	let line = content[..section_start].lines().count() + 1;
 
-	// If there's a next section after this body, preserve the blank line separator
+	// Check what comes after the deps region
+	let has_trailing_content = deps_end < section_end;
 	let has_next_section = section_end < content.len();
-	let replacement = if has_next_section { format!("{formatted}\n\n") } else { format!("{formatted}\n") };
+	let replacement = if has_trailing_content {
+		// There's trailing content (comments etc.) - just end with a newline,
+		// the trailing content already has its own leading newline
+		format!("{formatted}\n")
+	} else if has_next_section {
+		format!("{formatted}\n\n")
+	} else {
+		format!("{formatted}\n")
+	};
 
 	Some(Violation {
 		rule: RULE,
@@ -70,7 +82,7 @@ fn check_section(content: &str, section_header: &str, path_str: &str) -> Option<
 		message: format!("Dependencies in {section_header} are not properly grouped/ordered"),
 		fix: Some(Fix {
 			start_byte: section_body_start,
-			end_byte: section_end,
+			end_byte: deps_end,
 			replacement,
 		}),
 	})
@@ -120,26 +132,29 @@ fn find_next_section_start(content: &str, from: usize) -> Option<usize> {
 	None
 }
 
-fn parse_entries(body: &str) -> Vec<DepEntry> {
+/// Parse dep entries from section body. Returns entries and the byte offset
+/// within `body` right after the last dep entry line (including its newline).
+/// Trailing comments/blank lines after the last dep are NOT included.
+fn parse_entries(body: &str) -> (Vec<DepEntry>, usize) {
 	let mut entries = Vec::new();
+	let mut last_dep_end = 0;
+	let mut pos = 0;
 
 	for line in body.lines() {
+		let line_end = pos + line.len() + 1; // +1 for the newline
 		let trimmed = line.trim();
-		if trimmed.is_empty() || trimmed.starts_with('#') {
-			continue;
+
+		if !trimmed.is_empty() && !trimmed.starts_with('#') && trimmed.contains('=') {
+			let group = classify_dep(trimmed);
+			let normalized = normalize_workspace_syntax(trimmed);
+			entries.push(DepEntry { line: normalized, group });
+			last_dep_end = line_end.min(body.len());
 		}
 
-		// Must be a `name = ...` or `name.workspace = true` line
-		if !trimmed.contains('=') {
-			continue;
-		}
-		let group = classify_dep(trimmed);
-		let normalized = normalize_workspace_syntax(trimmed);
-
-		entries.push(DepEntry { line: normalized, group });
+		pos = line_end;
 	}
 
-	entries
+	(entries, last_dep_end)
 }
 
 fn classify_dep(line: &str) -> DepGroup {
