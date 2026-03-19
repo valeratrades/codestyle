@@ -986,12 +986,238 @@ fn mod_between_clap_items_not_scrambled() {
 	[pub-first] /main.rs:6: Subcommand enum should come after Parser
 
 	# Format mode
-	#[derive(Parser)]
-	struct Cli {}
 	mod foo;
 	use foo::Bar;
+
+	#[derive(Parser)]
+	struct Cli {}
+
 	#[derive(Subcommand)]
 	enum Commands {}
 	fn main() {}
+	");
+}
+
+#[test]
+fn code_items_above_trailing_mod_and_use() {
+	// Reproduces tedi main.rs pattern: clap types + fn main appear ABOVE mod/use declarations.
+	// The rule should detect that code items are placed before mod/use and move them after.
+	insta::assert_snapshot!(test_case(
+		r#"
+		const PATH: &str = "foo/";
+		pub mod config;
+		pub mod utils;
+		#[derive(clap::Parser)]
+		struct Cli {}
+		#[derive(clap::Subcommand)]
+		enum Commands {}
+		fn main() {}
+		mod internal;
+		mod other;
+		use std::io;
+		use clap::Parser;
+		fn helper() {}
+		"#,
+		&opts(),
+	), @r#"
+	# Assert mode
+	[pub-first] /main.rs:4: item should come after mod/use declarations
+
+	# Format mode
+	const PATH: &str = "foo/";
+	pub mod config;
+	pub mod utils;
+	mod internal;
+	mod other;
+	use std::io;
+	use clap::Parser;
+
+	#[derive(clap::Parser)]
+	struct Cli {}
+	#[derive(clap::Subcommand)]
+	enum Commands {}
+	fn main() {}
+	fn helper() {}
+	"#);
+}
+
+// === Bug: items must not move past inline #[cfg(test)] mod tests ===
+
+#[test]
+fn pub_items_not_moved_past_test_module() {
+	// Reproduces issue_ref.rs bug: pub fn and pub enum were moved BELOW #[cfg(test)] mod tests {}
+	// because the inline mod was treated as an anchor, making check 5 move code items after it.
+	assert_check_passing(
+		r#"
+		use std::fmt;
+
+		pub fn parse_repo_context(text: &str) -> (String, String) {
+			(text.to_string(), text.to_string())
+		}
+
+		/// A parsed issue reference from text.
+		pub enum IssueRef {
+			Url(String),
+			Shorthand { owner: Option<String>, number: u64 },
+		}
+
+		impl fmt::Display for IssueRef {
+			fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+				write!(f, "issue")
+			}
+		}
+
+		#[cfg(test)]
+		mod tests {
+			#[test]
+			fn it_works() {
+				assert!(true);
+			}
+		}
+		"#,
+		&opts(),
+	);
+}
+
+#[test]
+fn private_before_pub_not_moved_past_test_module() {
+	// Even when there IS a violation (private before pub), the fix should not move items past mod tests
+	insta::assert_snapshot!(test_case(
+		r#"
+		use std::fmt;
+
+		fn private_helper() {}
+
+		pub fn public_fn() -> u32 { 42 }
+
+		#[cfg(test)]
+		mod tests {
+			#[test]
+			fn it_works() {
+				assert!(true);
+			}
+		}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:5: public item should come before private items
+
+	# Format mode
+	use std::fmt;
+
+	pub fn public_fn() -> u32 { 42 }
+	fn private_helper() {}
+
+
+	#[cfg(test)]
+	mod tests {
+		#[test]
+		fn it_works() {
+			assert!(true);
+		}
+	}
+	");
+}
+
+// === Type alias referencing local type should not be moved to top ===
+
+#[test]
+fn type_alias_referencing_local_struct_passes() {
+	// type alias that references a struct defined in the same file should stay near it
+	assert_check_passing(
+		r#"
+		struct Book<T> {
+			bids: T,
+			asks: T,
+		}
+		type BookSnapshot = Book<Vec<u8>>;
+		"#,
+		&opts(),
+	);
+}
+
+#[test]
+fn type_alias_referencing_local_struct_after_impl_passes() {
+	// type alias after struct + impl block should also pass
+	assert_check_passing(
+		r#"
+		pub struct Book<T> {
+			bids: T,
+			asks: T,
+		}
+
+		impl<T> Book<T> {
+			fn new(bids: T, asks: T) -> Self {
+				Self { bids, asks }
+			}
+		}
+
+		pub type BookSnapshot = Book<Vec<u8>>;
+		pub fn process() {}
+		fn helper() {}
+		"#,
+		&opts(),
+	);
+}
+
+#[test]
+fn type_alias_not_referencing_local_type_still_moves_to_top() {
+	// type alias for a non-local type should still be treated as a type (moved to top)
+	insta::assert_snapshot!(test_case(
+		r#"
+		pub fn run() {}
+		type MyInt = i32;
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:2: `type` should come before all other items (after const)
+
+	# Format mode
+	type MyInt = i32;
+	pub fn run() {}
+	");
+}
+
+#[test]
+fn type_alias_referencing_local_enum_passes() {
+	assert_check_passing(
+		r#"
+		enum Direction {
+			Up,
+			Down,
+		}
+		type Dir = Direction;
+		fn helper() {}
+		"#,
+		&opts(),
+	);
+}
+
+#[test]
+fn type_alias_referencing_local_type_respects_pub_ordering() {
+	// Even though the type alias references a local type, pub/private ordering still applies
+	insta::assert_snapshot!(test_case(
+		r#"
+		struct Book {
+			bids: Vec<u8>,
+		}
+		type BookSnapshot = Book;
+		fn helper() {}
+		pub fn run() {}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:6: public item should come before private items
+
+	# Format mode
+	pub fn run() {}
+	struct Book {
+		bids: Vec<u8>,
+	}
+	type BookSnapshot = Book;
+	fn helper() {}
 	");
 }
