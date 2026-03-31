@@ -47,7 +47,7 @@ pub struct RustCheckOptions {
 	#[default = true]
 	pub embed_simple_vars: bool,
 	/// Check that insta snapshots use inline @"" syntax (default: true)
-	#[default = false]
+	#[default = true]
 	pub insta_inline_snapshot: bool,
 	/// Disallow usage of chrono crate (use jiff instead) (default: true)
 	#[default = true]
