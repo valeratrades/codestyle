@@ -17,3 +17,4 @@ mod skip_attribute;
 mod test_fn_prefix;
 mod use_bail;
 mod utils;
+mod workspace_dep_hoisting;

@@ -21,6 +21,7 @@ pub(crate) fn opts_for(check: &str) -> RustCheckOptions {
 		test_fn_prefix: check == "test_fn_prefix",
 		pub_first: check == "pub_first",
 		ignored_error_comment: check == "ignored_error_comment",
+		workspace_dep_hoisting: check == "workspace_dep_hoisting",
 	}
 }
 

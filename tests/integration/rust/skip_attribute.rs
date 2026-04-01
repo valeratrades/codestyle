@@ -32,6 +32,7 @@ fn all_opts() -> RustCheckOptions {
 		test_fn_prefix: false,
 		pub_first: true,
 		ignored_error_comment: true,
+		workspace_dep_hoisting: false,
 	}
 }
 

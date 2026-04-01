@@ -13,6 +13,7 @@ pub mod pub_first;
 pub mod skip;
 pub mod test_fn_prefix;
 pub mod use_bail;
+pub mod workspace_dep_hoisting;
 
 use std::{
 	fs,
@@ -67,6 +68,9 @@ pub struct RustCheckOptions {
 	/// Check for //IGNORED_ERROR comments on unwrap_or/unwrap_or_default/unwrap_or_else and `let _ = ...` (default: true)
 	#[default = false] // useful, but too many false positives. Sadly, the time commitment might not be worth it, unless I somehow make this smarter
 	pub ignored_error_comment: bool,
+	/// Check that shared dependencies are hoisted to [workspace.dependencies] (default: true)
+	#[default = true]
+	pub workspace_dep_hoisting: bool,
 }
 
 #[derive(Clone, Default, derive_new::new)]
@@ -115,6 +119,9 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 				all_violations.extend(cargo_dep_ordering::check(&toml_path, &content));
 			}
 		}
+	}
+	if opts.workspace_dep_hoisting {
+		all_violations.extend(workspace_dep_hoisting::check(target_dir));
 	}
 
 	for src_dir in src_dirs {
@@ -583,10 +590,7 @@ fn parse_rust_file(path: PathBuf) -> Option<FileInfo> {
 	let contents = fs::read_to_string(&path).ok()?;
 	let syntax_tree = match parse_file(&contents) {
 		Ok(tree) => tree,
-		Err(e) => {
-			eprintln!("Failed to parse file {path:?}: {e}");
-			return None;
-		}
+		Err(_) => return None,
 	};
 
 	let fn_items = syntax_tree

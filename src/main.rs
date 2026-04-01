@@ -2,6 +2,9 @@ use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
 
+mod rust_checks;
+use rust_checks::RustCheckOptions;
+
 #[derive(Parser)]
 #[command(author, version = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ")"), about, long_about = None)]
 struct Cli {
@@ -89,6 +92,10 @@ struct RustCheckOptionsArgs {
 	/// Check for //IGNORED_ERROR comments on unwrap_or/unwrap_or_default/unwrap_or_else and `let _ = ...` [default: true]
 	#[arg(long)]
 	ignored_error_comment: Option<bool>,
+
+	/// Check that shared dependencies are hoisted to [workspace.dependencies] [default: true]
+	#[arg(long)]
+	workspace_dep_hoisting: Option<bool>,
 }
 fn main() {
 	v_utils::clientside!();
@@ -106,9 +113,6 @@ fn main() {
 
 	std::process::exit(exit_code);
 }
-mod rust_checks;
-
-use rust_checks::RustCheckOptions;
 
 impl From<RustCheckOptionsArgs> for RustCheckOptions {
 	fn from(args: RustCheckOptionsArgs) -> Self {
@@ -133,6 +137,7 @@ impl From<RustCheckOptionsArgs> for RustCheckOptions {
 			test_fn_prefix,
 			pub_first,
 			ignored_error_comment,
+			workspace_dep_hoisting,
 		)
 	}
 }
