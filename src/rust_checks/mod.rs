@@ -9,6 +9,7 @@ pub mod join_split_impls;
 pub mod loops;
 pub mod no_chrono;
 pub mod no_tokio_spawn;
+pub mod prefer_default;
 pub mod pub_first;
 pub mod skip;
 pub mod test_fn_prefix;
@@ -71,6 +72,9 @@ pub struct RustCheckOptions {
 	/// Check that shared dependencies are hoisted to [workspace.dependencies] (default: true)
 	#[default = true]
 	pub workspace_dep_hoisting: bool,
+	/// Flag argument-less `fn new()` — use `Default` instead (default: true)
+	#[default = true]
+	pub prefer_default: bool,
 }
 
 #[derive(Clone, Default, derive_new::new)]
@@ -167,6 +171,9 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 				}
 				if opts.ignored_error_comment {
 					all_violations.extend(ignored_error_comment::check(&info.path, &info.contents, tree));
+				}
+				if opts.prefer_default {
+					all_violations.extend(prefer_default::check(&info.path, &info.contents, tree));
 				}
 			}
 		}
@@ -407,6 +414,15 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 					}
 				}
 			}
+
+			if first_fix.is_none() && opts.prefer_default {
+				for v in prefer_default::check(&info.path, &info.contents, tree) {
+					if let Some(fix) = v.fix.clone() {
+						first_fix = Some((v, fix));
+						break;
+					}
+				}
+			}
 		}
 
 		// Apply the fix if found
@@ -474,6 +490,9 @@ fn collect_unfixable(info: &FileInfo, opts: &RustCheckOptions) -> Vec<Violation>
 		}
 		if opts.ignored_error_comment {
 			unfixable.extend(ignored_error_comment::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
+		}
+		if opts.prefer_default {
+			unfixable.extend(prefer_default::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
 		}
 	}
 

@@ -96,6 +96,10 @@ struct RustCheckOptionsArgs {
 	/// Check that shared dependencies are hoisted to [workspace.dependencies] [default: true]
 	#[arg(long)]
 	workspace_dep_hoisting: Option<bool>,
+
+	/// Flag argument-less `fn new()` — use `Default` instead [default: true]
+	#[arg(long)]
+	prefer_default: Option<bool>,
 }
 fn main() {
 	v_utils::clientside!();
@@ -138,6 +142,7 @@ impl From<RustCheckOptionsArgs> for RustCheckOptions {
 			pub_first,
 			ignored_error_comment,
 			workspace_dep_hoisting,
+			prefer_default,
 		)
 	}
 }
