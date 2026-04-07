@@ -11,7 +11,7 @@ fn format(content: &str) -> String {
 	let mut result = content.to_string();
 	// Apply fixes in reverse order to preserve byte offsets
 	let mut fixes: Vec<_> = violations.into_iter().filter_map(|v| v.fix).collect();
-	fixes.sort_by(|a, b| b.start_byte.cmp(&a.start_byte));
+	fixes.sort_by_key(|b| std::cmp::Reverse(b.start_byte));
 	for fix in fixes {
 		result.replace_range(fix.start_byte..fix.end_byte, &fix.replacement);
 	}
