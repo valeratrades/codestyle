@@ -10,11 +10,10 @@ pub mod join_split_impls;
 pub mod loops;
 pub mod no_chrono;
 pub mod no_tokio_spawn;
-pub mod prefer_default;
 pub mod pub_first;
-pub mod semantically_try_new;
 pub mod skip;
 pub mod test_fn_prefix;
+pub mod unconventional_new;
 pub mod use_bail;
 pub mod workspace_dep_hoisting;
 
@@ -77,12 +76,9 @@ pub struct RustCheckOptions {
 	/// Inline `impl Default` bodies as field defaults (RFC 3681, Rust 1.82+) (default: true)
 	#[default = true]
 	pub inline_default: bool,
-	/// Flag argument-less `fn new()` — use `Default` instead (default: true)
+	/// Flag unconventional `fn new`: no-args (use Default) or returning Result (rename to try_new); rewrite call-sites (default: true)
 	#[default = true]
-	pub prefer_default: bool,
-	/// Flag `fn new` that returns `Result` — rename to `try_new` (default: true)
-	#[default = true]
-	pub semantically_try_new: bool,
+	pub unconventional_new: bool,
 }
 
 #[derive(Clone, Default, derive_new::new)]
@@ -180,11 +176,8 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 				if opts.ignored_error_comment {
 					all_violations.extend(ignored_error_comment::check(&info.path, &info.contents, tree));
 				}
-				if opts.prefer_default {
-					all_violations.extend(prefer_default::check(&info.path, &info.contents, tree));
-				}
-				if opts.semantically_try_new {
-					all_violations.extend(semantically_try_new::check(&info.path, &info.contents, tree));
+				if opts.unconventional_new {
+					all_violations.extend(unconventional_new::check(&info.path, &info.contents, tree));
 				}
 				if opts.inline_default {
 					all_violations.extend(inline_default::check(&info.path, &info.contents, tree));
@@ -429,17 +422,8 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 				}
 			}
 
-			if first_fix.is_none() && opts.prefer_default {
-				for v in prefer_default::check(&info.path, &info.contents, tree) {
-					if let Some(fix) = v.fix.clone() {
-						first_fix = Some((v, fix));
-						break;
-					}
-				}
-			}
-
-			if first_fix.is_none() && opts.semantically_try_new {
-				for v in semantically_try_new::check(&info.path, &info.contents, tree) {
+			if first_fix.is_none() && opts.unconventional_new {
+				for v in unconventional_new::check(&info.path, &info.contents, tree) {
 					if let Some(fix) = v.fix.clone() {
 						first_fix = Some((v, fix));
 						break;
@@ -523,11 +507,8 @@ fn collect_unfixable(info: &FileInfo, opts: &RustCheckOptions) -> Vec<Violation>
 		if opts.ignored_error_comment {
 			unfixable.extend(ignored_error_comment::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
 		}
-		if opts.prefer_default {
-			unfixable.extend(prefer_default::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
-		}
-		if opts.semantically_try_new {
-			unfixable.extend(semantically_try_new::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
+		if opts.unconventional_new {
+			unfixable.extend(unconventional_new::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
 		}
 		if opts.inline_default {
 			unfixable.extend(inline_default::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
