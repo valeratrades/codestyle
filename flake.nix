@@ -4,7 +4,7 @@
     rust-overlay.url = "github:oxalica/rust-overlay";
     flake-utils.url = "github:numtide/flake-utils";
     pre-commit-hooks.url = "github:cachix/git-hooks.nix";
-    v-utils.url = "github:valeratrades/v_flakes?ref=v1.4";
+    v-utils.url = "github:valeratrades/v_flakes?ref=v1.5";
   };
   outputs = { self, nixpkgs, rust-overlay, flake-utils, pre-commit-hooks, v-utils }:
     flake-utils.lib.eachDefaultSystem (
@@ -24,21 +24,6 @@
         pname = manifest.name;
         stdenv = pkgs.stdenvAdapters.useMoldLinker pkgs.stdenv;
 
-        github =
-          let
-            jobDeps = { packages = [ "mold" ]; debug = true; };
-          in
-          v-utils.github {
-            inherit pkgs pname;
-            lastSupportedVersion = "nightly-2026-01-03";
-            langs = [ "rs" ];
-            jobs.default = true;
-            jobs.warnings.install = jobDeps;
-            release = {
-              default = true;
-              trigger = [ "tag" ];
-            };
-          };
         rs = v-utils.rs {
           inherit pkgs rust;
           style = {
@@ -47,6 +32,21 @@
             };
           };
         };
+        github =
+          let
+            jobDeps = { packages = [ "mold" ]; debug = true; };
+          in
+          v-utils.github {
+            inherit pkgs pname rs;
+            lastSupportedVersion = "nightly-2026-01-03";
+            enable = true;
+            jobs.default = true;
+            jobs.warnings.install = jobDeps;
+            release = {
+              default = true;
+              trigger = [ "tag" ];
+            };
+          };
         readme = v-utils.readme-fw {
           inherit pkgs pname;
           defaults = true;
@@ -54,6 +54,7 @@
           rootDir = ./.;
           badges = [ "msrv" "crates_io" "docs_rs" "loc" "ci" ];
         };
+        combined = v-utils.utils.combine [ github rs readme ];
       in
       {
         packages =
@@ -85,9 +86,7 @@
             inherit stdenv;
             shellHook =
               pre-commit-check.shellHook
-              + github.shellHook
-              + rs.shellHook
-              + readme.shellHook
+              + combined.shellHook
               + ''
                 cp -f ${(v-utils.files.treefmt) { inherit pkgs; }} ./.treefmt.toml
               '';
@@ -97,7 +96,7 @@
               openssl
               pkg-config
               rust
-            ] ++ pre-commit-check.enabledPackages ++ github.enabledPackages ++ rs.enabledPackages;
+            ] ++ pre-commit-check.enabledPackages ++ combined.enabledPackages;
 
             env.RUST_BACKTRACE = 1;
             env.RUST_LIB_BACKTRACE = 0;
