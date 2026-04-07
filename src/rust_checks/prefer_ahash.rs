@@ -15,7 +15,10 @@ use syn::{ItemUse, UseTree, spanned::Spanned, visit::Visit};
 use super::{Dependency, Fix, Violation, skip::SkipVisitor};
 
 const RULE: &str = "prefer-ahash";
-pub const DEPENDENCIES: &[Dependency] = &[Dependency { crate_name: "ahash", features: &[] }];
+pub const DEPENDENCIES: &[Dependency] = &[Dependency {
+	crate_name: "ahash",
+	features: &["serde"],
+}];
 
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let visitor = AHashVisitor::new(path, content);
