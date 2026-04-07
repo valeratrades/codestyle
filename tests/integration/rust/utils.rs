@@ -136,6 +136,11 @@ fn collect_violations(root: &Path, opts: &RustCheckOptions, is_format_mode: bool
 	};
 
 	let file_infos = rust_checks::collect_rust_files(root);
+	let try_new_types = if opts.unconventional_new {
+		unconventional_new::collect_try_new_types(&file_infos)
+	} else {
+		std::collections::HashSet::new()
+	};
 	let mut violations = Vec::new();
 
 	for info in &file_infos {
@@ -180,7 +185,7 @@ fn collect_violations(root: &Path, opts: &RustCheckOptions, is_format_mode: bool
 				violations.extend(ignored_error_comment::check(&info.path, &info.contents, tree));
 			}
 			if opts.unconventional_new {
-				violations.extend(unconventional_new::check(&info.path, &info.contents, tree));
+				violations.extend(unconventional_new::check(&info.path, &info.contents, tree, &try_new_types));
 			}
 			if opts.inline_default {
 				violations.extend(inline_default::check(&info.path, &info.contents, tree));

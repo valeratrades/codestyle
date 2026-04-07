@@ -201,6 +201,45 @@ fn multiple_types_with_argless_new() {
 	");
 }
 
+// === Violation cases: Type::new() -> Type::try_new() callsite rename (cross-file) ===
+
+#[test]
+fn try_new_callsite_renamed_cross_file() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		//- /lib.rs
+		struct Foo;
+		impl Foo {
+			pub fn new() -> Result<Self, String> {
+				Ok(Self)
+			}
+		}
+		//- /main.rs
+		fn main() {
+			let _f = Foo::new();
+		}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[unconventional-new] /main.rs:2: `Foo::new` was renamed to `try_new`
+	[unconventional-new] /lib.rs:3: `fn new` returns `Result` — rename to `try_new` to signal fallibility
+
+	# Format mode
+	//- /lib.rs
+	struct Foo;
+	impl Foo {
+		pub fn try_new() -> Result<Self, String> {
+			Ok(Self)
+		}
+	}
+	//- /main.rs
+	fn main() {
+		let _f = Foo::try_new();
+	}
+	");
+}
+
 // === Violation cases: Type::new() call-sites (fixable: rename to default) ===
 
 #[test]

@@ -18,6 +18,7 @@ pub mod use_bail;
 pub mod workspace_dep_hoisting;
 
 use std::{
+	collections::HashSet,
 	fs,
 	path::{Path, PathBuf},
 };
@@ -134,6 +135,11 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 
 	for src_dir in src_dirs {
 		let file_infos = collect_rust_files(&src_dir);
+		let try_new_types = if opts.unconventional_new {
+			unconventional_new::collect_try_new_types(&file_infos)
+		} else {
+			HashSet::new()
+		};
 		for info in &file_infos {
 			if opts.instrument {
 				all_violations.extend(instrument::check_instrument(info));
@@ -177,7 +183,7 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 					all_violations.extend(ignored_error_comment::check(&info.path, &info.contents, tree));
 				}
 				if opts.unconventional_new {
-					all_violations.extend(unconventional_new::check(&info.path, &info.contents, tree));
+					all_violations.extend(unconventional_new::check(&info.path, &info.contents, tree, &try_new_types));
 				}
 				if opts.inline_default {
 					all_violations.extend(inline_default::check(&info.path, &info.contents, tree));
@@ -240,14 +246,30 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 		}
 	}
 
-	// Process files iteratively - when a fix is applied, re-check that file
-	for src_dir in src_dirs {
-		let file_paths: Vec<PathBuf> = collect_rust_files(&src_dir).into_iter().map(|f| f.path).collect();
+	// Process files iteratively. For most rules, files are independent. For
+	// unconventional_new the try_new callsite rename is cross-file: after renaming
+	// a `fn new` definition we must re-collect the type set and fix callers in
+	// other files. We therefore loop project-wide until no more fixes land.
+	let all_file_paths: Vec<PathBuf> = src_dirs.iter().flat_map(|d| collect_rust_files(d)).map(|f| f.path).collect();
 
-		for file_path in file_paths {
-			let (file_fixed, file_unfixable) = format_file_iteratively(&file_path, opts);
-			fixed_count += file_fixed;
+	loop {
+		// Re-collect try_new types from current on-disk state each round
+		let try_new_types = if opts.unconventional_new {
+			let file_infos: Vec<FileInfo> = all_file_paths.iter().filter_map(|p| parse_rust_file(p.clone())).collect();
+			unconventional_new::collect_try_new_types(&file_infos)
+		} else {
+			HashSet::new()
+		};
+
+		let mut round_fixed = 0;
+		for file_path in &all_file_paths {
+			let (file_fixed, file_unfixable) = format_file_iteratively(file_path, opts, &try_new_types);
+			round_fixed += file_fixed;
 			unfixable_violations.extend(file_unfixable);
+		}
+		fixed_count += round_fixed;
+		if round_fixed == 0 {
+			break;
 		}
 	}
 
@@ -292,7 +314,7 @@ pub fn collect_rust_files(target_dir: &Path) -> Vec<FileInfo> {
 /// Format a single file iteratively - apply one fix at a time, re-parse, repeat.
 /// Unfixable violations are only collected on the final pass (when no more fixes are found),
 /// ensuring line numbers are stable and no duplicates are reported.
-fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize, Vec<Violation>) {
+fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions, try_new_types: &HashSet<String>) -> (usize, Vec<Violation>) {
 	let mut fixed_count = 0;
 
 	loop {
@@ -423,7 +445,7 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 			}
 
 			if first_fix.is_none() && opts.unconventional_new {
-				for v in unconventional_new::check(&info.path, &info.contents, tree) {
+				for v in unconventional_new::check(&info.path, &info.contents, tree, try_new_types) {
 					if let Some(fix) = v.fix.clone() {
 						first_fix = Some((v, fix));
 						break;
@@ -444,7 +466,7 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 		// Apply the fix if found
 		let Some((_violation, fix)) = first_fix else {
 			// No more fixes - collect unfixable violations now (final pass)
-			return (fixed_count, collect_unfixable(&info, opts));
+			return (fixed_count, collect_unfixable(&info, opts, try_new_types));
 		};
 
 		if fix.start_byte <= info.contents.len() && fix.end_byte <= info.contents.len() {
@@ -464,7 +486,7 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 }
 
 /// Collect all unfixable violations from a file (called only on final pass)
-fn collect_unfixable(info: &FileInfo, opts: &RustCheckOptions) -> Vec<Violation> {
+fn collect_unfixable(info: &FileInfo, opts: &RustCheckOptions, try_new_types: &HashSet<String>) -> Vec<Violation> {
 	let mut unfixable = Vec::new();
 
 	if opts.instrument {
@@ -508,7 +530,7 @@ fn collect_unfixable(info: &FileInfo, opts: &RustCheckOptions) -> Vec<Violation>
 			unfixable.extend(ignored_error_comment::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
 		}
 		if opts.unconventional_new {
-			unfixable.extend(unconventional_new::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
+			unfixable.extend(unconventional_new::check(&info.path, &info.contents, tree, try_new_types).into_iter().filter(|v| v.fix.is_none()));
 		}
 		if opts.inline_default {
 			unfixable.extend(inline_default::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
