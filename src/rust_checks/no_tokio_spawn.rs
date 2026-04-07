@@ -28,7 +28,7 @@ impl TokioSpawnVisitor {
 	fn new(path: &Path) -> Self {
 		Self {
 			path_str: path.display().to_string(),
-			violations: Vec::new(),
+			violations: Vec::default(),
 		}
 	}
 

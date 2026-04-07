@@ -27,7 +27,7 @@ pub fn check(workspace_root: &Path) -> Vec<Violation> {
 	let workspace_deps = parse_workspace_deps(&workspace_content);
 
 	// dep_name -> set of member dirs that use it
-	let mut dep_users: HashMap<String, HashSet<String>> = HashMap::new();
+	let mut dep_users: HashMap<String, HashSet<String>> = HashMap::default();
 
 	for member_dir in &members {
 		let member_toml = member_dir.join("Cargo.toml");
@@ -73,7 +73,7 @@ pub fn check(workspace_root: &Path) -> Vec<Violation> {
 
 /// Parse `[workspace.dependencies]` keys from workspace Cargo.toml.
 fn parse_workspace_deps(content: &str) -> HashSet<String> {
-	let mut deps = HashSet::new();
+	let mut deps = HashSet::default();
 	let mut in_section = false;
 
 	for line in content.lines() {
@@ -101,7 +101,7 @@ fn parse_workspace_deps(content: &str) -> HashSet<String> {
 /// Looks through `[dependencies]`, `[dev-dependencies]`, `[build-dependencies]`.
 fn parse_regular_deps(content: &str) -> HashSet<String> {
 	const DEP_SECTIONS: &[&str] = &["[dependencies]", "[dev-dependencies]", "[build-dependencies]"];
-	let mut deps = HashSet::new();
+	let mut deps = HashSet::default();
 	let mut in_dep_section = false;
 
 	for line in content.lines() {
@@ -158,7 +158,7 @@ fn extract_dep_name(line: &str) -> Option<String> {
 
 fn resolve_workspace_members(root: &Path, content: &str) -> Vec<std::path::PathBuf> {
 	let mut in_workspace = false;
-	let mut patterns = Vec::new();
+	let mut patterns = Vec::default();
 
 	for line in content.lines() {
 		let trimmed = line.trim();
@@ -181,7 +181,7 @@ fn resolve_workspace_members(root: &Path, content: &str) -> Vec<std::path::PathB
 		}
 	}
 
-	let mut members = Vec::new();
+	let mut members = Vec::default();
 	for pattern in patterns {
 		if pattern.contains('*') {
 			let prefix = pattern.trim_end_matches('*');

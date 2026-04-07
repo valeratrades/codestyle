@@ -129,7 +129,7 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 		return 1;
 	}
 
-	let mut all_violations = Vec::new();
+	let mut all_violations = Vec::default();
 
 	// Cargo.toml checks
 	if opts.cargo_dep_ordering {
@@ -148,7 +148,7 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 		let try_new_types = if opts.unconventional_new {
 			unconventional_new::collect_try_new_types(&file_infos)
 		} else {
-			HashSet::new()
+			HashSet::default()
 		};
 		for info in &file_infos {
 			if opts.instrument {
@@ -235,8 +235,8 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 	}
 
 	let mut fixed_count = 0;
-	let mut unfixable_violations = Vec::new();
-	let mut modified_files: HashSet<PathBuf> = HashSet::new();
+	let mut unfixable_violations = Vec::default();
+	let mut modified_files: HashSet<PathBuf> = HashSet::default();
 
 	// Cargo.toml checks
 	if opts.cargo_dep_ordering {
@@ -272,7 +272,7 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 			let file_infos: Vec<FileInfo> = all_file_paths.iter().filter_map(|p| parse_rust_file(p.clone())).collect();
 			unconventional_new::collect_try_new_types(&file_infos)
 		} else {
-			HashSet::new()
+			HashSet::default()
 		};
 
 		let mut round_fixed = 0;
@@ -315,7 +315,7 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 }
 
 pub fn collect_rust_files(target_dir: &Path) -> Vec<FileInfo> {
-	let mut file_infos = Vec::new();
+	let mut file_infos = Vec::default();
 
 	let walker = WalkDir::new(target_dir).into_iter().filter_entry(|e| {
 		let name = e.file_name().to_string_lossy();
@@ -512,12 +512,12 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions, try_new_ty
 		break;
 	}
 
-	(fixed_count, Vec::new())
+	(fixed_count, Vec::default())
 }
 
 /// Collect all unfixable violations from a file (called only on final pass)
 fn collect_unfixable(info: &FileInfo, opts: &RustCheckOptions, try_new_types: &HashSet<String>) -> Vec<Violation> {
-	let mut unfixable = Vec::new();
+	let mut unfixable = Vec::default();
 
 	if opts.instrument {
 		unfixable.extend(instrument::check_instrument(info).into_iter().filter(|v| v.fix.is_none()));
@@ -587,7 +587,7 @@ fn find_src_dirs(root: &Path) -> Vec<PathBuf> {
 		return collect_standard_dirs(root);
 	}
 
-	let mut dirs = Vec::new();
+	let mut dirs = Vec::default();
 	for member_root in members {
 		dirs.extend(collect_standard_dirs(&member_root));
 	}
@@ -605,7 +605,7 @@ fn resolve_workspace_members(root: &Path) -> Vec<PathBuf> {
 	};
 
 	let mut in_workspace = false;
-	let mut patterns = Vec::new();
+	let mut patterns = Vec::default();
 
 	for line in content.lines() {
 		let trimmed = line.trim();
@@ -628,7 +628,7 @@ fn resolve_workspace_members(root: &Path) -> Vec<PathBuf> {
 		}
 	}
 
-	let mut members = Vec::new();
+	let mut members = Vec::default();
 	for pattern in patterns {
 		if pattern.contains('*') {
 			// Simple glob: only support trailing `*` after a prefix, e.g. `foo_*`
@@ -707,7 +707,7 @@ fn run_cargo_add(target_dir: &Path, modified_files: &HashSet<PathBuf>, deps: &[D
 	}
 
 	// Collect unique Cargo.toml paths for modified files
-	let mut seen: HashSet<(PathBuf, &str)> = HashSet::new();
+	let mut seen: HashSet<(PathBuf, &str)> = HashSet::default();
 
 	for file_path in modified_files {
 		let Some(cargo_toml) = find_package_cargo_toml(file_path) else {
@@ -819,7 +819,7 @@ fn delete_snap_files(target_dir: &Path) {
 		!name.starts_with('.') && name != "target"
 	});
 
-	let mut snapshot_dirs_to_delete = Vec::new();
+	let mut snapshot_dirs_to_delete = Vec::default();
 
 	for entry in walker.filter_map(Result::ok) {
 		let path = entry.path();

@@ -33,8 +33,8 @@ impl<'a> FormatMacroVisitor<'a> {
 		Self {
 			path_str: path.display().to_string(),
 			content,
-			violations: Vec::new(),
-			seen_spans: HashSet::new(),
+			violations: Vec::default(),
+			seen_spans: HashSet::default(),
 		}
 	}
 
@@ -61,7 +61,7 @@ impl<'a> FormatMacroVisitor<'a> {
 
 		// Find the format string (first string literal)
 		let mut format_string_idx = None;
-		let mut format_string_content = String::new();
+		let mut format_string_content = String::default();
 		let mut format_string_span: Option<Span> = None;
 
 		for (i, token) in tokens.iter().enumerate() {
@@ -89,7 +89,7 @@ impl<'a> FormatMacroVisitor<'a> {
 		}
 
 		// Collect arguments after format string
-		let mut args: Vec<(String, Span)> = Vec::new();
+		let mut args: Vec<(String, Span)> = Vec::default();
 		let mut i = fmt_idx + 1;
 
 		while i < tokens.len() {
@@ -216,7 +216,7 @@ fn count_embeddable_placeholders(format_str: &str) -> usize {
 /// Find placeholders that can have variables embedded into them.
 /// This includes `{}`, `{:?}`, and `{:#?}`.
 fn find_embeddable_placeholders(format_str: &str) -> Vec<Placeholder> {
-	let mut placeholders = Vec::new();
+	let mut placeholders = Vec::default();
 	let bytes = format_str.as_bytes();
 	let mut i = 0;
 
@@ -254,7 +254,7 @@ fn find_embeddable_placeholders(format_str: &str) -> Vec<Placeholder> {
 			// - "{:specifier}" (any format specifier without a variable name)
 			// We don't want to match placeholders that already have a variable name like "{foo:?}"
 			let specifier = if content.is_empty() {
-				String::new()
+				String::default()
 			} else if content.starts_with(':') {
 				// Format specifier without variable name (e.g., ":?", ":#?", ":.0", ":>10")
 				content.to_string()
@@ -313,7 +313,7 @@ fn collect_argument(tokens: &[TokenTree], start: usize) -> Option<(String, Span,
 }
 
 fn collect_complex_argument(tokens: &[TokenTree], start: usize) -> Option<(String, Span, usize)> {
-	let mut result = String::new();
+	let mut result = String::default();
 	let mut i = start;
 	let start_span = tokens.get(start)?.span();
 	let mut last_span = start_span;

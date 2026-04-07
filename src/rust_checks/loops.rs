@@ -4,7 +4,7 @@ use super::{FileInfo, Violation, skip::has_skip_marker_for_rule};
 
 const RULE: &str = "loop-comment";
 pub fn check_loops(file_info: &FileInfo) -> Vec<Violation> {
-	let mut violations = Vec::new();
+	let mut violations = Vec::default();
 	let path_str = file_info.path.display().to_string();
 
 	for func in &file_info.fn_items {

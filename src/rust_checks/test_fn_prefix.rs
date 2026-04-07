@@ -28,7 +28,7 @@ impl<'a> TestFnPrefixVisitor<'a> {
 		Self {
 			path_str: path.display().to_string(),
 			content,
-			violations: Vec::new(),
+			violations: Vec::default(),
 		}
 	}
 

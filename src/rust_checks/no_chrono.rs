@@ -28,8 +28,8 @@ impl ChronoVisitor {
 	fn new(path: &Path) -> Self {
 		Self {
 			path_str: path.display().to_string(),
-			violations: Vec::new(),
-			seen_spans: HashSet::new(),
+			violations: Vec::default(),
+			seen_spans: HashSet::default(),
 		}
 	}
 

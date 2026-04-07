@@ -7,11 +7,11 @@ use super::{Fix, Violation, skip::has_skip_marker_for_rule};
 const RULE: &str = "join-split-impls";
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let path_str = path.display().to_string();
-	let mut violations = Vec::new();
+	let mut violations = Vec::default();
 
 	// Group inherent impl blocks by type signature (including generics)
 	// Key: impl signature (generics + type with args), Value: list of impl block info
-	let mut inherent_impls: HashMap<String, Vec<ImplBlockInfo>> = HashMap::new();
+	let mut inherent_impls: HashMap<String, Vec<ImplBlockInfo>> = HashMap::default();
 
 	for item in &file.items {
 		let Item::Impl(impl_block) = item else {
@@ -83,7 +83,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		let last = impl_blocks.last().unwrap();
 
 		// Collect all items from all impl blocks, preserving original indentation
-		let mut all_items_parts: Vec<String> = Vec::new();
+		let mut all_items_parts: Vec<String> = Vec::default();
 		for block in impl_blocks {
 			// Strip only leading/trailing blank lines, not indentation
 			let stripped = strip_blank_lines(&block.items_text);
@@ -94,7 +94,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 
 		// Find what's between impl blocks that we need to preserve
 		// Collect intervening code between impl blocks
-		let mut between_sections = Vec::new();
+		let mut between_sections = Vec::default();
 		for i in 0..impl_blocks.len() - 1 {
 			let current = &impl_blocks[i];
 			let next = &impl_blocks[i + 1];

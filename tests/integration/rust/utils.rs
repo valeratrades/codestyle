@@ -140,9 +140,9 @@ fn collect_violations(root: &Path, opts: &RustCheckOptions, is_format_mode: bool
 	let try_new_types = if opts.unconventional_new {
 		unconventional_new::collect_try_new_types(&file_infos)
 	} else {
-		std::collections::HashSet::new()
+		std::collections::HashSet::default()
 	};
-	let mut violations = Vec::new();
+	let mut violations = Vec::default();
 
 	for info in &file_infos {
 		if opts.instrument {

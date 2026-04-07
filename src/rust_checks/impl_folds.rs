@@ -9,7 +9,7 @@ const OPEN_MARKER: &str = "/*{{{1*/";
 const CLOSE_MARKER: &str = "//,}}}1";
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let path_str = path.display().to_string();
-	let mut violations = Vec::new();
+	let mut violations = Vec::default();
 
 	for item in &file.items {
 		let Item::Impl(impl_block) = item else {
@@ -109,7 +109,7 @@ fn check_close_marker_after_impl(content: &str, impl_end_byte: usize) -> bool {
 fn generate_fix(content: &str, start_byte: usize, end_byte: usize, brace_open_offset: usize, has_open: bool, has_close: bool) -> Fix {
 	let impl_text = &content[start_byte..end_byte];
 
-	let mut new_impl = String::new();
+	let mut new_impl = String::default();
 
 	if !has_open {
 		// Insert opening marker before the brace

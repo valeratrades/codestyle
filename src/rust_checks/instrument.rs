@@ -4,7 +4,7 @@ use super::{FileInfo, Violation, skip::has_skip_marker_for_rule};
 
 const RULE: &str = "instrument";
 pub fn check_instrument(file_info: &FileInfo) -> Vec<Violation> {
-	let mut violations = Vec::new();
+	let mut violations = Vec::default();
 	let filename = file_info.path.file_name().and_then(|f| f.to_str()).unwrap_or("");
 	let path_str = file_info.path.display().to_string();
 

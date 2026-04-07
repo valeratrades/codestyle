@@ -7,8 +7,8 @@ use super::{Fix, Violation, skip::has_skip_marker_for_rule};
 const RULE: &str = "impl-follows-type";
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let path_str = path.display().to_string();
-	let mut type_defs: HashMap<String, TypeDef> = HashMap::new();
-	let mut violations = Vec::new();
+	let mut type_defs: HashMap<String, TypeDef> = HashMap::default();
+	let mut violations = Vec::default();
 
 	// First pass: collect all type definitions
 	for item in &file.items {

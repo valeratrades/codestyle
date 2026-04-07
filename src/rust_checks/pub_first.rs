@@ -226,7 +226,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 			// Build fix: replace the span from item start to insert_pos
 			// with: (content between remove_end and insert_pos) + blank line + item_text + newline
 			let between = &content[remove_end..insert_pos];
-			let mut replacement = String::new();
+			let mut replacement = String::default();
 			replacement.push_str(between);
 			if !replacement.ends_with("\n\n") {
 				replacement.push('\n');
@@ -417,7 +417,7 @@ fn create_move_fix(content: &str, items: &[ItemInfo], anchor_ranges: &[(usize, u
 
 	if gap_anchors.is_empty() {
 		// Simple case: no anchors in the gap, just move the item
-		let mut replacement = String::new();
+		let mut replacement = String::default();
 		replacement.push_str(item_text);
 		replacement.push('\n');
 		replacement.push_str(&content[insert_pos..from_item.text_start]);
@@ -435,8 +435,8 @@ fn create_move_fix(content: &str, items: &[ItemInfo], anchor_ranges: &[(usize, u
 	// 3. All non-anchor gap content (the other code items and their whitespace)
 	//
 	// Walk through the gap collecting anchor text and non-anchor text separately.
-	let mut anchor_text = String::new();
-	let mut code_text = String::new();
+	let mut anchor_text = String::default();
+	let mut code_text = String::default();
 	let mut pos = insert_pos;
 
 	for (anchor_start, anchor_end) in &gap_anchors {
@@ -464,7 +464,7 @@ fn create_move_fix(content: &str, items: &[ItemInfo], anchor_ranges: &[(usize, u
 	let code_text = code_text.trim_end_matches('\n');
 	let code_suffix = if code_text.is_empty() { "" } else { "\n" };
 
-	let mut replacement = String::new();
+	let mut replacement = String::default();
 	replacement.push_str(&anchor_text);
 	// Blank line between anchor block and code items
 	if !anchor_text.ends_with("\n\n") {

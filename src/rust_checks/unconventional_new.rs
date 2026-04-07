@@ -23,7 +23,7 @@ const RULE: &str = "unconventional-new";
 /// Collect all type names that have `fn new(...) -> Result<...>` in inherent impls
 /// across the given set of parsed files. Used to find call-sites project-wide.
 pub fn collect_try_new_types(file_infos: &[FileInfo]) -> HashSet<String> {
-	let mut types = HashSet::new();
+	let mut types = HashSet::default();
 	for info in file_infos {
 		let Some(ref tree) = info.syntax_tree else { continue };
 		for item in &tree.items {
@@ -67,7 +67,7 @@ impl<'a> UnconventionalNewVisitor<'a> {
 			path_str: path.display().to_string(),
 			content,
 			try_new_types,
-			violations: Vec::new(),
+			violations: Vec::default(),
 		}
 	}
 

@@ -28,10 +28,10 @@ const RULE: &str = "inline-default";
 
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let path_str = path.display().to_string();
-	let mut violations = Vec::new();
+	let mut violations = Vec::default();
 
 	// First pass: collect all named structs without generics by name.
-	let mut structs: HashMap<String, &ItemStruct> = HashMap::new();
+	let mut structs: HashMap<String, &ItemStruct> = HashMap::default();
 	for item in &file.items {
 		if let Item::Struct(s) = item {
 			// Skip generics — RFC 3681 with generics is complex, skip for safety
@@ -179,7 +179,7 @@ fn expr_contains_new_call(expr: &Expr) -> bool {
 
 /// Build a map of field name -> source text of the initialiser expression.
 fn build_field_inits(content: &str, expr_struct: &ExprStruct) -> HashMap<String, String> {
-	let mut map = HashMap::new();
+	let mut map = HashMap::default();
 	for field in &expr_struct.fields {
 		let syn::Member::Named(ref ident) = field.member else {
 			continue;
@@ -247,7 +247,7 @@ fn rewrite_struct(content: &str, struct_item: &ItemStruct, struct_start: usize, 
 
 	// Collect splice points: (rel_pos, insert_text) where rel_pos is relative to struct_src.
 	// We insert ` = <init>` at the end of each field's span (after the type annotation).
-	let mut splices: Vec<(usize, String)> = Vec::new();
+	let mut splices: Vec<(usize, String)> = Vec::default();
 
 	for field in &named.named {
 		let ident = field.ident.as_ref()?;

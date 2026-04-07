@@ -32,8 +32,8 @@ impl<'a> IgnoredErrorVisitor<'a> {
 		Self {
 			path_str: path.display().to_string(),
 			content,
-			violations: Vec::new(),
-			skipped_ranges: Vec::new(),
+			violations: Vec::default(),
+			skipped_ranges: Vec::default(),
 		}
 	}
 

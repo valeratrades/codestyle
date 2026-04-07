@@ -9,7 +9,7 @@ const DEP_SECTIONS: &[&str] = &["[dependencies]", "[dev-dependencies]", "[build-
 
 pub fn check(path: &Path, content: &str) -> Vec<Violation> {
 	let path_str = path.display().to_string();
-	let mut violations = Vec::new();
+	let mut violations = Vec::default();
 
 	for &section_header in DEP_SECTIONS {
 		if let Some(v) = check_section(content, section_header, &path_str) {
@@ -136,7 +136,7 @@ fn find_next_section_start(content: &str, from: usize) -> Option<usize> {
 /// within `body` right after the last dep entry line (including its newline).
 /// Trailing comments/blank lines after the last dep are NOT included.
 fn parse_entries(body: &str) -> (Vec<DepEntry>, usize) {
-	let mut entries = Vec::new();
+	let mut entries = Vec::default();
 	let mut last_dep_end = 0;
 	let mut pos = 0;
 
@@ -204,9 +204,9 @@ fn normalize_workspace_syntax(line: &str) -> String {
 }
 
 fn format_entries(entries: &[DepEntry]) -> String {
-	let mut path_deps: Vec<&str> = Vec::new();
-	let mut regular_deps: Vec<&str> = Vec::new();
-	let mut workspace_deps: Vec<&str> = Vec::new();
+	let mut path_deps: Vec<&str> = Vec::default();
+	let mut regular_deps: Vec<&str> = Vec::default();
+	let mut workspace_deps: Vec<&str> = Vec::default();
 
 	for entry in entries {
 		match entry.group {
@@ -221,7 +221,7 @@ fn format_entries(entries: &[DepEntry]) -> String {
 	regular_deps.sort();
 	workspace_deps.sort();
 
-	let mut groups: Vec<String> = Vec::new();
+	let mut groups: Vec<String> = Vec::default();
 
 	if !path_deps.is_empty() {
 		groups.push(path_deps.join("\n"));
