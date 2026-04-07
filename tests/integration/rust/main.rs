@@ -13,6 +13,7 @@ mod instrument;
 mod loops;
 mod no_chrono;
 mod no_tokio_spawn;
+mod prefer_ahash;
 mod pub_first;
 mod skip_attribute;
 mod test_fn_prefix;

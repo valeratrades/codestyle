@@ -10,6 +10,7 @@ pub mod join_split_impls;
 pub mod loops;
 pub mod no_chrono;
 pub mod no_tokio_spawn;
+pub mod prefer_ahash;
 pub mod pub_first;
 pub mod skip;
 pub mod test_fn_prefix;
@@ -21,11 +22,17 @@ use std::{
 	collections::HashSet,
 	fs,
 	path::{Path, PathBuf},
+	process::Command,
 };
 
 use smart_default::SmartDefault;
 use syn::{ItemFn, parse_file};
 use walkdir::WalkDir;
+
+pub struct Dependency {
+	pub crate_name: &'static str,
+	pub features: &'static [&'static str],
+}
 
 #[derive(Clone, SmartDefault)]
 pub struct RustCheckOptions {
@@ -80,6 +87,9 @@ pub struct RustCheckOptions {
 	/// Flag unconventional `fn new`: no-args (use Default) or returning Result (rename to try_new); rewrite call-sites (default: true)
 	#[default = true]
 	pub unconventional_new: bool,
+	/// Replace `HashMap` with `ahash::AHashMap` (default: false)
+	#[default = false]
+	pub prefer_ahash: bool,
 }
 
 #[derive(Clone, Default, derive_new::new)]
@@ -188,6 +198,9 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 				if opts.inline_default {
 					all_violations.extend(inline_default::check(&info.path, &info.contents, tree));
 				}
+				if opts.prefer_ahash {
+					all_violations.extend(prefer_ahash::check(&info.path, &info.contents, tree));
+				}
 			}
 		}
 	}
@@ -223,6 +236,7 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 
 	let mut fixed_count = 0;
 	let mut unfixable_violations = Vec::new();
+	let mut modified_files: HashSet<PathBuf> = HashSet::new();
 
 	// Cargo.toml checks
 	if opts.cargo_dep_ordering {
@@ -264,6 +278,9 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 		let mut round_fixed = 0;
 		for file_path in &all_file_paths {
 			let (file_fixed, file_unfixable) = format_file_iteratively(file_path, opts, &try_new_types);
+			if file_fixed > 0 {
+				modified_files.insert(file_path.clone());
+			}
 			round_fixed += file_fixed;
 			unfixable_violations.extend(file_unfixable);
 		}
@@ -271,6 +288,10 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 		if round_fixed == 0 {
 			break;
 		}
+	}
+
+	if opts.prefer_ahash && !modified_files.is_empty() {
+		run_cargo_add(target_dir, &modified_files, prefer_ahash::DEPENDENCIES);
 	}
 
 	if fixed_count == 0 && unfixable_violations.is_empty() {
@@ -461,6 +482,15 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions, try_new_ty
 					}
 				}
 			}
+
+			if first_fix.is_none() && opts.prefer_ahash {
+				for v in prefer_ahash::check(&info.path, &info.contents, tree) {
+					if let Some(fix) = v.fix.clone() {
+						first_fix = Some((v, fix));
+						break;
+					}
+				}
+			}
 		}
 
 		// Apply the fix if found
@@ -534,6 +564,9 @@ fn collect_unfixable(info: &FileInfo, opts: &RustCheckOptions, try_new_types: &H
 		}
 		if opts.inline_default {
 			unfixable.extend(inline_default::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
+		}
+		if opts.prefer_ahash {
+			unfixable.extend(prefer_ahash::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
 		}
 	}
 
@@ -665,6 +698,119 @@ fn parse_rust_file(path: PathBuf) -> Option<FileInfo> {
 		fn_items,
 		path,
 	})
+}
+
+/// Run `cargo add` for each dependency on every Cargo.toml that was affected by fixes.
+fn run_cargo_add(target_dir: &Path, modified_files: &HashSet<PathBuf>, deps: &[Dependency]) {
+	if deps.is_empty() {
+		return;
+	}
+
+	// Collect unique Cargo.toml paths for modified files
+	let mut seen: HashSet<(PathBuf, &str)> = HashSet::new();
+
+	for file_path in modified_files {
+		let Some(cargo_toml) = find_package_cargo_toml(file_path) else {
+			continue;
+		};
+
+		for dep in deps {
+			if !seen.insert((cargo_toml.clone(), dep.crate_name)) {
+				continue;
+			}
+
+			// Check if this package is a workspace member
+			let package_name = read_package_name(&cargo_toml);
+			let workspace_root = find_workspace_root(target_dir);
+			let is_workspace_member = workspace_root.is_some() && package_name.is_some();
+
+			let mut cmd = Command::new("cargo");
+			cmd.arg("add");
+
+			if is_workspace_member {
+				cmd.arg("-p").arg(package_name.as_deref().unwrap());
+			}
+
+			cmd.arg(dep.crate_name);
+
+			if !dep.features.is_empty() {
+				cmd.arg("--features").arg(dep.features.join(","));
+			}
+
+			// Run from workspace root or package dir
+			let run_dir = workspace_root.as_deref().unwrap_or_else(|| cargo_toml.parent().unwrap_or(target_dir));
+			cmd.current_dir(run_dir);
+
+			match cmd.status() {
+				Ok(status) if status.success() => {
+					println!("codestyle: ran `cargo add {}` for {}", dep.crate_name, cargo_toml.display());
+				}
+				Ok(status) => {
+					eprintln!("codestyle: `cargo add {}` exited with {status}", dep.crate_name);
+				}
+				Err(e) => {
+					eprintln!("codestyle: failed to run `cargo add {}`: {e}", dep.crate_name);
+				}
+			}
+		}
+	}
+}
+
+/// Walk up from `file_path` to find the nearest `Cargo.toml` containing `[package]`.
+fn find_package_cargo_toml(file_path: &Path) -> Option<PathBuf> {
+	let mut dir = file_path.parent()?;
+	loop {
+		let candidate = dir.join("Cargo.toml");
+		if candidate.exists() {
+			if let Ok(content) = fs::read_to_string(&candidate) {
+				if content.contains("[package]") {
+					return Some(candidate);
+				}
+			}
+		}
+		dir = dir.parent()?;
+	}
+}
+
+/// Read the `name` field from `[package]` in a Cargo.toml.
+fn read_package_name(cargo_toml: &Path) -> Option<String> {
+	let content = fs::read_to_string(cargo_toml).ok()?;
+	let mut in_package = false;
+	for line in content.lines() {
+		let trimmed = line.trim();
+		if trimmed == "[package]" {
+			in_package = true;
+		} else if trimmed.starts_with('[') {
+			in_package = false;
+		} else if in_package {
+			if let Some(rest) = trimmed.strip_prefix("name") {
+				let rest = rest.trim();
+				if let Some(rest) = rest.strip_prefix('=') {
+					let name = rest.trim().trim_matches('"').trim_matches('\'');
+					if !name.is_empty() {
+						return Some(name.to_string());
+					}
+				}
+			}
+		}
+	}
+	None
+}
+
+/// Walk up from `target_dir` to find a `Cargo.toml` with `[workspace]`.
+fn find_workspace_root(target_dir: &Path) -> Option<PathBuf> {
+	let mut dir = target_dir;
+	loop {
+		let candidate = dir.join("Cargo.toml");
+		if candidate.exists() {
+			if let Ok(content) = fs::read_to_string(&candidate) {
+				if content.contains("[workspace]") {
+					return Some(dir.to_path_buf());
+				}
+			}
+		}
+		dir = dir.parent()?;
+	}
 }
 
 fn delete_snap_files(target_dir: &Path) {

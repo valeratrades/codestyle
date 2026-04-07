@@ -104,6 +104,10 @@ struct RustCheckOptionsArgs {
 	/// Inline `impl Default` bodies as field defaults (RFC 3681, Rust 1.82+) [default: true]
 	#[arg(long)]
 	inline_default: Option<bool>,
+
+	/// Replace `HashMap` with `ahash::AHashMap` [default: false]
+	#[arg(long)]
+	prefer_ahash: Option<bool>,
 }
 fn main() {
 	v_utils::clientside!();
@@ -148,6 +152,7 @@ impl From<RustCheckOptionsArgs> for RustCheckOptions {
 			workspace_dep_hoisting,
 			unconventional_new,
 			inline_default,
+			prefer_ahash,
 		)
 	}
 }

@@ -35,6 +35,7 @@ fn all_opts() -> RustCheckOptions {
 		workspace_dep_hoisting: false,
 		unconventional_new: true,
 		inline_default: true,
+		prefer_ahash: false,
 	}
 }
 
