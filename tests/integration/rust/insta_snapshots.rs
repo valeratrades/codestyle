@@ -364,6 +364,39 @@ fn sequential_snapshots_separated_by_statement() {
 	), @"[insta-sequential-snapshots] /main.rs:4: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests");
 }
 
+// === Passing: snapshots in different if/else branches ===
+
+#[test]
+fn snapshots_in_if_else_branches_passes() {
+	assert_check_passing(
+		r#"
+		fn test(condition: bool) {
+			if condition {
+				insta::assert_snapshot!(a, @"branch a");
+			} else {
+				insta::assert_snapshot!(b, @"branch b");
+			}
+		}
+		"#,
+		&opts(),
+	);
+}
+
+#[test]
+fn snapshots_in_match_arms_passes() {
+	assert_check_passing(
+		r#"
+		fn test(x: u8) {
+			match x {
+				0 => insta::assert_snapshot!(a, @"zero"),
+				_ => insta::assert_snapshot!(b, @"other"),
+			}
+		}
+		"#,
+		&opts(),
+	);
+}
+
 // === Mixed: both inline-snapshot and sequential violations ===
 
 #[test]

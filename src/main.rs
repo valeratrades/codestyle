@@ -100,6 +100,10 @@ struct RustCheckOptionsArgs {
 	/// Flag argument-less `fn new()` — use `Default` instead [default: true]
 	#[arg(long)]
 	prefer_default: Option<bool>,
+
+	/// Flag `fn new` that returns `Result` — rename to `try_new` [default: true]
+	#[arg(long)]
+	semantically_try_new: Option<bool>,
 }
 fn main() {
 	v_utils::clientside!();
@@ -143,6 +147,7 @@ impl From<RustCheckOptionsArgs> for RustCheckOptions {
 			ignored_error_comment,
 			workspace_dep_hoisting,
 			prefer_default,
+			semantically_try_new,
 		)
 	}
 }

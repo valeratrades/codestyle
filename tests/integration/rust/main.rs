@@ -14,6 +14,7 @@ mod no_chrono;
 mod no_tokio_spawn;
 mod prefer_default;
 mod pub_first;
+mod semantically_try_new;
 mod skip_attribute;
 mod test_fn_prefix;
 mod use_bail;

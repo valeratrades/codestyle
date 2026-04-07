@@ -23,6 +23,7 @@ pub(crate) fn opts_for(check: &str) -> RustCheckOptions {
 		ignored_error_comment: check == "ignored_error_comment",
 		workspace_dep_hoisting: check == "workspace_dep_hoisting",
 		prefer_default: check == "prefer_default",
+		semantically_try_new: check == "semantically_try_new",
 	}
 }
 
@@ -131,7 +132,7 @@ pub(crate) fn test_case_assert_only(fixture_str: &str, opts: &RustCheckOptions) 
 fn collect_violations(root: &Path, opts: &RustCheckOptions, is_format_mode: bool) -> Vec<Violation> {
 	use codestyle::rust_checks::{
 		embed_simple_vars, ignored_error_comment, impl_folds, impl_follows_type, insta_snapshots, instrument, join_split_impls, loops, no_chrono, no_tokio_spawn, prefer_default, pub_first,
-		test_fn_prefix, use_bail,
+		semantically_try_new, test_fn_prefix, use_bail,
 	};
 
 	let file_infos = rust_checks::collect_rust_files(root);
@@ -180,6 +181,9 @@ fn collect_violations(root: &Path, opts: &RustCheckOptions, is_format_mode: bool
 			}
 			if opts.prefer_default {
 				violations.extend(prefer_default::check(&info.path, &info.contents, tree));
+			}
+			if opts.semantically_try_new {
+				violations.extend(semantically_try_new::check(&info.path, &info.contents, tree));
 			}
 		}
 	}
