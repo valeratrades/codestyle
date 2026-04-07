@@ -111,6 +111,50 @@ fn let_binding_in_body_passes() {
 	);
 }
 
+// === Passing: new() calls are not const, so we skip these ===
+
+#[test]
+fn new_call_in_field_passes() {
+	// Bar::new(2.0) is not const — skip
+	assert_check_passing(
+		r#"
+		struct Yak {
+			foo: Bar,
+		}
+		impl Default for Yak {
+			fn default() -> Self {
+				Self {
+					foo: Bar::new(2.0),
+				}
+			}
+		}
+		"#,
+		&opts(),
+	);
+}
+
+#[test]
+fn string_new_in_field_passes() {
+	// String::new() is not const — skip even if other fields are plain literals
+	assert_check_passing(
+		r#"
+		struct Yak {
+			foo: i32,
+			bar: String,
+		}
+		impl Default for Yak {
+			fn default() -> Self {
+				Self {
+					foo: 0,
+					bar: String::new(),
+				}
+			}
+		}
+		"#,
+		&opts(),
+	);
+}
+
 // === Violation + fix cases ===
 
 #[test]
@@ -139,18 +183,19 @@ fn single_field() {
 }
 
 #[test]
-fn multiple_fields() {
+fn multiple_const_fields() {
+	// All fields are plain literals — safe to inline
 	insta::assert_snapshot!(test_case(
 		r#"
 		struct Yak {
 			foo: i32,
-			bar: String,
+			bar: bool,
 		}
 		impl Default for Yak {
 			fn default() -> Self {
 				Self {
 					foo: 0,
-					bar: String::new(),
+					bar: false,
 				}
 			}
 		}
@@ -163,34 +208,7 @@ fn multiple_fields() {
 	# Format mode
 	struct Yak {
 		foo: i32 = 0,
-		bar: String = String::new(),
-	}
-	");
-}
-
-#[test]
-fn complex_field_initialiser() {
-	insta::assert_snapshot!(test_case(
-		r#"
-		struct Yak {
-			foo: Bar,
-		}
-		impl Default for Yak {
-			fn default() -> Self {
-				Self {
-					foo: Bar::new(2.0),
-				}
-			}
-		}
-		"#,
-		&opts(),
-	), @"
-	# Assert mode
-	[inline-default] /main.rs:1: `impl Default for Yak` can be inlined as field defaults (RFC 3681)
-
-	# Format mode
-	struct Yak {
-		foo: Bar = Bar::new(2.0),
+		bar: bool = false,
 	}
 	");
 }

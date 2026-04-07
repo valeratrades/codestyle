@@ -20,7 +20,7 @@
 
 use std::{collections::HashMap, path::Path};
 
-use syn::{Block, Expr, ExprStruct, Fields, ImplItem, Item, ItemImpl, ItemStruct, spanned::Spanned};
+use syn::{Block, Expr, ExprCall, ExprStruct, Fields, ImplItem, Item, ItemImpl, ItemStruct, spanned::Spanned, visit::Visit};
 
 use super::{Fix, Violation, skip::has_skip_marker_for_rule};
 
@@ -149,7 +149,32 @@ fn extract_struct_expr(block: &Block) -> Option<ExprStruct> {
 		return None;
 	}
 
+	// Reject any field initialiser that calls `::new(…)` — those may not be const.
+	if expr_struct.fields.iter().any(|f| expr_contains_new_call(&f.expr)) {
+		return None;
+	}
+
 	Some(expr_struct.clone())
+}
+
+/// Returns true if `expr` (or any sub-expression) is a call whose path ends in `new`.
+/// e.g. `String::new()`, `Bar::new(2.0)`, `Foo::new()`.
+fn expr_contains_new_call(expr: &Expr) -> bool {
+	struct NewCallFinder(bool);
+	impl<'a> Visit<'a> for NewCallFinder {
+		fn visit_expr_call(&mut self, node: &'a ExprCall) {
+			if let Expr::Path(ref path) = *node.func {
+				if path.path.segments.last().is_some_and(|s| s.ident == "new") {
+					self.0 = true;
+					return;
+				}
+			}
+			syn::visit::visit_expr_call(self, node);
+		}
+	}
+	let mut finder = NewCallFinder(false);
+	finder.visit_expr(expr);
+	finder.0
 }
 
 /// Build a map of field name -> source text of the initialiser expression.
