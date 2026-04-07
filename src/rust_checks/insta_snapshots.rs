@@ -1,7 +1,7 @@
 use std::{collections::HashSet, path::Path};
 
 use proc_macro2::{Span, TokenTree};
-use syn::{ExprMacro, ItemFn, Macro, spanned::Spanned, visit::Visit};
+use syn::{Expr, ExprBlock, ExprIf, ExprMacro, ExprMatch, ItemFn, Macro, Stmt, spanned::Spanned, visit::Visit};
 
 use super::{Fix, Violation, skip::SkipVisitor};
 
@@ -224,18 +224,14 @@ impl SequentialSnapshotVisitor {
 			return false;
 		}
 
-		// Check if this is insta:: prefixed or just the macro name
 		mac.path.segments.len() == 1 || (mac.path.segments.len() == 2 && mac.path.segments.first().map(|s| s.ident.to_string()).as_deref() == Some("insta"))
 	}
 
 	fn check_function_for_sequential_snapshots(&mut self, func: &ItemFn) {
-		// Collect all snapshot macros in the function
-		let mut collector = SnapshotCollector::default();
-		collector.visit_block(&func.block);
-
-		if collector.snapshots.len() > 1 {
-			let first = &collector.snapshots[0];
-			let second = &collector.snapshots[1];
+		let result = max_snapshots_in_block(&func.block);
+		if result.count > 1 {
+			let first = result.first.expect("count > 1 implies first exists");
+			let second = result.second.expect("count > 1 implies second exists");
 			self.violations.push(Violation {
 				rule: RULE_SEQUENTIAL,
 				file: self.path_str.clone(),
@@ -259,29 +255,106 @@ impl<'a> Visit<'a> for SequentialSnapshotVisitor {
 	}
 }
 
-/// Collects all insta snapshot macro positions within a block (recursively)
-#[derive(Default)]
-struct SnapshotCollector {
-	snapshots: Vec<(usize, usize)>, // (line, column)
+/// Result of counting snapshots along the worst-case execution path through a block.
+/// `count` is the maximum number of snapshots reachable in any single execution path.
+/// `first` and `second` are the positions of the first two snapshots on that path (for error reporting).
+struct PathCount {
+	count: usize,
+	first: Option<(usize, usize)>,
+	second: Option<(usize, usize)>,
 }
 
-impl<'a> Visit<'a> for SnapshotCollector {
-	fn visit_expr_macro(&mut self, node: &'a ExprMacro) {
-		if SequentialSnapshotVisitor::is_insta_snapshot_macro(&node.mac) {
-			let span = node.mac.span();
-			self.snapshots.push((span.start().line, span.start().column));
+impl PathCount {
+	fn zero() -> Self {
+		Self {
+			count: 0,
+			first: None,
+			second: None,
 		}
-		syn::visit::visit_expr_macro(self, node);
 	}
 
-	fn visit_macro(&mut self, node: &'a Macro) {
-		if SequentialSnapshotVisitor::is_insta_snapshot_macro(node) {
-			let span = node.span();
-			self.snapshots.push((span.start().line, span.start().column));
+	fn one(line: usize, col: usize) -> Self {
+		Self {
+			count: 1,
+			first: Some((line, col)),
+			second: None,
 		}
-		syn::visit::visit_macro(self, node);
 	}
 
-	// Don't descend into nested functions - they have their own scope
-	fn visit_item_fn(&mut self, _node: &'a ItemFn) {}
+	/// Combine two sequential paths (one runs after the other on the same execution path).
+	fn then(self, next: PathCount) -> PathCount {
+		match (self.count, next.count) {
+			(0, _) => next,
+			(_, 0) => self,
+			_ => {
+				let count = self.count + next.count;
+				let second = self.second.or(next.first);
+				PathCount { count, first: self.first, second }
+			}
+		}
+	}
+
+	/// Combine two branching paths (only one runs per execution). Take the worse one.
+	fn branch_max(self, other: PathCount) -> PathCount {
+		if self.count >= other.count { self } else { other }
+	}
+}
+
+fn max_snapshots_in_block(block: &syn::Block) -> PathCount {
+	let mut result = PathCount::zero();
+	for stmt in &block.stmts {
+		result = result.then(max_snapshots_in_stmt(stmt));
+		if result.count > 1 {
+			return result; // already a violation, no need to continue
+		}
+	}
+	result
+}
+
+fn max_snapshots_in_stmt(stmt: &Stmt) -> PathCount {
+	match stmt {
+		Stmt::Expr(expr, _) => max_snapshots_in_expr(expr),
+		Stmt::Local(local) =>
+			if let Some(init) = &local.init {
+				max_snapshots_in_expr(&init.expr)
+			} else {
+				PathCount::zero()
+			},
+		Stmt::Item(syn::Item::Fn(_)) => PathCount::zero(), // nested fn has its own scope
+		Stmt::Item(_) => PathCount::zero(),
+		Stmt::Macro(m) =>
+			if SequentialSnapshotVisitor::is_insta_snapshot_macro(&m.mac) {
+				let span = m.mac.span();
+				PathCount::one(span.start().line, span.start().column)
+			} else {
+				PathCount::zero()
+			},
+	}
+}
+
+fn max_snapshots_in_expr(expr: &Expr) -> PathCount {
+	match expr {
+		Expr::Macro(ExprMacro { mac, .. }) =>
+			if SequentialSnapshotVisitor::is_insta_snapshot_macro(mac) {
+				let span = mac.span();
+				PathCount::one(span.start().line, span.start().column)
+			} else {
+				PathCount::zero()
+			},
+		Expr::If(ExprIf { cond, then_branch, else_branch, .. }) => {
+			let cond_count = max_snapshots_in_expr(cond);
+			let then_count = max_snapshots_in_block(then_branch);
+			let else_count = else_branch.as_ref().map(|(_, e)| max_snapshots_in_expr(e)).unwrap_or(PathCount::zero());
+			cond_count.then(then_count.branch_max(else_count))
+		}
+		Expr::Match(ExprMatch { expr: scrutinee, arms, .. }) => {
+			let scrutinee_count = max_snapshots_in_expr(scrutinee);
+			let arms_max = arms.iter().map(|arm| max_snapshots_in_expr(&arm.body)).reduce(PathCount::branch_max).unwrap_or(PathCount::zero());
+			scrutinee_count.then(arms_max)
+		}
+		Expr::Block(ExprBlock { block, .. }) => max_snapshots_in_block(block),
+		// For all other expressions, don't recurse deeply — they're not branching constructs.
+		// Snapshots inside closures or nested fn items are excluded above via Stmt::Item.
+		_ => PathCount::zero(),
+	}
 }
