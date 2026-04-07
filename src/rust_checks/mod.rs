@@ -3,6 +3,7 @@ pub mod embed_simple_vars;
 pub mod ignored_error_comment;
 pub mod impl_folds;
 pub mod impl_follows_type;
+pub mod inline_default;
 pub mod insta_snapshots;
 pub mod instrument;
 pub mod join_split_impls;
@@ -73,6 +74,9 @@ pub struct RustCheckOptions {
 	/// Check that shared dependencies are hoisted to [workspace.dependencies] (default: true)
 	#[default = true]
 	pub workspace_dep_hoisting: bool,
+	/// Inline `impl Default` bodies as field defaults (RFC 3681, Rust 1.82+) (default: true)
+	#[default = true]
+	pub inline_default: bool,
 	/// Flag argument-less `fn new()` — use `Default` instead (default: true)
 	#[default = true]
 	pub prefer_default: bool,
@@ -181,6 +185,9 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 				}
 				if opts.semantically_try_new {
 					all_violations.extend(semantically_try_new::check(&info.path, &info.contents, tree));
+				}
+				if opts.inline_default {
+					all_violations.extend(inline_default::check(&info.path, &info.contents, tree));
 				}
 			}
 		}
@@ -439,6 +446,15 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions) -> (usize,
 					}
 				}
 			}
+
+			if first_fix.is_none() && opts.inline_default {
+				for v in inline_default::check(&info.path, &info.contents, tree) {
+					if let Some(fix) = v.fix.clone() {
+						first_fix = Some((v, fix));
+						break;
+					}
+				}
+			}
 		}
 
 		// Apply the fix if found
@@ -512,6 +528,9 @@ fn collect_unfixable(info: &FileInfo, opts: &RustCheckOptions) -> Vec<Violation>
 		}
 		if opts.semantically_try_new {
 			unfixable.extend(semantically_try_new::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
+		}
+		if opts.inline_default {
+			unfixable.extend(inline_default::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
 		}
 	}
 

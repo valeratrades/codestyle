@@ -7,6 +7,7 @@ mod cargo_dep_ordering;
 mod embed_simple_vars;
 mod ignored_error_comment;
 mod impl_blocks;
+mod inline_default;
 mod insta_snapshots;
 mod instrument;
 mod loops;

@@ -104,6 +104,10 @@ struct RustCheckOptionsArgs {
 	/// Flag `fn new` that returns `Result` — rename to `try_new` [default: true]
 	#[arg(long)]
 	semantically_try_new: Option<bool>,
+
+	/// Inline `impl Default` bodies as field defaults (RFC 3681, Rust 1.82+) [default: true]
+	#[arg(long)]
+	inline_default: Option<bool>,
 }
 fn main() {
 	v_utils::clientside!();
@@ -148,6 +152,7 @@ impl From<RustCheckOptionsArgs> for RustCheckOptions {
 			workspace_dep_hoisting,
 			prefer_default,
 			semantically_try_new,
+			inline_default,
 		)
 	}
 }
