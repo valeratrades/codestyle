@@ -47,6 +47,13 @@ pub fn collect_try_new_types(file_infos: &[FileInfo]) -> HashSet<String> {
 	types
 }
 
+/// Types whose zero-argument `::new()` must NOT be rewritten to `::default()`.
+const NEW_EXCEPTIONS: &[&str] = &[
+	// `trybuild::TestCases` has only `new()` and no `Default` impl — it's a
+	// test-harness type that stupidly exposes bare `new()` with no alternative.
+	"TestCases",
+];
+
 pub fn check(path: &Path, content: &str, file: &syn::File, try_new_types: &HashSet<String>) -> Vec<Violation> {
 	let visitor = UnconventionalNewVisitor::new(path, content, try_new_types);
 	let mut skip_visitor = SkipVisitor::for_rule(visitor, content, RULE);
@@ -145,7 +152,7 @@ impl<'a> UnconventionalNewVisitor<'a> {
 				message: format!("`{type_name}::new` was renamed to `try_new`"),
 				fix,
 			});
-		} else if expr.args.is_empty() {
+		} else if expr.args.is_empty() && !NEW_EXCEPTIONS.contains(&type_name.as_str()) {
 			// Blind: any Type::new() with no args -> Type::default()
 			let span = last.ident.span();
 			let fix = span_to_byte(self.content, span.start()).and_then(|start| {

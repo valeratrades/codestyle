@@ -205,6 +205,7 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 		}
 	}
 
+	all_violations.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
 	if all_violations.is_empty() {
 		println!("codestyle: all checks passed");
 		0
@@ -302,6 +303,7 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 			println!("codestyle: fixed {fixed_count} violation(s)");
 		}
 
+		unfixable_violations.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
 		if !unfixable_violations.is_empty() {
 			eprintln!("codestyle: {} violation(s) need manual fixing:\n", unfixable_violations.len());
 			for v in &unfixable_violations {
