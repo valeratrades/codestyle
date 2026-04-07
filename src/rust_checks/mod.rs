@@ -761,12 +761,11 @@ fn find_package_cargo_toml(file_path: &Path) -> Option<PathBuf> {
 	let mut dir = file_path.parent()?;
 	loop {
 		let candidate = dir.join("Cargo.toml");
-		if candidate.exists() {
-			if let Ok(content) = fs::read_to_string(&candidate) {
-				if content.contains("[package]") {
-					return Some(candidate);
-				}
-			}
+		if candidate.exists()
+			&& let Ok(content) = fs::read_to_string(&candidate)
+			&& content.contains("[package]")
+		{
+			return Some(candidate);
 		}
 		dir = dir.parent()?;
 	}
@@ -782,14 +781,12 @@ fn read_package_name(cargo_toml: &Path) -> Option<String> {
 			in_package = true;
 		} else if trimmed.starts_with('[') {
 			in_package = false;
-		} else if in_package {
-			if let Some(rest) = trimmed.strip_prefix("name") {
-				let rest = rest.trim();
-				if let Some(rest) = rest.strip_prefix('=') {
-					let name = rest.trim().trim_matches('"').trim_matches('\'');
-					if !name.is_empty() {
-						return Some(name.to_string());
-					}
+		} else if in_package && let Some(rest) = trimmed.strip_prefix("name") {
+			let rest = rest.trim();
+			if let Some(rest) = rest.strip_prefix('=') {
+				let name = rest.trim().trim_matches('"').trim_matches('\'');
+				if !name.is_empty() {
+					return Some(name.to_string());
 				}
 			}
 		}
@@ -802,12 +799,11 @@ fn find_workspace_root(target_dir: &Path) -> Option<PathBuf> {
 	let mut dir = target_dir;
 	loop {
 		let candidate = dir.join("Cargo.toml");
-		if candidate.exists() {
-			if let Ok(content) = fs::read_to_string(&candidate) {
-				if content.contains("[workspace]") {
-					return Some(dir.to_path_buf());
-				}
-			}
+		if candidate.exists()
+			&& let Ok(content) = fs::read_to_string(&candidate)
+			&& content.contains("[workspace]")
+		{
+			return Some(dir.to_path_buf());
 		}
 		dir = dir.parent()?;
 	}

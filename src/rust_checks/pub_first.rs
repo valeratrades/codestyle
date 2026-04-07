@@ -49,40 +49,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 
 	// Collect all top-level items with their visibility and positions
 	// We need to track the text boundaries carefully to include doc comments
-	let items: Vec<ItemInfo> = file
-		.items
-		.iter()
-		.filter_map(|item| {
-			let (is_pub, is_main_fn, is_const, is_type, is_trait, is_parser, is_subcommand, is_args) = get_item_visibility_and_main(item, content, &local_type_names)?;
-
-			// Get the span start - this includes attributes but we need to find doc comments ourselves
-			let span_start_line = item.span().start().line;
-			let span_start_col = item.span().start().column;
-			let span_end_line = item.span().end().line;
-			let span_end_col = item.span().end().column;
-
-			let span_start_byte = span_position_to_byte(content, span_start_line, span_start_col)?;
-			let span_end_byte = span_position_to_byte(content, span_end_line, span_end_col)?;
-
-			// Find the actual start including doc comments by looking backwards
-			let text_start = find_item_text_start(content, span_start_byte);
-			let text_end = find_line_end(content, span_end_byte);
-
-			Some(ItemInfo {
-				is_pub,
-				is_main_fn,
-				is_const,
-				is_type,
-				is_trait,
-				is_parser,
-				is_subcommand,
-				is_args,
-				start_line: span_start_line,
-				text_start,
-				text_end,
-			})
-		})
-		.collect();
+	let items: Vec<ItemInfo> = file.items.iter().filter_map(|item| get_item_info(item, content, &local_type_names)).collect();
 
 	if items.is_empty() {
 		return vec![];
@@ -162,37 +129,44 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		item.is_parser || item.is_subcommand || item.is_args
 	}
 
-	for is_pub in [true, false] {
-		for (is_target, is_higher_priority, message) in [
-			(
-				(|item: &ItemInfo| item.is_parser) as fn(&ItemInfo) -> bool,
-				(|_: &ItemInfo| false) as fn(&ItemInfo) -> bool,
-				"Parser struct should be at the top of its visibility category",
-			),
-			(
-				(|item: &ItemInfo| item.is_subcommand) as fn(&ItemInfo) -> bool,
-				(|item: &ItemInfo| item.is_parser) as fn(&ItemInfo) -> bool,
-				"Subcommand enum should come after Parser",
-			),
-			(
-				(|item: &ItemInfo| item.is_args) as fn(&ItemInfo) -> bool,
-				(|item: &ItemInfo| item.is_parser || item.is_subcommand) as fn(&ItemInfo) -> bool,
-				"Args struct should come after Subcommand",
-			),
-			(
-				(|item: &ItemInfo| item.is_main_fn) as fn(&ItemInfo) -> bool,
-				(|item: &ItemInfo| is_clap(item)) as fn(&ItemInfo) -> bool,
-				"`main` function should be at the top of its visibility category (after clap types)",
-			),
-			(
-				(|item: &ItemInfo| item.is_trait) as fn(&ItemInfo) -> bool,
-				(|item: &ItemInfo| is_clap(item) || item.is_main_fn) as fn(&ItemInfo) -> bool,
-				"`trait` should be at the top of its visibility category (after main)",
-			),
-		] {
-			if let Some(v) = check_kind_ordering(&items, &anchor_ranges, content, &path_str, is_pub, is_target, is_higher_priority, message) {
-				return vec![v];
-			}
+	let rules = [true, false].into_iter().flat_map(|is_pub| {
+		[
+			KindRule {
+				is_pub,
+				is_target: |item: &ItemInfo| item.is_parser,
+				is_higher_priority: |_: &ItemInfo| false,
+				message: "Parser struct should be at the top of its visibility category",
+			},
+			KindRule {
+				is_pub,
+				is_target: |item: &ItemInfo| item.is_subcommand,
+				is_higher_priority: |item: &ItemInfo| item.is_parser,
+				message: "Subcommand enum should come after Parser",
+			},
+			KindRule {
+				is_pub,
+				is_target: |item: &ItemInfo| item.is_args,
+				is_higher_priority: |item: &ItemInfo| item.is_parser || item.is_subcommand,
+				message: "Args struct should come after Subcommand",
+			},
+			KindRule {
+				is_pub,
+				is_target: |item: &ItemInfo| item.is_main_fn,
+				is_higher_priority: |item: &ItemInfo| is_clap(item),
+				message: "`main` function should be at the top of its visibility category (after clap types)",
+			},
+			KindRule {
+				is_pub,
+				is_target: |item: &ItemInfo| item.is_trait,
+				is_higher_priority: |item: &ItemInfo| is_clap(item) || item.is_main_fn,
+				message: "`trait` should be at the top of its visibility category (after main)",
+			},
+		]
+	});
+
+	for rule in rules {
+		if let Some(v) = check_kind_ordering(&items, &anchor_ranges, content, &path_str, rule) {
+			return vec![v];
 		}
 	}
 
@@ -252,26 +226,23 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	vec![]
 }
 
-/// Check that items of a specific kind (main/trait/struct) appear before lower-priority items
-/// within a visibility category (pub/private), excluding const and type items.
-/// `is_higher_priority` identifies items that are allowed to appear before the target kind.
-fn check_kind_ordering(
-	items: &[ItemInfo],
-	anchor_ranges: &[(usize, usize)],
-	content: &str,
-	path_str: &str,
+struct KindRule {
 	is_pub: bool,
 	is_target: fn(&ItemInfo) -> bool,
 	is_higher_priority: fn(&ItemInfo) -> bool,
-	message: &str,
-) -> Option<Violation> {
+	message: &'static str,
+}
+
+/// Check that items of a specific kind (main/trait/struct) appear before lower-priority items
+/// within a visibility category (pub/private), excluding const and type items.
+fn check_kind_ordering(items: &[ItemInfo], anchor_ranges: &[(usize, usize)], content: &str, path_str: &str, rule: KindRule) -> Option<Violation> {
 	let mut first_lower_idx: Option<usize> = None;
 	for (i, item) in items.iter().enumerate() {
-		if item.is_pub == is_pub && !item.is_const && !item.is_type {
-			if !is_target(item) && !is_higher_priority(item) && first_lower_idx.is_none() {
+		if item.is_pub == rule.is_pub && !item.is_const && !item.is_type {
+			if !(rule.is_target)(item) && !(rule.is_higher_priority)(item) && first_lower_idx.is_none() {
 				first_lower_idx = Some(i);
 			}
-			if is_target(item)
+			if (rule.is_target)(item)
 				&& let Some(target_idx) = first_lower_idx
 			{
 				let fix = create_move_fix(content, items, anchor_ranges, i, target_idx);
@@ -280,7 +251,7 @@ fn check_kind_ordering(
 					file: path_str.to_string(),
 					line: item.start_line,
 					column: 0,
-					message: message.to_string(),
+					message: rule.message.to_string(),
 					fix,
 				});
 			}
@@ -306,8 +277,8 @@ struct ItemInfo {
 	text_end: usize,
 }
 
-/// Returns item classification, or None if it should be skipped
-fn get_item_visibility_and_main(item: &Item, content: &str, local_type_names: &HashSet<String>) -> Option<(bool, bool, bool, bool, bool, bool, bool, bool)> {
+/// Returns a fully populated `ItemInfo`, or `None` if the item should be skipped.
+fn get_item_info(item: &Item, content: &str, local_type_names: &HashSet<String>) -> Option<ItemInfo> {
 	let (vis, is_main_fn, is_const, is_type, is_trait, is_parser, is_subcommand, is_args) = match item {
 		Item::Fn(f) => (Some(&f.vis), f.sig.ident == "main", false, false, false, false, false, false),
 		Item::Struct(s) => {
@@ -346,13 +317,30 @@ fn get_item_visibility_and_main(item: &Item, content: &str, local_type_names: &H
 		_ => return None,
 	};
 
-	// Skip if marked with codestyle::skip comment
 	if has_skip_marker_for_rule(content, item.span(), RULE) {
 		return None;
 	}
 
-	let is_pub = matches!(vis, Some(Visibility::Public(_)));
-	Some((is_pub, is_main_fn, is_const, is_type, is_trait, is_parser, is_subcommand, is_args))
+	let span_start_line = item.span().start().line;
+	let span_start_col = item.span().start().column;
+	let span_end_line = item.span().end().line;
+	let span_end_col = item.span().end().column;
+	let span_start_byte = span_position_to_byte(content, span_start_line, span_start_col)?;
+	let span_end_byte = span_position_to_byte(content, span_end_line, span_end_col)?;
+
+	Some(ItemInfo {
+		is_pub: matches!(vis, Some(Visibility::Public(_))),
+		is_main_fn,
+		is_const,
+		is_type,
+		is_trait,
+		is_parser,
+		is_subcommand,
+		is_args,
+		start_line: span_start_line,
+		text_start: find_item_text_start(content, span_start_byte),
+		text_end: find_line_end(content, span_end_byte),
+	})
 }
 
 /// Check if a type alias's RHS references a type defined in this file.

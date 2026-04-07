@@ -87,10 +87,8 @@ fn parse_workspace_deps(content: &str) -> HashSet<String> {
 			in_section = false;
 			continue;
 		}
-		if in_section {
-			if let Some(name) = extract_dep_name(trimmed) {
-				deps.insert(name);
-			}
+		if in_section && let Some(name) = extract_dep_name(trimmed) {
+			deps.insert(name);
 		}
 	}
 

@@ -163,11 +163,11 @@ fn expr_contains_new_call(expr: &Expr) -> bool {
 	struct NewCallFinder(bool);
 	impl<'a> Visit<'a> for NewCallFinder {
 		fn visit_expr_call(&mut self, node: &'a ExprCall) {
-			if let Expr::Path(ref path) = *node.func {
-				if path.path.segments.last().is_some_and(|s| s.ident == "new") {
-					self.0 = true;
-					return;
-				}
+			if let Expr::Path(ref path) = *node.func
+				&& path.path.segments.last().is_some_and(|s| s.ident == "new")
+			{
+				self.0 = true;
+				return;
 			}
 			syn::visit::visit_expr_call(self, node);
 		}
@@ -259,7 +259,7 @@ fn rewrite_struct(content: &str, struct_item: &ItemStruct, struct_start: usize, 
 	}
 
 	// Apply right-to-left to preserve offsets
-	splices.sort_by(|a, b| b.0.cmp(&a.0));
+	splices.sort_by_key(|&(pos, _)| std::cmp::Reverse(pos));
 
 	let mut result = struct_src.to_string();
 	for (pos, insertion) in splices {

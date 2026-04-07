@@ -149,12 +149,12 @@ fn find_hashmap_in_group(content: &str, tree: &UseTree) -> Option<(usize, usize)
 			UseTree::Path(p2) if p2.ident == "collections" => match p2.tree.as_ref() {
 				UseTree::Group(group) => {
 					for item in &group.items {
-						if let UseTree::Name(n) = item {
-							if n.ident == "HashMap" {
-								let start = span_to_byte(content, n.ident.span().start())?;
-								let end = span_to_byte(content, n.ident.span().end())?;
-								return Some((start, end));
-							}
+						if let UseTree::Name(n) = item
+							&& n.ident == "HashMap"
+						{
+							let start = span_to_byte(content, n.ident.span().start())?;
+							let end = span_to_byte(content, n.ident.span().end())?;
+							return Some((start, end));
 						}
 					}
 					None
