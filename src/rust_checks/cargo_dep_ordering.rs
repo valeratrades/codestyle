@@ -216,10 +216,24 @@ fn format_entries(entries: &[DepEntry]) -> String {
 		}
 	}
 
-	// Sort each group alphabetically
-	path_deps.sort();
-	regular_deps.sort();
-	workspace_deps.sort();
+	// Sort each group alphabetically, with `.` ordered before `-` to match `cargo sort --workspace --grouped`.
+	// Default ASCII order puts `-` (45) before `.` (46); we reverse that for dep name sorting.
+	let sort_key = |s: &&str| {
+		s.chars()
+			.map(|c| {
+				if c == '.' {
+					'-'
+				} else if c == '-' {
+					'.'
+				} else {
+					c
+				}
+			})
+			.collect::<String>()
+	};
+	path_deps.sort_by_key(sort_key);
+	regular_deps.sort_by_key(sort_key);
+	workspace_deps.sort_by_key(sort_key);
 
 	let mut groups: Vec<String> = Vec::default();
 

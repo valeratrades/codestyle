@@ -521,6 +521,23 @@ insta.workspace = true
 }
 
 #[test]
+fn dot_sorts_before_hyphen_in_workspace_group() {
+	// `tracing.workspace = true` should come before `tracing-subscriber = { workspace = true, ... }`
+	// to match `cargo sort --workspace --grouped` behavior (`.` before `-`)
+	let input = r#"[dependencies]
+tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
+tracing.workspace = true
+"#;
+	let expected = r#"[dependencies]
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
+"#;
+	let violations = check(input);
+	assert_eq!(violations.len(), 1);
+	assert_eq!(format(input), expected);
+}
+
+#[test]
 fn commented_out_patch_section_preserved() {
 	// Commented-out [patch.crates-io] lines after deps must not be nuked
 	let input = r#"[dev-dependencies]
