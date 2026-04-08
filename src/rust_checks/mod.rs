@@ -145,10 +145,13 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 
 	for src_dir in src_dirs {
 		let file_infos = collect_rust_files(&src_dir);
-		let try_new_types = if opts.unconventional_new {
-			unconventional_new::collect_try_new_types(&file_infos)
+		let (try_new_types, nontrivial_default_types) = if opts.unconventional_new {
+			(
+				unconventional_new::collect_try_new_types(&file_infos),
+				unconventional_new::collect_nontrivial_default_types(&file_infos),
+			)
 		} else {
-			HashSet::default()
+			(HashSet::default(), HashSet::default())
 		};
 		for info in &file_infos {
 			if opts.instrument {
@@ -193,7 +196,7 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 					all_violations.extend(ignored_error_comment::check(&info.path, &info.contents, tree));
 				}
 				if opts.unconventional_new {
-					all_violations.extend(unconventional_new::check(&info.path, &info.contents, tree, &try_new_types));
+					all_violations.extend(unconventional_new::check(&info.path, &info.contents, tree, &try_new_types, &nontrivial_default_types));
 				}
 				if opts.inline_default {
 					all_violations.extend(inline_default::check(&info.path, &info.contents, tree));
@@ -269,16 +272,19 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 
 	loop {
 		// Re-collect try_new types from current on-disk state each round
-		let try_new_types = if opts.unconventional_new {
+		let (try_new_types, nontrivial_default_types) = if opts.unconventional_new {
 			let file_infos: Vec<FileInfo> = all_file_paths.iter().filter_map(|p| parse_rust_file(p.clone())).collect();
-			unconventional_new::collect_try_new_types(&file_infos)
+			(
+				unconventional_new::collect_try_new_types(&file_infos),
+				unconventional_new::collect_nontrivial_default_types(&file_infos),
+			)
 		} else {
-			HashSet::default()
+			(HashSet::default(), HashSet::default())
 		};
 
 		let mut round_fixed = 0;
 		for file_path in &all_file_paths {
-			let (file_fixed, file_unfixable) = format_file_iteratively(file_path, opts, &try_new_types);
+			let (file_fixed, file_unfixable) = format_file_iteratively(file_path, opts, &try_new_types, &nontrivial_default_types);
 			if file_fixed > 0 {
 				modified_files.insert(file_path.clone());
 			}
@@ -337,7 +343,7 @@ pub fn collect_rust_files(target_dir: &Path) -> Vec<FileInfo> {
 /// Format a single file iteratively - apply one fix at a time, re-parse, repeat.
 /// Unfixable violations are only collected on the final pass (when no more fixes are found),
 /// ensuring line numbers are stable and no duplicates are reported.
-fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions, try_new_types: &HashSet<String>) -> (usize, Vec<Violation>) {
+fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions, try_new_types: &HashSet<String>, nontrivial_default_types: &HashSet<String>) -> (usize, Vec<Violation>) {
 	let mut fixed_count = 0;
 
 	loop {
@@ -468,7 +474,7 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions, try_new_ty
 			}
 
 			if first_fix.is_none() && opts.unconventional_new {
-				for v in unconventional_new::check(&info.path, &info.contents, tree, try_new_types) {
+				for v in unconventional_new::check(&info.path, &info.contents, tree, try_new_types, nontrivial_default_types) {
 					if let Some(fix) = v.fix.clone() {
 						first_fix = Some((v, fix));
 						break;
@@ -498,7 +504,7 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions, try_new_ty
 		// Apply the fix if found
 		let Some((_violation, fix)) = first_fix else {
 			// No more fixes - collect unfixable violations now (final pass)
-			return (fixed_count, collect_unfixable(&info, opts, try_new_types));
+			return (fixed_count, collect_unfixable(&info, opts, try_new_types, nontrivial_default_types));
 		};
 
 		if fix.start_byte <= info.contents.len() && fix.end_byte <= info.contents.len() {
@@ -518,7 +524,7 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions, try_new_ty
 }
 
 /// Collect all unfixable violations from a file (called only on final pass)
-fn collect_unfixable(info: &FileInfo, opts: &RustCheckOptions, try_new_types: &HashSet<String>) -> Vec<Violation> {
+fn collect_unfixable(info: &FileInfo, opts: &RustCheckOptions, try_new_types: &HashSet<String>, nontrivial_default_types: &HashSet<String>) -> Vec<Violation> {
 	let mut unfixable = Vec::default();
 
 	if opts.instrument {
@@ -562,7 +568,11 @@ fn collect_unfixable(info: &FileInfo, opts: &RustCheckOptions, try_new_types: &H
 			unfixable.extend(ignored_error_comment::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
 		}
 		if opts.unconventional_new {
-			unfixable.extend(unconventional_new::check(&info.path, &info.contents, tree, try_new_types).into_iter().filter(|v| v.fix.is_none()));
+			unfixable.extend(
+				unconventional_new::check(&info.path, &info.contents, tree, try_new_types, nontrivial_default_types)
+					.into_iter()
+					.filter(|v| v.fix.is_none()),
+			);
 		}
 		if opts.inline_default {
 			unfixable.extend(inline_default::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));

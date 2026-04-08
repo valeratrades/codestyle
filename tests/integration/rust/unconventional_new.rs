@@ -240,6 +240,32 @@ fn try_new_callsite_renamed_cross_file() {
 	");
 }
 
+// === Passing cases: Default impl with function calls — must not be rewritten ===
+
+#[test]
+fn default_impl_with_fn_call_not_rewritten() {
+	assert_check_passing(
+		r#"
+		pub struct RandomPlayer {
+			params: Random,
+			rng: SmallRng,
+		}
+		impl Default for RandomPlayer {
+			fn default() -> Self {
+				Self {
+					params: Random {},
+					rng: rand::make_rng(),
+				}
+			}
+		}
+		fn use_it() {
+			let _p = RandomPlayer::new();
+		}
+		"#,
+		&opts(),
+	);
+}
+
 // === Violation cases: Type::new() call-sites (fixable: rename to default) ===
 
 #[test]
