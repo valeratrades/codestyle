@@ -36,8 +36,12 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let has_ahashmap_import = content.lines().any(|l| l.starts_with("use ") && l.contains("AHashMap"));
 	let has_ahashset_import = content.lines().any(|l| l.starts_with("use ") && l.contains("AHashSet"));
 
-	let uses_bare_ahashmap = violations.iter().any(|v| v.fix.as_ref().is_some_and(|f| f.replacement == "AHashMap"));
-	let uses_bare_ahashset = violations.iter().any(|v| v.fix.as_ref().is_some_and(|f| f.replacement == "AHashSet"));
+	// We need an import if we're rewriting something to a bare name, OR if the file already
+	// uses bare AHashMap/AHashSet without a qualifying path (introduced by a previous fix iteration).
+	let needs_ahashmap_import = violations.iter().any(|v| v.fix.as_ref().is_some_and(|f| f.replacement == "AHashMap"))
+		|| (content.lines().any(|l| !l.starts_with("use ") && l.contains("AHashMap")) && !content.lines().any(|l| l.starts_with("use ") && l.contains("AHashMap")));
+	let needs_ahashset_import = violations.iter().any(|v| v.fix.as_ref().is_some_and(|f| f.replacement == "AHashSet"))
+		|| (content.lines().any(|l| !l.starts_with("use ") && l.contains("AHashSet")) && !content.lines().any(|l| l.starts_with("use ") && l.contains("AHashSet")));
 
 	// Check if a violation already rewrites a use-statement into the full ahash import
 	// (so no additional import line is needed).
@@ -47,7 +51,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	// Insert after the first `use` line, so we don't break leading doc comments or `mod` declarations.
 	let after_first_use = first_use_line_start(content);
 
-	if uses_bare_ahashmap && !has_ahashmap_import && !violation_inserts_ahashmap {
+	if needs_ahashmap_import && !has_ahashmap_import && !violation_inserts_ahashmap {
 		violations.push(Violation {
 			rule: RULE,
 			file: path.display().to_string(),
@@ -62,7 +66,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		});
 	}
 
-	if uses_bare_ahashset && !has_ahashset_import && !violation_inserts_ahashset {
+	if needs_ahashset_import && !has_ahashset_import && !violation_inserts_ahashset {
 		violations.push(Violation {
 			rule: RULE,
 			file: path.display().to_string(),
@@ -94,20 +98,6 @@ fn first_use_line_start(content: &str) -> usize {
 
 /// Returns true if `name` (e.g. `"AHashMap"`) appears in the content as a bare identifier —
 /// i.e. not prefixed by `ahash::`.
-fn uses_bare_name(content: &str, name: &str) -> bool {
-	let mut pos = 0;
-	while let Some(idx) = content[pos..].find(name) {
-		let abs = pos + idx;
-		// Check it's not preceded by `ahash::` (i.e. already fully qualified)
-		let prefix = "ahash::";
-		let is_qualified = abs >= prefix.len() && content[abs - prefix.len()..abs] == *prefix;
-		if !is_qualified {
-			return true;
-		}
-		pos = abs + name.len();
-	}
-	false
-}
 
 struct AHashVisitor<'a> {
 	path_str: String,
