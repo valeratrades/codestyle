@@ -155,6 +155,28 @@ fn string_new_in_field_passes() {
 	);
 }
 
+#[test]
+fn arbitrary_fn_call_in_field_passes() {
+	// rand::make_rng() is not a ::new() call but still not const — skip
+	assert_check_passing(
+		r#"
+		struct RandomPlayer {
+			params: Random,
+			rng: SmallRng,
+		}
+		impl Default for RandomPlayer {
+			fn default() -> Self {
+				Self {
+					params: Random {},
+					rng: rand::make_rng(),
+				}
+			}
+		}
+		"#,
+		&opts(),
+	);
+}
+
 // === Violation + fix cases ===
 
 #[test]

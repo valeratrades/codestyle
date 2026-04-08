@@ -22,6 +22,18 @@ use std::{collections::HashMap, path::Path};
 
 use syn::{Block, Expr, ExprCall, ExprStruct, Fields, ImplItem, Item, ItemImpl, ItemStruct, spanned::Spanned, visit::Visit};
 
+fn block_has_fn_calls(block: &Block) -> bool {
+	struct Finder(bool);
+	impl<'a> Visit<'a> for Finder {
+		fn visit_expr_call(&mut self, _: &'a ExprCall) {
+			self.0 = true;
+		}
+	}
+	let mut f = Finder(false);
+	f.visit_block(block);
+	f.0
+}
+
 use super::{Fix, Violation, skip::has_skip_marker_for_rule};
 
 const RULE: &str = "inline-default";
@@ -115,7 +127,7 @@ fn eligible_impl<'a>(impl_block: &ItemImpl, structs: &HashMap<String, &'a ItemSt
 	structs.get(&type_name).copied()
 }
 
-/// Returns the `ExprStruct` if the `default()` body is a single struct-literal expression.
+/// Returns the `ExprStruct` if `default()` body has no function calls and is a single struct literal.
 fn simple_default_body(impl_block: &ItemImpl) -> Option<ExprStruct> {
 	let default_fn = impl_block.items.iter().find_map(|item| {
 		if let ImplItem::Fn(f) = item {
@@ -125,6 +137,10 @@ fn simple_default_body(impl_block: &ItemImpl) -> Option<ExprStruct> {
 		}
 	})?;
 
+	if block_has_fn_calls(&default_fn.block) {
+		return None;
+	}
+
 	extract_struct_expr(&default_fn.block)
 }
 
@@ -133,9 +149,7 @@ fn simple_default_body(impl_block: &ItemImpl) -> Option<ExprStruct> {
 /// - That expression is `ExprStruct` with no spread (`..`)
 fn extract_struct_expr(block: &Block) -> Option<ExprStruct> {
 	let expr: &Expr = match block.stmts.as_slice() {
-		// Single trailing expression (no semicolon)
 		[syn::Stmt::Expr(e, None)] => e,
-		// Single expression statement (with semicolon)
 		[syn::Stmt::Expr(e, Some(_))] => e,
 		_ => return None,
 	};
@@ -144,37 +158,11 @@ fn extract_struct_expr(block: &Block) -> Option<ExprStruct> {
 		return None;
 	};
 
-	// Reject spread syntax
 	if expr_struct.rest.is_some() {
 		return None;
 	}
 
-	// Reject any field initialiser that calls `::new(…)` — those may not be const.
-	if expr_struct.fields.iter().any(|f| expr_contains_new_call(&f.expr)) {
-		return None;
-	}
-
 	Some(expr_struct.clone())
-}
-
-/// Returns true if `expr` (or any sub-expression) is a call whose path ends in `new`.
-/// e.g. `String::new()`, `Bar::new(2.0)`, `Foo::new()`.
-fn expr_contains_new_call(expr: &Expr) -> bool {
-	struct NewCallFinder(bool);
-	impl<'a> Visit<'a> for NewCallFinder {
-		fn visit_expr_call(&mut self, node: &'a ExprCall) {
-			if let Expr::Path(ref path) = *node.func
-				&& path.path.segments.last().is_some_and(|s| s.ident == "new")
-			{
-				self.0 = true;
-				return;
-			}
-			syn::visit::visit_expr_call(self, node);
-		}
-	}
-	let mut finder = NewCallFinder(false);
-	finder.visit_expr(expr);
-	finder.0
 }
 
 /// Build a map of field name -> source text of the initialiser expression.
