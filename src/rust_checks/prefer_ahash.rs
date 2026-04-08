@@ -32,10 +32,9 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	skip_visitor.visit_file(file);
 	let mut violations = skip_visitor.inner.violations;
 
-	// Check the top paragraph for existing ahash imports.
-	let top_para = top_paragraph(content);
-	let has_ahashmap_import = top_para.contains("use ahash::AHashMap") || top_para.contains("ahash::AHashMap;");
-	let has_ahashset_import = top_para.contains("use ahash::AHashSet") || top_para.contains("ahash::AHashSet;");
+	// Collect all `use` lines from leading paragraphs (stop at first paragraph with no `use` lines).
+	let has_ahashmap_import = content.contains("use ahash::AHashMap");
+	let has_ahashset_import = content.contains("use ahash::AHashSet");
 
 	// Determine if the file uses bare AHashMap/AHashSet anywhere (existing or after fixes).
 	// "bare" means not prefixed with `ahash::`.
@@ -47,6 +46,9 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let violation_inserts_ahashmap = violations.iter().any(|v| v.fix.as_ref().is_some_and(|f| f.replacement.contains("use ahash::AHashMap")));
 	let violation_inserts_ahashset = violations.iter().any(|v| v.fix.as_ref().is_some_and(|f| f.replacement.contains("use ahash::AHashSet")));
 
+	// Insert after the first `use` line, so we don't break leading doc comments or `mod` declarations.
+	let after_first_use = first_use_line_start(content);
+
 	if uses_bare_ahashmap && !has_ahashmap_import && !violation_inserts_ahashmap {
 		violations.push(Violation {
 			rule: RULE,
@@ -55,8 +57,8 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 			column: 0,
 			message: "missing `use ahash::AHashMap` import".to_string(),
 			fix: Some(Fix {
-				start_byte: 0,
-				end_byte: 0,
+				start_byte: after_first_use,
+				end_byte: after_first_use,
 				replacement: "use ahash::AHashMap;\n".to_string(),
 			}),
 		});
@@ -70,8 +72,8 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 			column: 0,
 			message: "missing `use ahash::AHashSet` import".to_string(),
 			fix: Some(Fix {
-				start_byte: 0,
-				end_byte: 0,
+				start_byte: after_first_use,
+				end_byte: after_first_use,
 				replacement: "use ahash::AHashSet;\n".to_string(),
 			}),
 		});
@@ -80,9 +82,16 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	violations
 }
 
-/// Returns the "top paragraph" of the file: all content up to (but not including) the first blank line.
-fn top_paragraph(content: &str) -> &str {
-	if let Some(pos) = content.find("\n\n") { &content[..pos] } else { content }
+/// Returns the byte offset of the start of the first `use ` line, or 0 if no such line exists.
+fn first_use_line_start(content: &str) -> usize {
+	let mut pos = 0;
+	for line in content.lines() {
+		if line.starts_with("use ") {
+			return pos;
+		}
+		pos += line.len() + 1;
+	}
+	0
 }
 
 /// Returns true if `name` (e.g. `"AHashMap"`) appears in the content as a bare identifier —
