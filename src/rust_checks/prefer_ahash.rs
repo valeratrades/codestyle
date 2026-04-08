@@ -1,10 +1,16 @@
-//! Lint to prefer `ahash::AHashMap` over `std::collections::HashMap`.
+//! Lint to prefer `ahash::AHashMap`/`ahash::AHashSet` over `std::collections::HashMap`/`HashSet`.
 //!
-//! HashMap uses a cryptographically secure hasher (SipHash) by default, which is
+//! HashMap/HashSet use a cryptographically secure hasher (SipHash) by default, which is
 //! slower than ahash for typical use cases. This lint replaces:
 //! - `use std::collections::HashMap` → `use ahash::AHashMap`
+//! - `use std::collections::HashSet` → `use ahash::AHashSet`
 //! - `use std::collections::{..., HashMap, ...}` → remove HashMap from group, add `use ahash::AHashMap;`
+//! - `use std::collections::{..., HashSet, ...}` → remove HashSet from group, add `use ahash::AHashSet;`
 //! - `HashMap<K, V>` type references → `AHashMap<K, V>`
+//! - `HashSet<T>` type references → `AHashSet<T>`
+//!
+//! Also inserts missing `use ahash::AHashMap;` / `use ahash::AHashSet;` imports when bare
+//! `AHashMap`/`AHashSet` names appear after conversion.
 //!
 //! Declares a dependency on the `ahash` crate.
 
@@ -24,7 +30,76 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let visitor = AHashVisitor::new(path, content);
 	let mut skip_visitor = SkipVisitor::for_rule(visitor, content, RULE);
 	skip_visitor.visit_file(file);
-	skip_visitor.inner.violations
+	let mut violations = skip_visitor.inner.violations;
+
+	// Check the top paragraph for existing ahash imports.
+	let top_para = top_paragraph(content);
+	let has_ahashmap_import = top_para.contains("use ahash::AHashMap") || top_para.contains("ahash::AHashMap;");
+	let has_ahashset_import = top_para.contains("use ahash::AHashSet") || top_para.contains("ahash::AHashSet;");
+
+	// Determine if the file uses bare AHashMap/AHashSet anywhere (existing or after fixes).
+	// "bare" means not prefixed with `ahash::`.
+	let uses_bare_ahashmap = uses_bare_name(content, "AHashMap") || violations.iter().any(|v| v.fix.as_ref().is_some_and(|f| f.replacement == "AHashMap"));
+	let uses_bare_ahashset = uses_bare_name(content, "AHashSet") || violations.iter().any(|v| v.fix.as_ref().is_some_and(|f| f.replacement == "AHashSet"));
+
+	// Check if a violation already rewrites a use-statement into the full ahash import
+	// (so no additional import line is needed).
+	let violation_inserts_ahashmap = violations.iter().any(|v| v.fix.as_ref().is_some_and(|f| f.replacement.contains("use ahash::AHashMap")));
+	let violation_inserts_ahashset = violations.iter().any(|v| v.fix.as_ref().is_some_and(|f| f.replacement.contains("use ahash::AHashSet")));
+
+	if uses_bare_ahashmap && !has_ahashmap_import && !violation_inserts_ahashmap {
+		violations.push(Violation {
+			rule: RULE,
+			file: path.display().to_string(),
+			line: 1,
+			column: 0,
+			message: "missing `use ahash::AHashMap` import".to_string(),
+			fix: Some(Fix {
+				start_byte: 0,
+				end_byte: 0,
+				replacement: "use ahash::AHashMap;\n".to_string(),
+			}),
+		});
+	}
+
+	if uses_bare_ahashset && !has_ahashset_import && !violation_inserts_ahashset {
+		violations.push(Violation {
+			rule: RULE,
+			file: path.display().to_string(),
+			line: 1,
+			column: 0,
+			message: "missing `use ahash::AHashSet` import".to_string(),
+			fix: Some(Fix {
+				start_byte: 0,
+				end_byte: 0,
+				replacement: "use ahash::AHashSet;\n".to_string(),
+			}),
+		});
+	}
+
+	violations
+}
+
+/// Returns the "top paragraph" of the file: all content up to (but not including) the first blank line.
+fn top_paragraph(content: &str) -> &str {
+	if let Some(pos) = content.find("\n\n") { &content[..pos] } else { content }
+}
+
+/// Returns true if `name` (e.g. `"AHashMap"`) appears in the content as a bare identifier —
+/// i.e. not prefixed by `ahash::`.
+fn uses_bare_name(content: &str, name: &str) -> bool {
+	let mut pos = 0;
+	while let Some(idx) = content[pos..].find(name) {
+		let abs = pos + idx;
+		// Check it's not preceded by `ahash::` (i.e. already fully qualified)
+		let prefix = "ahash::";
+		let is_qualified = abs >= prefix.len() && content[abs - prefix.len()..abs] == *prefix;
+		if !is_qualified {
+			return true;
+		}
+		pos = abs + name.len();
+	}
+	false
 }
 
 struct AHashVisitor<'a> {
@@ -45,52 +120,65 @@ impl<'a> AHashVisitor<'a> {
 
 impl<'a> Visit<'a> for AHashVisitor<'_> {
 	fn visit_item_use(&mut self, node: &'a ItemUse) {
-		if let Some(fix) = detect_use_fix(self.content, node) {
-			self.violations.push(Violation {
-				rule: RULE,
-				file: self.path_str.clone(),
-				line: node.span().start().line,
-				column: node.span().start().column,
-				message: "use `ahash::AHashMap` instead of `std::collections::HashMap`".to_string(),
-				fix: Some(fix),
-			});
+		for (std_name, ahash_replacement, message) in [
+			("HashMap", "use ahash::AHashMap;\n", "use `ahash::AHashMap` instead of `std::collections::HashMap`"),
+			("HashSet", "use ahash::AHashSet;\n", "use `ahash::AHashSet` instead of `std::collections::HashSet`"),
+		] {
+			if let Some(fix) = detect_use_fix(self.content, node, std_name, ahash_replacement) {
+				self.violations.push(Violation {
+					rule: RULE,
+					file: self.path_str.clone(),
+					line: node.span().start().line,
+					column: node.span().start().column,
+					message: message.to_string(),
+					fix: Some(fix),
+				});
+				return;
+			}
 		}
+
 		syn::visit::visit_item_use(self, node);
 	}
 
 	fn visit_type_path(&mut self, node: &'a syn::TypePath) {
-		if let Some(fix) = detect_type_path_fix(self.content, node) {
-			self.violations.push(Violation {
-				rule: RULE,
-				file: self.path_str.clone(),
-				line: node.span().start().line,
-				column: node.span().start().column,
-				message: "use `AHashMap` instead of `HashMap`".to_string(),
-				fix: Some(fix),
-			});
+		for (std_name, ahash_name) in [("HashMap", "AHashMap"), ("HashSet", "AHashSet")] {
+			if let Some(fix) = detect_type_path_fix(self.content, node, std_name, ahash_name) {
+				self.violations.push(Violation {
+					rule: RULE,
+					file: self.path_str.clone(),
+					line: node.span().start().line,
+					column: node.span().start().column,
+					message: format!("use `{ahash_name}` instead of `{std_name}`"),
+					fix: Some(fix),
+				});
+				return;
+			}
 		}
 		syn::visit::visit_type_path(self, node);
 	}
 
 	fn visit_expr_path(&mut self, node: &'a syn::ExprPath) {
-		if let Some(fix) = detect_expr_path_fix(self.content, node) {
-			self.violations.push(Violation {
-				rule: RULE,
-				file: self.path_str.clone(),
-				line: node.span().start().line,
-				column: node.span().start().column,
-				message: "use `AHashMap` instead of `HashMap`".to_string(),
-				fix: Some(fix),
-			});
+		for (std_name, ahash_name) in [("HashMap", "AHashMap"), ("HashSet", "AHashSet")] {
+			if let Some(fix) = detect_expr_path_fix(self.content, node, std_name, ahash_name) {
+				self.violations.push(Violation {
+					rule: RULE,
+					file: self.path_str.clone(),
+					line: node.span().start().line,
+					column: node.span().start().column,
+					message: format!("use `{ahash_name}` instead of `{std_name}`"),
+					fix: Some(fix),
+				});
+				return;
+			}
 		}
 		syn::visit::visit_expr_path(self, node);
 	}
 }
 
-/// Detect a fixable `use std::collections::HashMap` or group use containing HashMap.
-fn detect_use_fix(content: &str, node: &ItemUse) -> Option<Fix> {
-	// Check for `use std::collections::HashMap`
-	if is_exact_std_collections_hashmap(&node.tree) {
+/// Detect a fixable `use std::collections::<std_name>` or group use containing it.
+fn detect_use_fix(content: &str, node: &ItemUse, std_name: &str, ahash_import: &str) -> Option<Fix> {
+	// Check for `use std::collections::<std_name>`
+	if is_exact_std_collections(std_name, &node.tree) {
 		let start = span_to_byte(content, node.span().start())?;
 		let end = span_to_byte(content, node.span().end())?;
 		// Consume trailing newline
@@ -98,41 +186,48 @@ fn detect_use_fix(content: &str, node: &ItemUse) -> Option<Fix> {
 		return Some(Fix {
 			start_byte: start,
 			end_byte: end,
-			replacement: "use ahash::AHashMap;\n".to_string(),
+			replacement: ahash_import.to_string(),
 		});
 	}
 
-	// Check for `use std::collections::{..., HashMap, ...}`
-	if let Some((hashmap_start, hashmap_end)) = find_hashmap_in_group(content, &node.tree) {
-		// Remove `, HashMap` or `HashMap, ` from the group, add separate use after the statement
+	// Check for `use std::collections::{..., <std_name>, ...}`
+	if let Some((item_start, item_end, group_len)) = find_name_in_group(content, &node.tree, std_name) {
 		let use_start = span_to_byte(content, node.span().start())?;
 		let use_end = span_to_byte(content, node.span().end())?;
 		let use_end_with_newline = if content.as_bytes().get(use_end) == Some(&b'\n') { use_end + 1 } else { use_end };
 
+		if group_len == 1 {
+			// Sole item in group — remove the entire use statement, just emit the ahash import
+			return Some(Fix {
+				start_byte: use_start,
+				end_byte: use_end_with_newline,
+				replacement: ahash_import.to_string(),
+			});
+		}
+
 		let original_use = &content[use_start..use_end];
 
-		// Remove the HashMap from the group
-		let hashmap_rel_start = hashmap_start - use_start;
-		let hashmap_rel_end = hashmap_end - use_start;
-		let new_use = remove_from_group(original_use, hashmap_rel_start, hashmap_rel_end);
+		let item_rel_start = item_start - use_start;
+		let item_rel_end = item_end - use_start;
+		let new_use = remove_from_group(original_use, item_rel_start, item_rel_end);
 		let new_use = new_use.trim_end().to_string();
 
 		return Some(Fix {
 			start_byte: use_start,
 			end_byte: use_end_with_newline,
-			replacement: format!("{new_use}\nuse ahash::AHashMap;\n"),
+			replacement: format!("{new_use}\n{ahash_import}"),
 		});
 	}
 
 	None
 }
 
-/// Returns true if the use tree is exactly `std::collections::HashMap`.
-fn is_exact_std_collections_hashmap(tree: &UseTree) -> bool {
+/// Returns true if the use tree is exactly `std::collections::<name>`.
+fn is_exact_std_collections(name: &str, tree: &UseTree) -> bool {
 	match tree {
 		UseTree::Path(p) if p.ident == "std" => match p.tree.as_ref() {
 			UseTree::Path(p2) if p2.ident == "collections" => match p2.tree.as_ref() {
-				UseTree::Name(n) => n.ident == "HashMap",
+				UseTree::Name(n) => n.ident == name,
 				_ => false,
 			},
 			_ => false,
@@ -141,20 +236,20 @@ fn is_exact_std_collections_hashmap(tree: &UseTree) -> bool {
 	}
 }
 
-/// If the use tree is `std::collections::{..., HashMap, ...}`, returns the byte range
-/// of the `HashMap` ident within the source content.
-fn find_hashmap_in_group(content: &str, tree: &UseTree) -> Option<(usize, usize)> {
+/// If the use tree is `std::collections::{..., <name>, ...}`, returns the byte range of the ident
+/// and the total number of items in the group.
+fn find_name_in_group(content: &str, tree: &UseTree, name: &str) -> Option<(usize, usize, usize)> {
 	match tree {
 		UseTree::Path(p) if p.ident == "std" => match p.tree.as_ref() {
 			UseTree::Path(p2) if p2.ident == "collections" => match p2.tree.as_ref() {
 				UseTree::Group(group) => {
 					for item in &group.items {
 						if let UseTree::Name(n) = item
-							&& n.ident == "HashMap"
+							&& n.ident == name
 						{
 							let start = span_to_byte(content, n.ident.span().start())?;
 							let end = span_to_byte(content, n.ident.span().end())?;
-							return Some((start, end));
+							return Some((start, end, group.items.len()));
 						}
 					}
 					None
@@ -169,10 +264,9 @@ fn find_hashmap_in_group(content: &str, tree: &UseTree) -> Option<(usize, usize)
 
 /// Remove the item at [rel_start..rel_end] from the source, stripping a surrounding comma+space.
 fn remove_from_group(source: &str, rel_start: usize, rel_end: usize) -> String {
-	// Try to remove `, HashMap` (trailing comma pattern)
+	// Try to remove `, Name` (trailing comma pattern)
 	if rel_start >= 2 {
 		let before = &source[..rel_start];
-		// Look for ", " or "," before
 		if before.ends_with(", ") {
 			let mut result = source[..rel_start - 2].to_string();
 			result.push_str(&source[rel_end..]);
@@ -184,7 +278,7 @@ fn remove_from_group(source: &str, rel_start: usize, rel_end: usize) -> String {
 			return result;
 		}
 	}
-	// Try to remove `HashMap, ` (leading comma pattern)
+	// Try to remove `Name, ` (leading comma pattern)
 	let after = &source[rel_end..];
 	if after.starts_with(", ") {
 		let mut result = source[..rel_start].to_string();
@@ -202,62 +296,60 @@ fn remove_from_group(source: &str, rel_start: usize, rel_end: usize) -> String {
 	result
 }
 
-/// Detect a fixable `HashMap` in an expression path (e.g. `HashMap::new()`).
-fn detect_expr_path_fix(content: &str, node: &syn::ExprPath) -> Option<Fix> {
+/// Detect a fixable `<std_name>` in an expression path (e.g. `HashMap::new()`).
+fn detect_expr_path_fix(content: &str, node: &syn::ExprPath, std_name: &str, ahash_name: &str) -> Option<Fix> {
 	let path = &node.path;
 
-	// `HashMap::...` — first segment is HashMap
-	if path.segments.first().is_some_and(|s| s.ident == "HashMap") {
+	// `HashMap::...` — first segment is the std name
+	if path.segments.first().is_some_and(|s| s.ident == std_name) {
 		let seg = &path.segments[0];
 		let start = span_to_byte(content, seg.ident.span().start())?;
 		let end = span_to_byte(content, seg.ident.span().end())?;
 		return Some(Fix {
 			start_byte: start,
 			end_byte: end,
-			replacement: "AHashMap".to_string(),
+			replacement: ahash_name.to_string(),
 		});
 	}
 
 	// `std::collections::HashMap::...`
-	if path.segments.len() >= 3 && path.segments[0].ident == "std" && path.segments[1].ident == "collections" && path.segments[2].ident == "HashMap" {
+	if path.segments.len() >= 3 && path.segments[0].ident == "std" && path.segments[1].ident == "collections" && path.segments[2].ident == std_name {
 		let first_start = span_to_byte(content, path.segments[0].ident.span().start())?;
 		let last_end = span_to_byte(content, path.segments[2].ident.span().end())?;
 		return Some(Fix {
 			start_byte: first_start,
 			end_byte: last_end,
-			replacement: "AHashMap".to_string(),
+			replacement: ahash_name.to_string(),
 		});
 	}
 
 	None
 }
 
-/// Detect a fixable `HashMap` type reference (not from ahash).
-fn detect_type_path_fix(content: &str, node: &syn::TypePath) -> Option<Fix> {
-	// Must be a simple `HashMap` or `std::collections::HashMap` path
+/// Detect a fixable `<std_name>` type reference (not from ahash).
+fn detect_type_path_fix(content: &str, node: &syn::TypePath, std_name: &str, ahash_name: &str) -> Option<Fix> {
 	let path = &node.path;
 
 	// Simple `HashMap<...>` (single segment)
-	if path.segments.len() == 1 && path.segments[0].ident == "HashMap" {
+	if path.segments.len() == 1 && path.segments[0].ident == std_name {
 		let seg = &path.segments[0];
 		let start = span_to_byte(content, seg.ident.span().start())?;
 		let end = span_to_byte(content, seg.ident.span().end())?;
 		return Some(Fix {
 			start_byte: start,
 			end_byte: end,
-			replacement: "AHashMap".to_string(),
+			replacement: ahash_name.to_string(),
 		});
 	}
 
 	// `std::collections::HashMap<...>`
-	if path.segments.len() == 3 && path.segments[0].ident == "std" && path.segments[1].ident == "collections" && path.segments[2].ident == "HashMap" {
-		// Replace the entire `std::collections::HashMap` prefix with `AHashMap`
+	if path.segments.len() == 3 && path.segments[0].ident == "std" && path.segments[1].ident == "collections" && path.segments[2].ident == std_name {
 		let first_start = span_to_byte(content, path.segments[0].ident.span().start())?;
 		let last_end = span_to_byte(content, path.segments[2].ident.span().end())?;
 		return Some(Fix {
 			start_byte: first_start,
 			end_byte: last_end,
-			replacement: "AHashMap".to_string(),
+			replacement: ahash_name.to_string(),
 		});
 	}
 
