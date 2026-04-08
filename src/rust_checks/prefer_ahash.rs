@@ -33,13 +33,11 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let mut violations = skip_visitor.inner.violations;
 
 	// Collect all `use` lines from leading paragraphs (stop at first paragraph with no `use` lines).
-	let has_ahashmap_import = content.contains("use ahash::AHashMap");
-	let has_ahashset_import = content.contains("use ahash::AHashSet");
+	let has_ahashmap_import = content.lines().any(|l| l.starts_with("use ") && l.contains("AHashMap"));
+	let has_ahashset_import = content.lines().any(|l| l.starts_with("use ") && l.contains("AHashSet"));
 
-	// Determine if the file uses bare AHashMap/AHashSet anywhere (existing or after fixes).
-	// "bare" means not prefixed with `ahash::`.
-	let uses_bare_ahashmap = uses_bare_name(content, "AHashMap") || violations.iter().any(|v| v.fix.as_ref().is_some_and(|f| f.replacement == "AHashMap"));
-	let uses_bare_ahashset = uses_bare_name(content, "AHashSet") || violations.iter().any(|v| v.fix.as_ref().is_some_and(|f| f.replacement == "AHashSet"));
+	let uses_bare_ahashmap = violations.iter().any(|v| v.fix.as_ref().is_some_and(|f| f.replacement == "AHashMap"));
+	let uses_bare_ahashset = violations.iter().any(|v| v.fix.as_ref().is_some_and(|f| f.replacement == "AHashSet"));
 
 	// Check if a violation already rewrites a use-statement into the full ahash import
 	// (so no additional import line is needed).
