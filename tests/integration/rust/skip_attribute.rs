@@ -34,6 +34,7 @@ fn all_opts() -> RustCheckOptions {
 		ignored_error_comment: true,
 		workspace_dep_hoisting: false,
 		unconventional_new: true,
+		prefer_default_over_bare_new: false,
 		inline_default: true,
 		prefer_ahash: false,
 	}

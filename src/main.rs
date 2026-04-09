@@ -97,9 +97,13 @@ struct RustCheckOptionsArgs {
 	#[arg(long)]
 	workspace_dep_hoisting: Option<bool>,
 
-	/// Flag unconventional `fn new`: no-args (use Default) or returning Result (rename to try_new); rewrite call-sites [default: true]
+	/// Flag unconventional `fn new`: returning Result (rename to try_new); rewrite call-sites [default: true]
 	#[arg(long)]
 	unconventional_new: Option<bool>,
+
+	/// Flag argument-less `pub fn new()` (prefer Default); rewrite call-sites to `::default()` [default: false]
+	#[arg(long)]
+	prefer_default_over_bare_new: Option<bool>,
 
 	/// Inline `impl Default` bodies as field defaults (RFC 3681, Rust 1.82+) [default: true]
 	#[arg(long)]
@@ -151,6 +155,7 @@ impl From<RustCheckOptionsArgs> for RustCheckOptions {
 			ignored_error_comment,
 			workspace_dep_hoisting,
 			unconventional_new,
+			prefer_default_over_bare_new,
 			inline_default,
 			prefer_ahash,
 		)

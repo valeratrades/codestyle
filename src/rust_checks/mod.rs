@@ -11,6 +11,7 @@ pub mod loops;
 pub mod no_chrono;
 pub mod no_tokio_spawn;
 pub mod prefer_ahash;
+pub mod prefer_default_over_bare_new;
 pub mod pub_first;
 pub mod skip;
 pub mod test_fn_prefix;
@@ -84,9 +85,15 @@ pub struct RustCheckOptions {
 	/// Inline `impl Default` bodies as field defaults (RFC 3681, Rust 1.82+) (default: true)
 	#[default = true]
 	pub inline_default: bool,
-	/// Flag unconventional `fn new`: no-args (use Default) or returning Result (rename to try_new); rewrite call-sites (default: true)
+	/// Flag unconventional `fn new`: returning Result (rename to try_new); rewrite call-sites (default: true)
 	#[default = true]
 	pub unconventional_new: bool,
+	/// Flag argument-less `pub fn new()` (prefer Default); rewrite call-sites to `::default()` (default: false)
+	///
+	/// Disabled by default because not every `new()` is semantically a Default — e.g. `OpenOptions::new()`
+	/// creates an instance with all options off. `new()` is explicit about "I'm building one from scratch".
+	#[default = false]
+	pub prefer_default_over_bare_new: bool,
 	/// Replace `HashMap` with `ahash::AHashMap` (default: false)
 	#[default = false]
 	pub prefer_ahash: bool,
@@ -145,13 +152,15 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 
 	for src_dir in src_dirs {
 		let file_infos = collect_rust_files(&src_dir);
-		let (try_new_types, nontrivial_default_types) = if opts.unconventional_new {
-			(
-				unconventional_new::collect_try_new_types(&file_infos),
-				unconventional_new::collect_nontrivial_default_types(&file_infos),
-			)
+		let try_new_types = if opts.unconventional_new {
+			unconventional_new::collect_try_new_types(&file_infos)
 		} else {
-			(HashSet::default(), HashSet::default())
+			HashSet::default()
+		};
+		let nontrivial_default_types = if opts.prefer_default_over_bare_new {
+			prefer_default_over_bare_new::collect_nontrivial_default_types(&file_infos)
+		} else {
+			HashSet::default()
 		};
 		for info in &file_infos {
 			if opts.instrument {
@@ -196,7 +205,10 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 					all_violations.extend(ignored_error_comment::check(&info.path, &info.contents, tree));
 				}
 				if opts.unconventional_new {
-					all_violations.extend(unconventional_new::check(&info.path, &info.contents, tree, &try_new_types, &nontrivial_default_types));
+					all_violations.extend(unconventional_new::check(&info.path, &info.contents, tree, &try_new_types));
+				}
+				if opts.prefer_default_over_bare_new {
+					all_violations.extend(prefer_default_over_bare_new::check(&info.path, &info.contents, tree, &nontrivial_default_types));
 				}
 				if opts.inline_default {
 					all_violations.extend(inline_default::check(&info.path, &info.contents, tree));
@@ -271,13 +283,22 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 	let all_file_paths: Vec<PathBuf> = src_dirs.iter().flat_map(|d| collect_rust_files(d)).map(|f| f.path).collect();
 
 	loop {
-		// Re-collect try_new types from current on-disk state each round
-		let (try_new_types, nontrivial_default_types) = if opts.unconventional_new {
+		// Re-collect cross-file type sets from current on-disk state each round.
+		// unconventional_new needs try_new_types; prefer_default_over_bare_new needs nontrivial_default_types.
+		let needs_reparse = opts.unconventional_new || opts.prefer_default_over_bare_new;
+		let (try_new_types, nontrivial_default_types) = if needs_reparse {
 			let file_infos: Vec<FileInfo> = all_file_paths.iter().filter_map(|p| parse_rust_file(p.clone())).collect();
-			(
-				unconventional_new::collect_try_new_types(&file_infos),
-				unconventional_new::collect_nontrivial_default_types(&file_infos),
-			)
+			let try_new = if opts.unconventional_new {
+				unconventional_new::collect_try_new_types(&file_infos)
+			} else {
+				HashSet::default()
+			};
+			let nontrivial = if opts.prefer_default_over_bare_new {
+				prefer_default_over_bare_new::collect_nontrivial_default_types(&file_infos)
+			} else {
+				HashSet::default()
+			};
+			(try_new, nontrivial)
 		} else {
 			(HashSet::default(), HashSet::default())
 		};
@@ -474,7 +495,16 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions, try_new_ty
 			}
 
 			if first_fix.is_none() && opts.unconventional_new {
-				for v in unconventional_new::check(&info.path, &info.contents, tree, try_new_types, nontrivial_default_types) {
+				for v in unconventional_new::check(&info.path, &info.contents, tree, try_new_types) {
+					if let Some(fix) = v.fix.clone() {
+						first_fix = Some((v, fix));
+						break;
+					}
+				}
+			}
+
+			if first_fix.is_none() && opts.prefer_default_over_bare_new {
+				for v in prefer_default_over_bare_new::check(&info.path, &info.contents, tree, nontrivial_default_types) {
 					if let Some(fix) = v.fix.clone() {
 						first_fix = Some((v, fix));
 						break;
@@ -568,8 +598,11 @@ fn collect_unfixable(info: &FileInfo, opts: &RustCheckOptions, try_new_types: &H
 			unfixable.extend(ignored_error_comment::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
 		}
 		if opts.unconventional_new {
+			unfixable.extend(unconventional_new::check(&info.path, &info.contents, tree, try_new_types).into_iter().filter(|v| v.fix.is_none()));
+		}
+		if opts.prefer_default_over_bare_new {
 			unfixable.extend(
-				unconventional_new::check(&info.path, &info.contents, tree, try_new_types, nontrivial_default_types)
+				prefer_default_over_bare_new::check(&info.path, &info.contents, tree, nontrivial_default_types)
 					.into_iter()
 					.filter(|v| v.fix.is_none()),
 			);

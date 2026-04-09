@@ -23,6 +23,7 @@ pub(crate) fn opts_for(check: &str) -> RustCheckOptions {
 		ignored_error_comment: check == "ignored_error_comment",
 		workspace_dep_hoisting: check == "workspace_dep_hoisting",
 		unconventional_new: check == "unconventional_new",
+		prefer_default_over_bare_new: check == "prefer_default_over_bare_new",
 		inline_default: check == "inline_default",
 		prefer_ahash: check == "prefer_ahash",
 	}
@@ -133,17 +134,19 @@ pub(crate) fn test_case_assert_only(fixture_str: &str, opts: &RustCheckOptions) 
 fn collect_violations(root: &Path, opts: &RustCheckOptions, is_format_mode: bool) -> Vec<Violation> {
 	use codestyle::rust_checks::{
 		embed_simple_vars, ignored_error_comment, impl_folds, impl_follows_type, inline_default, insta_snapshots, instrument, join_split_impls, loops, no_chrono, no_tokio_spawn,
-		prefer_ahash, pub_first, test_fn_prefix, unconventional_new, use_bail,
+		prefer_ahash, prefer_default_over_bare_new, pub_first, test_fn_prefix, unconventional_new, use_bail,
 	};
 
 	let file_infos = rust_checks::collect_rust_files(root);
-	let (try_new_types, nontrivial_default_types) = if opts.unconventional_new {
-		(
-			unconventional_new::collect_try_new_types(&file_infos),
-			unconventional_new::collect_nontrivial_default_types(&file_infos),
-		)
+	let try_new_types = if opts.unconventional_new {
+		unconventional_new::collect_try_new_types(&file_infos)
 	} else {
-		(std::collections::HashSet::default(), std::collections::HashSet::default())
+		std::collections::HashSet::default()
+	};
+	let nontrivial_default_types = if opts.prefer_default_over_bare_new {
+		prefer_default_over_bare_new::collect_nontrivial_default_types(&file_infos)
+	} else {
+		std::collections::HashSet::default()
 	};
 	let mut violations = Vec::default();
 
@@ -189,7 +192,10 @@ fn collect_violations(root: &Path, opts: &RustCheckOptions, is_format_mode: bool
 				violations.extend(ignored_error_comment::check(&info.path, &info.contents, tree));
 			}
 			if opts.unconventional_new {
-				violations.extend(unconventional_new::check(&info.path, &info.contents, tree, &try_new_types, &nontrivial_default_types));
+				violations.extend(unconventional_new::check(&info.path, &info.contents, tree, &try_new_types));
+			}
+			if opts.prefer_default_over_bare_new {
+				violations.extend(prefer_default_over_bare_new::check(&info.path, &info.contents, tree, &nontrivial_default_types));
 			}
 			if opts.inline_default {
 				violations.extend(inline_default::check(&info.path, &info.contents, tree));
