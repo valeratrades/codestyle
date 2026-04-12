@@ -177,6 +177,25 @@ fn arbitrary_fn_call_in_field_passes() {
 	);
 }
 
+#[test]
+fn method_call_in_field_passes() {
+	// "Player".to_string() is a method call — skip
+	assert_check_passing(
+		r#"
+		#[derive(Clone, Debug, Eq, PartialEq)]
+		pub struct ManualPlayer {
+			pub name: String,
+		}
+		impl Default for ManualPlayer {
+			fn default() -> Self {
+				Self { name: "Player".to_string() }
+			}
+		}
+		"#,
+		&opts(),
+	);
+}
+
 // === Violation + fix cases ===
 
 #[test]

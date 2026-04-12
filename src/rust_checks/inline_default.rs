@@ -20,12 +20,16 @@
 
 use std::{collections::HashMap, path::Path};
 
-use syn::{Block, Expr, ExprCall, ExprStruct, Fields, ImplItem, Item, ItemImpl, ItemStruct, spanned::Spanned, visit::Visit};
+use syn::{Block, Expr, ExprCall, ExprMethodCall, ExprStruct, Fields, ImplItem, Item, ItemImpl, ItemStruct, spanned::Spanned, visit::Visit};
 
 fn block_has_fn_calls(block: &Block) -> bool {
 	struct Finder(bool);
 	impl<'a> Visit<'a> for Finder {
 		fn visit_expr_call(&mut self, _: &'a ExprCall) {
+			self.0 = true;
+		}
+
+		fn visit_expr_method_call(&mut self, _: &'a ExprMethodCall) {
 			self.0 = true;
 		}
 	}
