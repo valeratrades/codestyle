@@ -348,7 +348,11 @@ pub fn collect_rust_files(target_dir: &Path) -> Vec<FileInfo> {
 
 	let walker = WalkDir::new(target_dir).into_iter().filter_entry(|e| {
 		let name = e.file_name().to_string_lossy();
-		!name.starts_with('.') && name != "target" && name != "libs"
+		if name.starts_with('.') || name == "target" || name == "libs" {
+			return false;
+		}
+		// skip git submodule roots (directory containing a .git entry that isn't the repo root)
+		e.depth() == 0 || !e.path().join(".git").exists()
 	});
 
 	for entry in walker.filter_map(Result::ok) {
@@ -857,7 +861,10 @@ fn find_workspace_root(target_dir: &Path) -> Option<PathBuf> {
 fn delete_snap_files(target_dir: &Path) {
 	let walker = WalkDir::new(target_dir).into_iter().filter_entry(|e| {
 		let name = e.file_name().to_string_lossy();
-		!name.starts_with('.') && name != "target"
+		if name.starts_with('.') || name == "target" {
+			return false;
+		}
+		e.depth() == 0 || !e.path().join(".git").exists()
 	});
 
 	let mut snapshot_dirs_to_delete = Vec::default();
