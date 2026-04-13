@@ -209,23 +209,21 @@ fn make_compound_fix(content: &str, struct_item: &ItemStruct, impl_block: &ItemI
 		return None;
 	}
 
-	// Between struct_end and impl_start there must be only whitespace/blank lines
-	let between = &content[struct_end..impl_start];
-	if !between.chars().all(|c| c.is_whitespace()) {
-		// Non-adjacent: cannot safely merge into one fix
-		return None;
-	}
-
 	// Build the rewritten struct text
 	let rewritten_struct = rewrite_struct(content, struct_item, struct_start, struct_end, field_inits)?;
 
 	// Consume trailing newline after impl `}`
 	let delete_end = consume_trailing_newline(content, impl_end);
 
+	// Preserve any code between the struct and the impl (e.g. `impl T { … }`), rewriting only
+	// the struct definition and deleting the Default impl.
+	let between = &content[struct_end..impl_start];
+	let replacement = format!("{rewritten_struct}{between}");
+
 	Some(Fix {
 		start_byte: struct_start,
 		end_byte: delete_end,
-		replacement: rewritten_struct,
+		replacement,
 	})
 }
 

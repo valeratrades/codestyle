@@ -199,6 +199,44 @@ fn method_call_in_field_passes() {
 // === Violation + fix cases ===
 
 #[test]
+fn non_adjacent_impl_between_struct_and_default() {
+	// impl Rating { … } sits between struct and impl Default — fix must still work
+	insta::assert_snapshot!(test_case(
+		r#"
+		struct Rating {
+			rating: f64,
+			deviation: f64,
+		}
+		impl Rating {
+			pub fn is_provisional(&self) -> bool {
+				self.deviation >= 110.0
+			}
+		}
+		impl Default for Rating {
+			fn default() -> Self {
+				Self { rating: 1500.0, deviation: 350.0 }
+			}
+		}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[inline-default] /main.rs:1: `impl Default for Rating` can be inlined as field defaults (RFC 3681)
+
+	# Format mode
+	struct Rating {
+		rating: f64 = 1500.0,
+		deviation: f64 = 350.0,
+	}
+	impl Rating {
+		pub fn is_provisional(&self) -> bool {
+			self.deviation >= 110.0
+		}
+	}
+	");
+}
+
+#[test]
 fn single_field() {
 	insta::assert_snapshot!(test_case(
 		r#"
