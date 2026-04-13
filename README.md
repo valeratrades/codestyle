@@ -11,7 +11,7 @@ A code style checker and formatter for Rust that enforces opinionated convention
 <!-- markdownlint-disable -->
 <details>
 <summary>
-<h3>Installation</h3>
+<h2>Installation</h2>
 </summary>
 
 #### Cargo
