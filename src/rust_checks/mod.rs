@@ -322,6 +322,24 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 		run_cargo_add(target_dir, &modified_files, prefer_ahash::DEPENDENCIES);
 	}
 
+	if opts.inline_default && !modified_files.is_empty() {
+		let mut visited_roots: HashSet<PathBuf> = HashSet::default();
+		for file_path in &modified_files {
+			if let Some(root_file) = find_crate_lib_or_main(file_path) {
+				if visited_roots.insert(root_file.clone()) {
+					if let Ok(content) = fs::read_to_string(&root_file) {
+						if !content.contains("default_field_values") {
+							let injected = format!("#![feature(default_field_values)]\n{content}");
+							if fs::write(&root_file, injected).is_ok() {
+								fixed_count += 1;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
 	if fixed_count == 0 && unfixable_violations.is_empty() {
 		println!("codestyle: all checks passed, nothing to format");
 		0
@@ -841,6 +859,29 @@ fn read_package_name(cargo_toml: &Path) -> Option<String> {
 		}
 	}
 	None
+}
+
+/// Walk up from `file_path` to find the crate's `src/lib.rs`, falling back to `src/main.rs`.
+///
+/// Works for both standalone crates and sub-crates inside a workspace: it looks for the
+/// nearest ancestor directory that contains a `Cargo.toml` (i.e. the crate root), then
+/// checks `<crate_root>/src/lib.rs` and `<crate_root>/src/main.rs` in that order.
+pub fn find_crate_lib_or_main(file_path: &Path) -> Option<PathBuf> {
+	let mut dir = file_path.parent()?;
+	loop {
+		if dir.join("Cargo.toml").exists() {
+			let lib = dir.join("src").join("lib.rs");
+			if lib.exists() {
+				return Some(lib);
+			}
+			let main = dir.join("src").join("main.rs");
+			if main.exists() {
+				return Some(main);
+			}
+			return None;
+		}
+		dir = dir.parent()?;
+	}
 }
 
 /// Walk up from `target_dir` to find a `Cargo.toml` with `[workspace]`.

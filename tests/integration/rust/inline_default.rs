@@ -196,6 +196,42 @@ fn method_call_in_field_passes() {
 	);
 }
 
+#[test]
+fn serde_serialize_passes() {
+	assert_check_passing(
+		r#"
+		#[derive(Clone, serde::Serialize, serde::Deserialize)]
+		pub struct Config {
+			pub value: i32,
+		}
+		impl Default for Config {
+			fn default() -> Self {
+				Self { value: 0 }
+			}
+		}
+		"#,
+		&opts(),
+	);
+}
+
+#[test]
+fn serialize_shorthand_passes() {
+	assert_check_passing(
+		r#"
+		#[derive(Serialize)]
+		pub struct Config {
+			pub value: i32,
+		}
+		impl Default for Config {
+			fn default() -> Self {
+				Self { value: 0 }
+			}
+		}
+		"#,
+		&opts(),
+	);
+}
+
 // === Violation + fix cases ===
 
 #[test]
@@ -224,6 +260,7 @@ fn non_adjacent_impl_between_struct_and_default() {
 	[inline-default] /main.rs:1: `impl Default for Rating` can be inlined as field defaults (RFC 3681)
 
 	# Format mode
+	#[derive(Default)]
 	struct Rating {
 		rating: f64 = 1500.0,
 		deviation: f64 = 350.0,
@@ -232,6 +269,33 @@ fn non_adjacent_impl_between_struct_and_default() {
 		pub fn is_provisional(&self) -> bool {
 			self.deviation >= 110.0
 		}
+	}
+	");
+}
+
+#[test]
+fn existing_derive_gets_default_injected() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		#[derive(Clone, Debug)]
+		struct Yak {
+			foo: i32,
+		}
+		impl Default for Yak {
+			fn default() -> Self {
+				Self { foo: 42 }
+			}
+		}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[inline-default] /main.rs:1: `impl Default for Yak` can be inlined as field defaults (RFC 3681)
+
+	# Format mode
+	#[derive(Clone, Debug, Default)]
+	struct Yak {
+		foo: i32 = 42,
 	}
 	");
 }
@@ -255,6 +319,7 @@ fn single_field() {
 	[inline-default] /main.rs:1: `impl Default for Yak` can be inlined as field defaults (RFC 3681)
 
 	# Format mode
+	#[derive(Default)]
 	struct Yak {
 		foo: i32 = 42,
 	}
@@ -285,6 +350,7 @@ fn multiple_const_fields() {
 	[inline-default] /main.rs:1: `impl Default for Yak` can be inlined as field defaults (RFC 3681)
 
 	# Format mode
+	#[derive(Default)]
 	struct Yak {
 		foo: i32 = 0,
 		bar: bool = false,

@@ -38,6 +38,30 @@ fn block_has_fn_calls(block: &Block) -> bool {
 	f.0
 }
 
+/// Derives that are known to not support RFC 3681 field defaults (e.g. serde).
+/// Matched as a suffix of the last path segment, case-insensitively.
+const INCOMPATIBLE_DERIVES: &[&str] = &["serialize", "deserialize"];
+
+fn has_incompatible_derive(struct_item: &ItemStruct) -> bool {
+	for attr in &struct_item.attrs {
+		if !attr.path().is_ident("derive") {
+			continue;
+		}
+		let Ok(list) = attr.meta.require_list() else {
+			continue;
+		};
+		// Parse token stream as comma-separated paths
+		let tokens = list.tokens.to_string();
+		for segment in tokens.split(',') {
+			let last = segment.trim().split("::").last().unwrap_or("").trim();
+			if INCOMPATIBLE_DERIVES.iter().any(|d| last.eq_ignore_ascii_case(d)) {
+				return true;
+			}
+		}
+	}
+	false
+}
+
 use super::{Fix, Violation, skip::has_skip_marker_for_rule};
 
 const RULE: &str = "inline-default";
@@ -74,6 +98,10 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		let Some(struct_item) = eligible_impl(impl_block, &structs) else {
 			continue;
 		};
+
+		if has_incompatible_derive(struct_item) {
+			continue;
+		}
 
 		let Some(init_expr) = simple_default_body(impl_block) else {
 			continue;
@@ -227,7 +255,8 @@ fn make_compound_fix(content: &str, struct_item: &ItemStruct, impl_block: &ItemI
 	})
 }
 
-/// Rewrite struct source by inserting ` = <init>` after each field's type annotation.
+/// Rewrite struct source by inserting ` = <init>` after each field's type annotation,
+/// and injecting `Default` into the derive list (or prepending `#[derive(Default)]`).
 fn rewrite_struct(content: &str, struct_item: &ItemStruct, struct_start: usize, struct_end: usize, field_inits: &HashMap<String, String>) -> Option<String> {
 	let Fields::Named(ref named) = struct_item.fields else {
 		return None;
@@ -246,6 +275,20 @@ fn rewrite_struct(content: &str, struct_item: &ItemStruct, struct_start: usize, 
 		let field_end = span_to_byte(content, field.span().end())?;
 		let rel_end = field_end - struct_start;
 		splices.push((rel_end, format!(" = {init}")));
+	}
+
+	// Inject `Default` into existing derive or prepend a new one.
+	// We never reach here if derive(Default) already exists (eligible_impl checks for manual impl).
+	if let Some(derive_attr) = struct_item.attrs.iter().find(|a| a.path().is_ident("derive")) {
+		// Insert `, Default` before the closing `)` of the existing derive.
+		let attr_end = span_to_byte(content, derive_attr.span().end())?;
+		// attr_end points just past the closing `]`. Step back to find the `)`.
+		let rel_attr_end = attr_end - struct_start;
+		let close_paren = struct_src[..rel_attr_end].rfind(')')?;
+		splices.push((close_paren, ", Default".to_string()));
+	} else {
+		// No derive at all — prepend one before the struct.
+		splices.push((0, "#[derive(Default)]\n".to_string()));
 	}
 
 	// Apply right-to-left to preserve offsets
