@@ -200,7 +200,7 @@ fn method_call_in_field_passes() {
 fn serde_serialize_passes() {
 	assert_check_passing(
 		r#"
-		#[derive(Clone, serde::Serialize, serde::Deserialize)]
+		#[derive(Clone, serde::Deserialize, serde::Serialize)]
 		pub struct Config {
 			pub value: i32,
 		}
@@ -230,6 +230,56 @@ fn serialize_shorthand_passes() {
 		"#,
 		&opts(),
 	);
+}
+
+// === Feature injection: dedup ===
+
+#[test]
+fn feature_not_duplicated_when_already_in_lib_rs() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		//- /Cargo.toml
+		[package]
+		name = "mylib"
+		version = "0.1.0"
+
+		//- /src/lib.rs
+		#![feature(default_field_values)]
+
+		pub mod yak;
+
+		//- /src/yak.rs
+		struct Yak {
+			foo: i32,
+		}
+		impl Default for Yak {
+			fn default() -> Self {
+				Self { foo: 42 }
+			}
+		}
+		"#,
+		&opts(),
+	), @r#"
+	# Assert mode
+	[inline-default] /src/yak.rs:1: `impl Default for Yak` can be inlined as field defaults (RFC 3681)
+
+	# Format mode
+	//- /Cargo.toml
+	[package]
+	name = "mylib"
+	version = "0.1.0"
+
+	//- /src/lib.rs
+	#![feature(default_field_values)]
+
+	pub mod yak;
+
+	//- /src/yak.rs
+	#[derive(Default)]
+	struct Yak {
+		foo: i32 = 42,
+	}
+	"#);
 }
 
 // === Violation + fix cases ===
