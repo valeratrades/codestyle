@@ -245,11 +245,6 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 		return 1;
 	}
 
-	// Delete any .snap and .pending-snap files in the target directory (only if insta check is enabled)
-	if opts.insta_inline_snapshot {
-		delete_snap_files(target_dir);
-	}
-
 	let mut fixed_count = 0;
 	let mut unfixable_violations = Vec::default();
 	let mut modified_files: HashSet<PathBuf> = HashSet::default();
@@ -308,6 +303,14 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 			let (file_fixed, file_unfixable) = format_file_iteratively(file_path, opts, &try_new_types, &nontrivial_default_types);
 			if file_fixed > 0 {
 				modified_files.insert(file_path.clone());
+				if opts.insta_inline_snapshot {
+					if let Some(parent) = file_path.parent() {
+						let snapshots_dir = parent.join("snapshots");
+						if snapshots_dir.is_dir() {
+							let _ = fs::remove_dir_all(&snapshots_dir);
+						}
+					}
+				}
 			}
 			round_fixed += file_fixed;
 			unfixable_violations.extend(file_unfixable);
@@ -896,42 +899,5 @@ fn find_workspace_root(target_dir: &Path) -> Option<PathBuf> {
 			return Some(dir.to_path_buf());
 		}
 		dir = dir.parent()?;
-	}
-}
-
-fn delete_snap_files(target_dir: &Path) {
-	let walker = WalkDir::new(target_dir).into_iter().filter_entry(|e| {
-		let name = e.file_name().to_string_lossy();
-		if name.starts_with('.') || name == "target" {
-			return false;
-		}
-		e.depth() == 0 || !e.path().join(".git").exists()
-	});
-
-	let mut snapshot_dirs_to_delete = Vec::default();
-
-	for entry in walker.filter_map(Result::ok) {
-		let path = entry.path();
-
-		// If we find a snapshots/ directory, mark it for deletion
-		if path.is_dir() && path.file_name().is_some_and(|n| n == "snapshots") {
-			// Check if it contains any .snap or .pending-snap files
-			let has_snap_files = WalkDir::new(path)
-				.into_iter()
-				.filter_map(Result::ok)
-				.any(|e| e.path().extension().is_some_and(|ext| ext == "snap" || ext == "pending-snap"));
-			if has_snap_files {
-				snapshot_dirs_to_delete.push(path.to_path_buf());
-			}
-		}
-	}
-
-	// Delete snapshots/ directories (this also removes all files inside)
-	for dir in snapshot_dirs_to_delete {
-		if let Err(e) = fs::remove_dir_all(&dir) {
-			eprintln!("Warning: Failed to delete snapshots dir {dir:?}: {e}");
-		} else {
-			println!("codestyle: deleted snapshots dir {dir:?}");
-		}
 	}
 }

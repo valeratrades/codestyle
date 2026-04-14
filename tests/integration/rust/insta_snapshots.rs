@@ -1,3 +1,5 @@
+use v_fixtures::Fixture;
+
 use crate::utils::{assert_check_passing, opts_for, test_case, test_case_assert_only};
 
 fn opts() -> codestyle::rust_checks::RustCheckOptions {
@@ -415,4 +417,28 @@ fn multiple_violations_inline_and_sequential() {
 	[insta-inline-snapshot] /main.rs:4: `assert_debug_snapshot!` must use inline snapshot with `@r""` or `@""`
 	[insta-sequential-snapshots] /main.rs:3: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests
 	"#);
+}
+
+#[test]
+fn format_deletes_snapshots_dir_when_format_applied() {
+	let fixture = Fixture::parse(
+		r#"
+	//- /tests/test.rs
+	fn test() {
+		insta::assert_snapshot!(output);
+	}
+
+	//- /tests/snapshots/test__output.snap
+	---
+	source: tests/test.rs
+	expression: output
+	---
+	hello
+	"#,
+	);
+	let temp = fixture.write_to_tempdir();
+	let snapshots_dir = temp.root.join("tests/snapshots");
+	assert!(snapshots_dir.exists(), "snapshots dir should exist before format");
+	codestyle::rust_checks::run_format(&temp.root, &opts());
+	assert!(!snapshots_dir.exists(), "snapshots dir should be deleted after format");
 }
