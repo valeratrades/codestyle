@@ -32,16 +32,15 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	skip_visitor.visit_file(file);
 	let mut violations = skip_visitor.inner.violations;
 
-	// Collect all `use` lines from leading paragraphs (stop at first paragraph with no `use` lines).
-	let has_ahashmap_import = content.lines().any(|l| l.starts_with("use ") && l.contains("AHashMap"));
-	let has_ahashset_import = content.lines().any(|l| l.starts_with("use ") && l.contains("AHashSet"));
+	let has_ahashmap_import = path_rewrite::is_name_imported(file, "AHashMap");
+	let has_ahashset_import = path_rewrite::is_name_imported(file, "AHashSet");
 
 	// We need an import if we're rewriting something to a bare name, OR if the file already
 	// uses bare AHashMap/AHashSet without a qualifying path (introduced by a previous fix iteration).
-	let needs_ahashmap_import = violations.iter().any(|v| v.fix.as_ref().is_some_and(|f| f.replacement == "AHashMap"))
-		|| (content.lines().any(|l| !l.starts_with("use ") && l.contains("AHashMap")) && !content.lines().any(|l| l.starts_with("use ") && l.contains("AHashMap")));
-	let needs_ahashset_import = violations.iter().any(|v| v.fix.as_ref().is_some_and(|f| f.replacement == "AHashSet"))
-		|| (content.lines().any(|l| !l.starts_with("use ") && l.contains("AHashSet")) && !content.lines().any(|l| l.starts_with("use ") && l.contains("AHashSet")));
+	let needs_ahashmap_import =
+		violations.iter().any(|v| v.fix.as_ref().is_some_and(|f| f.replacement == "AHashMap")) || (!has_ahashmap_import && path_rewrite::has_bare_usage(file, "AHashMap"));
+	let needs_ahashset_import =
+		violations.iter().any(|v| v.fix.as_ref().is_some_and(|f| f.replacement == "AHashSet")) || (!has_ahashset_import && path_rewrite::has_bare_usage(file, "AHashSet"));
 
 	// Check if a violation already rewrites a use-statement into the full ahash import
 	// (so no additional import line is needed).

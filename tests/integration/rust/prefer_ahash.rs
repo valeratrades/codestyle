@@ -48,6 +48,39 @@ fn unrelated_hashmap_name_passes() {
 	);
 }
 
+#[test]
+fn grouped_ahash_import_no_duplicate() {
+	assert_check_passing(
+		r#"
+		use ahash::{AHashMap, AHashSet};
+
+		fn main() {
+			let _map: AHashMap<String, u32> = AHashMap::new();
+			let _set: AHashSet<String> = AHashSet::new();
+		}
+		"#,
+		&opts(),
+	);
+}
+
+#[test]
+fn multiline_grouped_ahash_import_no_duplicate() {
+	assert_check_passing(
+		r#"
+		use ahash::{
+			AHashMap,
+			AHashSet,
+		};
+
+		fn main() {
+			let _map: AHashMap<String, u32> = AHashMap::new();
+			let _set: AHashSet<String> = AHashSet::new();
+		}
+		"#,
+		&opts(),
+	);
+}
+
 // === Violation cases (with autofix) ===
 
 #[test]
