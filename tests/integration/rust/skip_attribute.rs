@@ -37,6 +37,7 @@ fn all_opts() -> RustCheckOptions {
 		prefer_default_over_bare_new: false,
 		inline_default: true,
 		prefer_ahash: false,
+		too_explicit: true,
 	}
 }
 

@@ -10,11 +10,13 @@ pub mod join_split_impls;
 pub mod loops;
 pub mod no_chrono;
 pub mod no_tokio_spawn;
+pub mod path_rewrite;
 pub mod prefer_ahash;
 pub mod prefer_default_over_bare_new;
 pub mod pub_first;
 pub mod skip;
 pub mod test_fn_prefix;
+pub mod too_explicit;
 pub mod unconventional_new;
 pub mod use_bail;
 pub mod workspace_dep_hoisting;
@@ -97,6 +99,9 @@ pub struct RustCheckOptions {
 	/// Replace `HashMap` with `ahash::AHashMap` (default: false)
 	#[default = false]
 	pub prefer_ahash: bool,
+	/// Rewrite inline fully-qualified std paths to short forms and add imports (default: true)
+	#[default = true]
+	pub too_explicit: bool,
 }
 
 #[derive(Clone, Default, derive_new::new)]
@@ -215,6 +220,9 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 				}
 				if opts.prefer_ahash {
 					all_violations.extend(prefer_ahash::check(&info.path, &info.contents, tree));
+				}
+				if opts.too_explicit {
+					all_violations.extend(too_explicit::check(&info.path, &info.contents, tree));
 				}
 			}
 		}
@@ -554,6 +562,15 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions, try_new_ty
 					}
 				}
 			}
+
+			if first_fix.is_none() && opts.too_explicit {
+				for v in too_explicit::check(&info.path, &info.contents, tree) {
+					if let Some(fix) = v.fix.clone() {
+						first_fix = Some((v, fix));
+						break;
+					}
+				}
+			}
 		}
 
 		// Apply the fix if found
@@ -637,6 +654,9 @@ fn collect_unfixable(info: &FileInfo, opts: &RustCheckOptions, try_new_types: &H
 		}
 		if opts.prefer_ahash {
 			unfixable.extend(prefer_ahash::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
+		}
+		if opts.too_explicit {
+			unfixable.extend(too_explicit::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
 		}
 	}
 

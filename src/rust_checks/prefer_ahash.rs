@@ -18,7 +18,7 @@ use std::path::Path;
 
 use syn::{ItemUse, UseTree, spanned::Spanned, visit::Visit};
 
-use super::{Dependency, Fix, Violation, skip::SkipVisitor};
+use super::{Dependency, Fix, Violation, path_rewrite, skip::SkipVisitor};
 
 const RULE: &str = "prefer-ahash";
 pub const DEPENDENCIES: &[Dependency] = &[Dependency {
@@ -49,7 +49,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let violation_inserts_ahashset = violations.iter().any(|v| v.fix.as_ref().is_some_and(|f| f.replacement.contains("use ahash::AHashSet")));
 
 	// Insert after the first `use` line, so we don't break leading doc comments or `mod` declarations.
-	let after_first_use = first_use_line_start(content);
+	let after_first_use = path_rewrite::first_use_line_start(content);
 
 	if needs_ahashmap_import && !has_ahashmap_import && !violation_inserts_ahashmap {
 		violations.push(Violation {
@@ -83,21 +83,6 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 
 	violations
 }
-
-/// Returns the byte offset of the start of the first `use ` line, or 0 if no such line exists.
-fn first_use_line_start(content: &str) -> usize {
-	let mut pos = 0;
-	for line in content.lines() {
-		if line.starts_with("use ") {
-			return pos;
-		}
-		pos += line.len() + 1;
-	}
-	0
-}
-
-/// Returns true if `name` (e.g. `"AHashMap"`) appears in the content as a bare identifier —
-/// i.e. not prefixed by `ahash::`.
 
 struct AHashVisitor<'a> {
 	path_str: String,
@@ -176,8 +161,8 @@ impl<'a> Visit<'a> for AHashVisitor<'_> {
 fn detect_use_fix(content: &str, node: &ItemUse, std_name: &str, ahash_import: &str) -> Option<Fix> {
 	// Check for `use std::collections::<std_name>`
 	if is_exact_std_collections(std_name, &node.tree) {
-		let start = span_to_byte(content, node.span().start())?;
-		let end = span_to_byte(content, node.span().end())?;
+		let start = path_rewrite::span_to_byte(content, node.span().start())?;
+		let end = path_rewrite::span_to_byte(content, node.span().end())?;
 		// Consume trailing newline
 		let end = if content.as_bytes().get(end) == Some(&b'\n') { end + 1 } else { end };
 		return Some(Fix {
@@ -189,8 +174,8 @@ fn detect_use_fix(content: &str, node: &ItemUse, std_name: &str, ahash_import: &
 
 	// Check for `use std::collections::{..., <std_name>, ...}`
 	if let Some((item_start, item_end, group_len)) = find_name_in_group(content, &node.tree, std_name) {
-		let use_start = span_to_byte(content, node.span().start())?;
-		let use_end = span_to_byte(content, node.span().end())?;
+		let use_start = path_rewrite::span_to_byte(content, node.span().start())?;
+		let use_end = path_rewrite::span_to_byte(content, node.span().end())?;
 		let use_end_with_newline = if content.as_bytes().get(use_end) == Some(&b'\n') { use_end + 1 } else { use_end };
 
 		if group_len == 1 {
@@ -206,7 +191,7 @@ fn detect_use_fix(content: &str, node: &ItemUse, std_name: &str, ahash_import: &
 
 		let item_rel_start = item_start - use_start;
 		let item_rel_end = item_end - use_start;
-		let new_use = remove_from_group(original_use, item_rel_start, item_rel_end);
+		let new_use = path_rewrite::remove_from_group(original_use, item_rel_start, item_rel_end);
 		let new_use = new_use.trim_end().to_string();
 
 		return Some(Fix {
@@ -244,8 +229,8 @@ fn find_name_in_group(content: &str, tree: &UseTree, name: &str) -> Option<(usiz
 						if let UseTree::Name(n) = item
 							&& n.ident == name
 						{
-							let start = span_to_byte(content, n.ident.span().start())?;
-							let end = span_to_byte(content, n.ident.span().end())?;
+							let start = path_rewrite::span_to_byte(content, n.ident.span().start())?;
+							let end = path_rewrite::span_to_byte(content, n.ident.span().end())?;
 							return Some((start, end, group.items.len()));
 						}
 					}
@@ -259,49 +244,15 @@ fn find_name_in_group(content: &str, tree: &UseTree, name: &str) -> Option<(usiz
 	}
 }
 
-/// Remove the item at [rel_start..rel_end] from the source, stripping a surrounding comma+space.
-fn remove_from_group(source: &str, rel_start: usize, rel_end: usize) -> String {
-	// Try to remove `, Name` (trailing comma pattern)
-	if rel_start >= 2 {
-		let before = &source[..rel_start];
-		if before.ends_with(", ") {
-			let mut result = source[..rel_start - 2].to_string();
-			result.push_str(&source[rel_end..]);
-			return result;
-		}
-		if before.ends_with(',') {
-			let mut result = source[..rel_start - 1].to_string();
-			result.push_str(&source[rel_end..]);
-			return result;
-		}
-	}
-	// Try to remove `Name, ` (leading comma pattern)
-	let after = &source[rel_end..];
-	if after.starts_with(", ") {
-		let mut result = source[..rel_start].to_string();
-		result.push_str(&source[rel_end + 2..]);
-		return result;
-	}
-	if after.starts_with(',') {
-		let mut result = source[..rel_start].to_string();
-		result.push_str(&source[rel_end + 1..]);
-		return result;
-	}
-	// Sole item — shouldn't happen if there's a group, but handle gracefully
-	let mut result = source[..rel_start].to_string();
-	result.push_str(&source[rel_end..]);
-	result
-}
-
 /// Detect a fixable `<std_name>` in an expression path (e.g. `HashMap::new()`).
 fn detect_expr_path_fix(content: &str, node: &syn::ExprPath, std_name: &str, ahash_name: &str) -> Option<Fix> {
 	let path = &node.path;
 
-	// `HashMap::...` — first segment is the std name
+	// `HashMap::...` — first segment is the std name (bare name, not a full path)
 	if path.segments.first().is_some_and(|s| s.ident == std_name) {
 		let seg = &path.segments[0];
-		let start = span_to_byte(content, seg.ident.span().start())?;
-		let end = span_to_byte(content, seg.ident.span().end())?;
+		let start = path_rewrite::span_to_byte(content, seg.ident.span().start())?;
+		let end = path_rewrite::span_to_byte(content, seg.ident.span().end())?;
 		return Some(Fix {
 			start_byte: start,
 			end_byte: end,
@@ -310,28 +261,19 @@ fn detect_expr_path_fix(content: &str, node: &syn::ExprPath, std_name: &str, aha
 	}
 
 	// `std::collections::HashMap::...`
-	if path.segments.len() >= 3 && path.segments[0].ident == "std" && path.segments[1].ident == "collections" && path.segments[2].ident == std_name {
-		let first_start = span_to_byte(content, path.segments[0].ident.span().start())?;
-		let last_end = span_to_byte(content, path.segments[2].ident.span().end())?;
-		return Some(Fix {
-			start_byte: first_start,
-			end_byte: last_end,
-			replacement: ahash_name.to_string(),
-		});
-	}
-
-	None
+	let segs = ["std", "collections", std_name];
+	path_rewrite::rewrite_full_expr_path(content, node, &segs, ahash_name)
 }
 
 /// Detect a fixable `<std_name>` type reference (not from ahash).
 fn detect_type_path_fix(content: &str, node: &syn::TypePath, std_name: &str, ahash_name: &str) -> Option<Fix> {
 	let path = &node.path;
 
-	// Simple `HashMap<...>` (single segment)
+	// Simple `HashMap<...>` (single segment — bare name)
 	if path.segments.len() == 1 && path.segments[0].ident == std_name {
 		let seg = &path.segments[0];
-		let start = span_to_byte(content, seg.ident.span().start())?;
-		let end = span_to_byte(content, seg.ident.span().end())?;
+		let start = path_rewrite::span_to_byte(content, seg.ident.span().start())?;
+		let end = path_rewrite::span_to_byte(content, seg.ident.span().end())?;
 		return Some(Fix {
 			start_byte: start,
 			end_byte: end,
@@ -340,36 +282,6 @@ fn detect_type_path_fix(content: &str, node: &syn::TypePath, std_name: &str, aha
 	}
 
 	// `std::collections::HashMap<...>`
-	if path.segments.len() == 3 && path.segments[0].ident == "std" && path.segments[1].ident == "collections" && path.segments[2].ident == std_name {
-		let first_start = span_to_byte(content, path.segments[0].ident.span().start())?;
-		let last_end = span_to_byte(content, path.segments[2].ident.span().end())?;
-		return Some(Fix {
-			start_byte: first_start,
-			end_byte: last_end,
-			replacement: ahash_name.to_string(),
-		});
-	}
-
-	None
-}
-
-fn span_to_byte(content: &str, pos: proc_macro2::LineColumn) -> Option<usize> {
-	let mut current_line = 1;
-	let mut line_start = 0;
-
-	for (i, ch) in content.char_indices() {
-		if current_line == pos.line {
-			return Some(line_start + pos.column);
-		}
-		if ch == '\n' {
-			current_line += 1;
-			line_start = i + 1;
-		}
-	}
-
-	if current_line == pos.line {
-		return Some(line_start + pos.column);
-	}
-
-	None
+	let segs = ["std", "collections", std_name];
+	path_rewrite::rewrite_full_type_path(content, node, &segs, ahash_name)
 }

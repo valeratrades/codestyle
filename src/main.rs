@@ -112,6 +112,10 @@ struct RustCheckOptionsArgs {
 	/// Replace `HashMap` with `ahash::AHashMap` [default: false]
 	#[arg(long)]
 	prefer_ahash: Option<bool>,
+
+	/// Rewrite inline fully-qualified std paths to short forms and add imports [default: true]
+	#[arg(long)]
+	too_explicit: Option<bool>,
 }
 fn main() {
 	v_utils::clientside!();
@@ -158,6 +162,7 @@ impl From<RustCheckOptionsArgs> for RustCheckOptions {
 			prefer_default_over_bare_new,
 			inline_default,
 			prefer_ahash,
+			too_explicit,
 		)
 	}
 }

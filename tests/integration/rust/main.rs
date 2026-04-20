@@ -18,6 +18,7 @@ mod prefer_default_over_bare_new;
 mod pub_first;
 mod skip_attribute;
 mod test_fn_prefix;
+mod too_explicit;
 mod unconventional_new;
 mod use_bail;
 mod utils;
