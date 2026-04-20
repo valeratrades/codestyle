@@ -85,11 +85,10 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 
 	for rewrite in REWRITES {
 		let short_name = rewrite.short_name;
-		let has_import = content.lines().any(|l| l.starts_with("use ") && l.contains(short_name));
-		// Also trigger import when a previous fix introduced a bare name that's now in code
-		// without a corresponding import (e.g. after rewriting `std::sync::Arc` → `Arc`).
-		let needs_import =
-			violations.iter().any(|v| v.fix.as_ref().is_some_and(|f| f.replacement == short_name)) || (!has_import && path_rewrite::bare_name_in_non_use_lines(content, short_name));
+		let has_import = path_rewrite::is_name_imported(file, short_name);
+		// Also trigger import when a previous fix introduced a bare name (e.g. `Arc`) that now
+		// appears in code without a corresponding import.
+		let needs_import = violations.iter().any(|v| v.fix.as_ref().is_some_and(|f| f.replacement == short_name)) || (!has_import && path_rewrite::has_bare_usage(file, short_name));
 
 		if needs_import && !has_import {
 			violations.push(Violation {

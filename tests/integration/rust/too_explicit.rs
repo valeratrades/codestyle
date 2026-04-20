@@ -7,6 +7,39 @@ fn opts() -> codestyle::rust_checks::RustCheckOptions {
 // === Passing cases ===
 
 #[test]
+fn multiline_use_with_existing_import_no_duplicate() {
+	// If PathBuf is already in a multi-line use block, we must NOT add a duplicate import.
+	insta::assert_snapshot!(test_case(
+		r#"
+		use std::{
+			collections::HashMap,
+			path::{Path, PathBuf},
+		};
+
+		fn foo(p: &std::path::Path) -> std::path::PathBuf {
+			std::path::PathBuf::from("x")
+		}
+		"#,
+		&opts(),
+	), @r#"
+	# Assert mode
+	[too-explicit] /main.rs:6: use `Path` instead of `std::path::Path`
+	[too-explicit] /main.rs:6: use `PathBuf` instead of `std::path::PathBuf`
+	[too-explicit] /main.rs:7: use `PathBuf` instead of `std::path::PathBuf`
+
+	# Format mode
+	use std::{
+		collections::HashMap,
+		path::{Path, PathBuf},
+	};
+
+	fn foo(p: &Path) -> PathBuf {
+		PathBuf::from("x")
+	}
+	"#);
+}
+
+#[test]
 fn already_short_arc_passes() {
 	assert_check_passing(
 		r#"

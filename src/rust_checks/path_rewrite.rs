@@ -1,6 +1,6 @@
 //! Shared utilities for rules that detect and rewrite fully-qualified paths.
 
-use syn::{ExprPath, TypePath};
+use syn::{ExprPath, TypePath, UseTree, visit::Visit};
 
 use super::Fix;
 
@@ -95,31 +95,70 @@ pub fn rewrite_full_type_path(content: &str, node: &TypePath, segments: &[&str],
 	})
 }
 
-/// Returns `true` if `name` appears in `content` as a bare identifier (word-boundary matched)
-/// in a non-`use` line.
+/// Returns `true` if `short_name` is already imported at the top level of `file`.
 ///
-/// "Bare" means not prefixed/suffixed by alphanumeric or `_` chars. This avoids false positives
-/// where e.g. `"Path"` would match inside `"PathBuf"`.
-pub fn bare_name_in_non_use_lines(content: &str, name: &str) -> bool {
-	let name_bytes = name.as_bytes();
-	for line in content.lines() {
-		if line.starts_with("use ") {
-			continue;
+/// Handles single-line (`use std::path::PathBuf;`) and multi-line / grouped imports
+/// (`use std::{path::{Path, PathBuf}, ...}`) correctly by walking the syn AST.
+pub fn is_name_imported(file: &syn::File, short_name: &str) -> bool {
+	file.items.iter().any(|item| {
+		if let syn::Item::Use(item_use) = item {
+			use_tree_contains_name(&item_use.tree, short_name)
+		} else {
+			false
 		}
-		let bytes = line.as_bytes();
-		for i in 0..=bytes.len().saturating_sub(name_bytes.len()) {
-			if !bytes[i..].starts_with(name_bytes) {
-				continue;
+	})
+}
+
+fn use_tree_contains_name(tree: &UseTree, name: &str) -> bool {
+	match tree {
+		UseTree::Name(n) => n.ident == name,
+		UseTree::Rename(r) => r.rename == name,
+		UseTree::Path(p) => use_tree_contains_name(&p.tree, name),
+		UseTree::Group(g) => g.items.iter().any(|t| use_tree_contains_name(t, name)),
+		UseTree::Glob(_) => false,
+	}
+}
+
+/// Returns `true` if `short_name` appears as a bare identifier in non-use code in `file`.
+///
+/// "Bare" means used without a qualifying path prefix — e.g. `Arc<T>` or `Arc::new(…)`.
+/// This is needed to detect cases where a previous fix iteration introduced a bare name
+/// that now needs an import.
+pub fn has_bare_usage(file: &syn::File, short_name: &str) -> bool {
+	struct BareNameVisitor<'a> {
+		name: &'a str,
+		found: bool,
+	}
+
+	impl<'ast> Visit<'ast> for BareNameVisitor<'_> {
+		fn visit_type_path(&mut self, node: &'ast syn::TypePath) {
+			if self.found {
+				return;
 			}
-			let before_ok = i == 0 || !bytes[i - 1].is_ascii_alphanumeric() && bytes[i - 1] != b'_';
-			let after = i + name_bytes.len();
-			let after_ok = after >= bytes.len() || !bytes[after].is_ascii_alphanumeric() && bytes[after] != b'_';
-			if before_ok && after_ok {
-				return true;
+			if node.path.segments.len() == 1 && node.path.segments[0].ident == self.name {
+				self.found = true;
+				return;
 			}
+			syn::visit::visit_type_path(self, node);
+		}
+
+		fn visit_expr_path(&mut self, node: &'ast syn::ExprPath) {
+			if self.found {
+				return;
+			}
+			// Matches both `Arc` (standalone) and `Arc::new(…)` (method prefix).
+			// Full paths like `std::sync::Arc::new` start with "std", not the short name.
+			if node.path.segments.first().is_some_and(|s| s.ident == self.name) {
+				self.found = true;
+				return;
+			}
+			syn::visit::visit_expr_path(self, node);
 		}
 	}
-	false
+
+	let mut visitor = BareNameVisitor { name: short_name, found: false };
+	syn::visit::visit_file(&mut visitor, file);
+	visitor.found
 }
 
 /// If `node`'s leading segments match `segments`, returns a [`Fix`] replacing those segments
