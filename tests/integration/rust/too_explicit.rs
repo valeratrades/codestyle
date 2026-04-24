@@ -194,6 +194,38 @@ fn nested_arc_in_vec() {
 	");
 }
 
+// Arc imported inside a function body must not trigger a spurious top-level import.
+// Mirrors robot_master/robot_master_game/src/result.rs `format_elo` pattern.
+#[test]
+fn fn_body_import_no_spurious_top_level() {
+	assert_check_passing(
+		r#"
+		fn format_stuff() -> String {
+			use std::sync::Arc;
+			let db: Arc<i32> = Arc::new(42);
+			format!("{}", db)
+		}
+		"#,
+		&opts(),
+	);
+}
+
+// Arc imported inside an inline mod must not trigger a spurious top-level import.
+#[test]
+fn inline_mod_import_no_spurious_top_level() {
+	assert_check_passing(
+		r#"
+		mod foo {
+			use std::sync::Arc;
+			pub fn bar() -> Arc<i32> {
+				Arc::new(42)
+			}
+		}
+		"#,
+		&opts(),
+	);
+}
+
 #[test]
 fn multiple_types_in_one_file() {
 	insta::assert_snapshot!(test_case(

@@ -1,7 +1,7 @@
 use std::{
 	collections::{HashMap, HashSet},
 	fs,
-	path::Path,
+	path::{Path, PathBuf},
 };
 
 use super::Violation;
@@ -154,7 +154,7 @@ fn extract_dep_name(line: &str) -> Option<String> {
 	Some(name.to_string())
 }
 
-fn resolve_workspace_members(root: &Path, content: &str) -> Vec<std::path::PathBuf> {
+fn resolve_workspace_members(root: &Path, content: &str) -> Vec<PathBuf> {
 	let mut in_workspace = false;
 	let mut patterns = Vec::default();
 

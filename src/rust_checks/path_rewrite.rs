@@ -95,18 +95,28 @@ pub fn rewrite_full_type_path(content: &str, node: &TypePath, segments: &[&str],
 	})
 }
 
-/// Returns `true` if `short_name` is already imported at the top level of `file`.
+/// Returns `true` if `short_name` is imported anywhere in `file` (top-level or nested in mods /
+/// function bodies / cfg blocks, etc.).
 ///
 /// Handles single-line (`use std::path::PathBuf;`) and multi-line / grouped imports
-/// (`use std::{path::{Path, PathBuf}, ...}`) correctly by walking the syn AST.
+/// (`use std::{path::{Path, PathBuf}, ...}`) correctly by walking the full syn AST.
 pub fn is_name_imported(file: &syn::File, short_name: &str) -> bool {
-	file.items.iter().any(|item| {
-		if let syn::Item::Use(item_use) = item {
-			use_tree_contains_name(&item_use.tree, short_name)
-		} else {
-			false
+	struct ImportVisitor<'a> {
+		name: &'a str,
+		found: bool,
+	}
+
+	impl<'ast> Visit<'ast> for ImportVisitor<'_> {
+		fn visit_item_use(&mut self, node: &'ast syn::ItemUse) {
+			if !self.found && use_tree_contains_name(&node.tree, self.name) {
+				self.found = true;
+			}
 		}
-	})
+	}
+
+	let mut visitor = ImportVisitor { name: short_name, found: false };
+	syn::visit::visit_file(&mut visitor, file);
+	visitor.found
 }
 
 fn use_tree_contains_name(tree: &UseTree, name: &str) -> bool {
