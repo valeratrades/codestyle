@@ -210,6 +210,34 @@ fn fn_body_import_no_spurious_top_level() {
 	);
 }
 
+// std::sync::Arc inside an inline mod: import must be added inside the mod, not at file top.
+#[test]
+fn inline_mod_rewrite_inserts_import_in_mod() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		mod foo {
+			fn bar() -> std::sync::Arc<i32> {
+				std::sync::Arc::new(42)
+			}
+		}
+		"#,
+		&opts(),
+	), @r#"
+	# Assert mode
+	[too-explicit] /main.rs:2: use `Arc` instead of `std::sync::Arc`
+	[too-explicit] /main.rs:3: use `Arc` instead of `std::sync::Arc`
+	[too-explicit] /main.rs:1: missing `use std::sync::Arc;` import
+
+	# Format mode
+	mod foo {
+		use std::sync::Arc;
+		fn bar() -> Arc<i32> {
+			Arc::new(42)
+		}
+	}
+	"#);
+}
+
 // Arc imported inside an inline mod must not trigger a spurious top-level import.
 #[test]
 fn inline_mod_import_no_spurious_top_level() {

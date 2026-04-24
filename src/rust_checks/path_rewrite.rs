@@ -1,6 +1,6 @@
 //! Shared utilities for rules that detect and rewrite fully-qualified paths.
 
-use syn::{ExprPath, TypePath, UseTree, visit::Visit};
+use syn::{ExprPath, TypePath, UseTree, spanned::Spanned, visit::Visit};
 
 use super::Fix;
 
@@ -36,6 +36,93 @@ pub fn first_use_line_start(content: &str) -> usize {
 		pos += line.len() + 1;
 	}
 	0
+}
+
+/// Byte offset and leading-whitespace prefix for inserting a `use` line into a scope.
+#[derive(Clone)]
+pub struct ScopeInsert {
+	pub byte: usize,
+	pub indent: String,
+}
+
+/// Computes where to insert a new `use` line inside a scope defined by `items`.
+///
+/// Walks to the first `use` item (or first item if none), finds the start of its line, and
+/// captures any leading whitespace as the indentation prefix for the new import.
+pub fn scope_insert_for_items(content: &str, items: &[syn::Item]) -> Option<ScopeInsert> {
+	let target = items.iter().find(|i| matches!(i, syn::Item::Use(_))).or_else(|| items.first())?;
+	let target_byte = span_to_byte(content, target.span().start())?;
+	let line_start = content[..target_byte].rfind('\n').map(|i| i + 1).unwrap_or(0);
+	let indent = content[line_start..target_byte].to_string();
+	Some(ScopeInsert { byte: line_start, indent })
+}
+
+/// Returns `true` if `short_name` is imported within the given scope items.
+///
+/// Recurses into function bodies but NOT into child `mod` blocks (those are separate scopes with
+/// their own import namespaces).
+pub fn is_name_imported_in_scope(items: &[syn::Item], short_name: &str) -> bool {
+	struct V<'a> {
+		name: &'a str,
+		found: bool,
+	}
+	impl<'ast> Visit<'ast> for V<'_> {
+		fn visit_item_mod(&mut self, _: &'ast syn::ItemMod) {}
+		fn visit_item_use(&mut self, node: &'ast syn::ItemUse) {
+			if !self.found && use_tree_contains_name(&node.tree, self.name) {
+				self.found = true;
+			}
+		}
+	}
+	let mut v = V { name: short_name, found: false };
+	for item in items {
+		if v.found {
+			break;
+		}
+		v.visit_item(item);
+	}
+	v.found
+}
+
+/// Returns `true` if `short_name` appears as a bare identifier within the given scope items.
+///
+/// Recurses into function bodies but NOT into child `mod` blocks.
+pub fn has_bare_usage_in_scope(items: &[syn::Item], short_name: &str) -> bool {
+	struct V<'a> {
+		name: &'a str,
+		found: bool,
+	}
+	impl<'ast> Visit<'ast> for V<'_> {
+		fn visit_item_mod(&mut self, _: &'ast syn::ItemMod) {}
+		fn visit_type_path(&mut self, node: &'ast syn::TypePath) {
+			if self.found {
+				return;
+			}
+			if node.path.segments.len() == 1 && node.path.segments[0].ident == self.name {
+				self.found = true;
+				return;
+			}
+			syn::visit::visit_type_path(self, node);
+		}
+		fn visit_expr_path(&mut self, node: &'ast syn::ExprPath) {
+			if self.found {
+				return;
+			}
+			if node.path.segments.first().is_some_and(|s| s.ident == self.name) {
+				self.found = true;
+				return;
+			}
+			syn::visit::visit_expr_path(self, node);
+		}
+	}
+	let mut v = V { name: short_name, found: false };
+	for item in items {
+		if v.found {
+			break;
+		}
+		v.visit_item(item);
+	}
+	v.found
 }
 
 /// Remove the item at `[rel_start..rel_end]` from the source, stripping a surrounding comma+space.
