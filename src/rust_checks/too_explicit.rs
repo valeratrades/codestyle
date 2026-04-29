@@ -91,9 +91,11 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 			let has_import = path_rewrite::is_name_imported_in_scope(scope.items, short_name);
 			// Needs import if: a violation in this scope introduced a bare name, OR a previous
 			// fix iteration left a bare name without an import in this scope.
-			let needs_import = violation_scope_bytes.iter().zip(&violations).any(|(&byte, v)| {
-				byte == scope.insert_byte && v.fix.as_ref().is_some_and(|f| f.replacement == short_name)
-			}) || (!has_import && path_rewrite::has_bare_usage_in_scope(scope.items, short_name));
+			let needs_import = violation_scope_bytes
+				.iter()
+				.zip(&violations)
+				.any(|(&byte, v)| byte == scope.insert_byte && v.fix.as_ref().is_some_and(|f| f.replacement == short_name))
+				|| (!has_import && path_rewrite::has_bare_usage_in_scope(scope.items, short_name));
 
 			if needs_import && !has_import {
 				violations.push(Violation {
@@ -122,20 +124,27 @@ struct ScopeInfo<'a> {
 }
 
 fn enumerate_scopes<'a>(content: &str, file: &'a syn::File, file_scope_byte: usize) -> Vec<ScopeInfo<'a>> {
-	let mut scopes = vec![ScopeInfo { insert_byte: file_scope_byte, indent: String::new(), items: &file.items }];
+	let mut scopes = vec![ScopeInfo {
+		insert_byte: file_scope_byte,
+		indent: String::new(),
+		items: &file.items,
+	}];
 	collect_inline_mod_scopes(content, &file.items, &mut scopes);
 	scopes
 }
 
 fn collect_inline_mod_scopes<'a>(content: &str, items: &'a [syn::Item], out: &mut Vec<ScopeInfo<'a>>) {
 	for item in items {
-		if let syn::Item::Mod(m) = item {
-			if let Some((_, mod_items)) = &m.content {
-				if let Some(s) = path_rewrite::scope_insert_for_items(content, mod_items) {
-					out.push(ScopeInfo { insert_byte: s.byte, indent: s.indent, items: mod_items });
-					collect_inline_mod_scopes(content, mod_items, out);
-				}
-			}
+		if let syn::Item::Mod(m) = item
+			&& let Some((_, mod_items)) = &m.content
+			&& let Some(s) = path_rewrite::scope_insert_for_items(content, mod_items)
+		{
+			out.push(ScopeInfo {
+				insert_byte: s.byte,
+				indent: s.indent,
+				items: mod_items,
+			});
+			collect_inline_mod_scopes(content, mod_items, out);
 		}
 	}
 }
@@ -166,17 +175,29 @@ impl<'a> TooExplicitVisitor<'a> {
 	fn current_scope_byte(&self) -> usize {
 		self.scope_stack.last().copied().unwrap_or(self.file_scope_byte)
 	}
+
+	fn push_rewrite_violation(&mut self, fix: Fix, line: usize, column: usize, rewrite: &Rewrite) {
+		self.violation_scope_bytes.push(self.current_scope_byte());
+		self.violations.push(Violation {
+			rule: RULE,
+			file: self.path_str.clone(),
+			line,
+			column,
+			message: format!("use `{}` instead of `{}`", rewrite.short_name, rewrite.segments.join("::")),
+			fix: Some(fix),
+		});
+	}
 }
 
 impl<'a> Visit<'a> for TooExplicitVisitor<'a> {
 	fn visit_item_mod(&mut self, node: &'a syn::ItemMod) {
-		if let Some((_, items)) = &node.content {
-			if let Some(s) = path_rewrite::scope_insert_for_items(self.content, items) {
-				self.scope_stack.push(s.byte);
-				syn::visit::visit_item_mod(self, node);
-				self.scope_stack.pop();
-				return;
-			}
+		if let Some((_, items)) = &node.content
+			&& let Some(s) = path_rewrite::scope_insert_for_items(self.content, items)
+		{
+			self.scope_stack.push(s.byte);
+			syn::visit::visit_item_mod(self, node);
+			self.scope_stack.pop();
+			return;
 		}
 		syn::visit::visit_item_mod(self, node);
 	}
@@ -184,15 +205,7 @@ impl<'a> Visit<'a> for TooExplicitVisitor<'a> {
 	fn visit_type_path(&mut self, node: &'a syn::TypePath) {
 		for rewrite in REWRITES {
 			if let Some(fix) = path_rewrite::rewrite_full_type_path(self.content, node, rewrite.segments, rewrite.short_name) {
-				self.violation_scope_bytes.push(self.current_scope_byte());
-				self.violations.push(Violation {
-					rule: RULE,
-					file: self.path_str.clone(),
-					line: node.span().start().line,
-					column: node.span().start().column,
-					message: format!("use `{}` instead of `{}`", rewrite.short_name, rewrite.segments.join("::")),
-					fix: Some(fix),
-				});
+				self.push_rewrite_violation(fix, node.span().start().line, node.span().start().column, rewrite);
 				return;
 			}
 		}
@@ -202,15 +215,7 @@ impl<'a> Visit<'a> for TooExplicitVisitor<'a> {
 	fn visit_expr_path(&mut self, node: &'a syn::ExprPath) {
 		for rewrite in REWRITES {
 			if let Some(fix) = path_rewrite::rewrite_full_expr_path(self.content, node, rewrite.segments, rewrite.short_name) {
-				self.violation_scope_bytes.push(self.current_scope_byte());
-				self.violations.push(Violation {
-					rule: RULE,
-					file: self.path_str.clone(),
-					line: node.span().start().line,
-					column: node.span().start().column,
-					message: format!("use `{}` instead of `{}`", rewrite.short_name, rewrite.segments.join("::")),
-					fix: Some(fix),
-				});
+				self.push_rewrite_violation(fix, node.span().start().line, node.span().start().column, rewrite);
 				return;
 			}
 		}

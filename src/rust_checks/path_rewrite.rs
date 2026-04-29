@@ -68,6 +68,7 @@ pub fn is_name_imported_in_scope(items: &[syn::Item], short_name: &str) -> bool 
 	}
 	impl<'ast> Visit<'ast> for V<'_> {
 		fn visit_item_mod(&mut self, _: &'ast syn::ItemMod) {}
+
 		fn visit_item_use(&mut self, node: &'ast syn::ItemUse) {
 			if !self.found && use_tree_contains_name(&node.tree, self.name) {
 				self.found = true;
@@ -94,6 +95,7 @@ pub fn has_bare_usage_in_scope(items: &[syn::Item], short_name: &str) -> bool {
 	}
 	impl<'ast> Visit<'ast> for V<'_> {
 		fn visit_item_mod(&mut self, _: &'ast syn::ItemMod) {}
+
 		fn visit_type_path(&mut self, node: &'ast syn::TypePath) {
 			if self.found {
 				return;
@@ -104,6 +106,7 @@ pub fn has_bare_usage_in_scope(items: &[syn::Item], short_name: &str) -> bool {
 			}
 			syn::visit::visit_type_path(self, node);
 		}
+
 		fn visit_expr_path(&mut self, node: &'ast syn::ExprPath) {
 			if self.found {
 				return;
@@ -159,13 +162,12 @@ pub fn remove_from_group(source: &str, rel_start: usize, rel_end: usize) -> Stri
 	result
 }
 
-/// If `node` exactly matches the given `segments`, returns a [`Fix`] replacing the full path
-/// with `short_name`.
-///
-/// Example: `segments = ["std", "sync", "Arc"]`, `short_name = "Arc"` matches `std::sync::Arc<T>`.
-pub fn rewrite_full_type_path(content: &str, node: &TypePath, segments: &[&str], short_name: &str) -> Option<Fix> {
-	let path = &node.path;
-	if path.segments.len() != segments.len() {
+fn rewrite_path_segments(content: &str, path: &syn::Path, segments: &[&str], short_name: &str, exact: bool) -> Option<Fix> {
+	if exact {
+		if path.segments.len() != segments.len() {
+			return None;
+		}
+	} else if path.segments.len() < segments.len() {
 		return None;
 	}
 	for (seg, expected) in path.segments.iter().zip(segments) {
@@ -180,6 +182,14 @@ pub fn rewrite_full_type_path(content: &str, node: &TypePath, segments: &[&str],
 		end_byte: last_end,
 		replacement: short_name.to_string(),
 	})
+}
+
+/// If `node` exactly matches the given `segments`, returns a [`Fix`] replacing the full path
+/// with `short_name`.
+///
+/// Example: `segments = ["std", "sync", "Arc"]`, `short_name = "Arc"` matches `std::sync::Arc<T>`.
+pub fn rewrite_full_type_path(content: &str, node: &TypePath, segments: &[&str], short_name: &str) -> Option<Fix> {
+	rewrite_path_segments(content, &node.path, segments, short_name, true)
 }
 
 /// Returns `true` if `short_name` is imported anywhere in `file` (top-level or nested in mods /
@@ -263,20 +273,5 @@ pub fn has_bare_usage(file: &syn::File, short_name: &str) -> bool {
 ///
 /// Example: `segments = ["std", "sync", "Arc"]` matches `std::sync::Arc::clone(...)`.
 pub fn rewrite_full_expr_path(content: &str, node: &ExprPath, segments: &[&str], short_name: &str) -> Option<Fix> {
-	let path = &node.path;
-	if path.segments.len() < segments.len() {
-		return None;
-	}
-	for (seg, expected) in path.segments.iter().zip(segments) {
-		if seg.ident != *expected {
-			return None;
-		}
-	}
-	let first_start = span_to_byte(content, path.segments[0].ident.span().start())?;
-	let last_end = span_to_byte(content, path.segments[segments.len() - 1].ident.span().end())?;
-	Some(Fix {
-		start_byte: first_start,
-		end_byte: last_end,
-		replacement: short_name.to_string(),
-	})
+	rewrite_path_segments(content, &node.path, segments, short_name, false)
 }

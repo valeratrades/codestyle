@@ -97,6 +97,17 @@ impl<'a> AHashVisitor<'a> {
 			violations: Vec::default(),
 		}
 	}
+
+	fn push_fix_violation(&mut self, fix: Fix, line: usize, column: usize, std_name: &str, ahash_name: &str) {
+		self.violations.push(Violation {
+			rule: RULE,
+			file: self.path_str.clone(),
+			line,
+			column,
+			message: format!("use `{ahash_name}` instead of `{std_name}`"),
+			fix: Some(fix),
+		});
+	}
 }
 
 impl<'a> Visit<'a> for AHashVisitor<'_> {
@@ -124,14 +135,7 @@ impl<'a> Visit<'a> for AHashVisitor<'_> {
 	fn visit_type_path(&mut self, node: &'a syn::TypePath) {
 		for (std_name, ahash_name) in [("HashMap", "AHashMap"), ("HashSet", "AHashSet")] {
 			if let Some(fix) = detect_type_path_fix(self.content, node, std_name, ahash_name) {
-				self.violations.push(Violation {
-					rule: RULE,
-					file: self.path_str.clone(),
-					line: node.span().start().line,
-					column: node.span().start().column,
-					message: format!("use `{ahash_name}` instead of `{std_name}`"),
-					fix: Some(fix),
-				});
+				self.push_fix_violation(fix, node.span().start().line, node.span().start().column, std_name, ahash_name);
 				return;
 			}
 		}
@@ -141,14 +145,7 @@ impl<'a> Visit<'a> for AHashVisitor<'_> {
 	fn visit_expr_path(&mut self, node: &'a syn::ExprPath) {
 		for (std_name, ahash_name) in [("HashMap", "AHashMap"), ("HashSet", "AHashSet")] {
 			if let Some(fix) = detect_expr_path_fix(self.content, node, std_name, ahash_name) {
-				self.violations.push(Violation {
-					rule: RULE,
-					file: self.path_str.clone(),
-					line: node.span().start().line,
-					column: node.span().start().column,
-					message: format!("use `{ahash_name}` instead of `{std_name}`"),
-					fix: Some(fix),
-				});
+				self.push_fix_violation(fix, node.span().start().line, node.span().start().column, std_name, ahash_name);
 				return;
 			}
 		}

@@ -311,12 +311,12 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 			let (file_fixed, file_unfixable) = format_file_iteratively(file_path, opts, &try_new_types, &nontrivial_default_types);
 			if file_fixed > 0 {
 				modified_files.insert(file_path.clone());
-				if opts.insta_inline_snapshot {
-					if let Some(parent) = file_path.parent() {
-						let snapshots_dir = parent.join("snapshots");
-						if snapshots_dir.is_dir() {
-							let _ = fs::remove_dir_all(&snapshots_dir);
-						}
+				if opts.insta_inline_snapshot
+					&& let Some(parent) = file_path.parent()
+				{
+					let snapshots_dir = parent.join("snapshots");
+					if snapshots_dir.is_dir() {
+						let _ = fs::remove_dir_all(&snapshots_dir);
 					}
 				}
 			}
@@ -336,16 +336,14 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 	if opts.inline_default && !modified_files.is_empty() {
 		let mut visited_roots: HashSet<PathBuf> = HashSet::default();
 		for file_path in &modified_files {
-			if let Some(root_file) = find_crate_lib_or_main(file_path) {
-				if visited_roots.insert(root_file.clone()) {
-					if let Ok(content) = fs::read_to_string(&root_file) {
-						if !content.contains("default_field_values") {
-							let injected = format!("#![feature(default_field_values)]\n{content}");
-							if fs::write(&root_file, injected).is_ok() {
-								fixed_count += 1;
-							}
-						}
-					}
+			if let Some(root_file) = find_crate_lib_or_main(file_path)
+				&& visited_roots.insert(root_file.clone())
+				&& let Ok(content) = fs::read_to_string(&root_file)
+				&& !content.contains("default_field_values")
+			{
+				let injected = format!("#![feature(default_field_values)]\n{content}");
+				if fs::write(&root_file, injected).is_ok() {
+					fixed_count += 1;
 				}
 			}
 		}
