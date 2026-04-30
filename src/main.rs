@@ -8,6 +8,10 @@ use rust_checks::RustCheckOptions;
 #[derive(Parser)]
 #[command(author, version = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ")"), about, long_about = None)]
 struct Cli {
+	/// Paths to exclude from all checks, relative to cwd (repeatable, e.g. --exclude libs/nautilus_trader)
+	#[arg(long)]
+	exclude: Vec<PathBuf>,
+
 	#[command(subcommand)]
 	command: Commands,
 }
@@ -125,8 +129,8 @@ fn main() {
 		Commands::Rust { mode, options } => {
 			let opts: RustCheckOptions = options.into();
 			match mode {
-				RustMode::Assert { target_dir } => rust_checks::run_assert(&target_dir, &opts),
-				RustMode::Format { target_dir } => rust_checks::run_format(&target_dir, &opts),
+				RustMode::Assert { target_dir } => rust_checks::run_assert(&target_dir, &opts, &cli.exclude),
+				RustMode::Format { target_dir } => rust_checks::run_format(&target_dir, &opts, &cli.exclude),
 			}
 		}
 	};

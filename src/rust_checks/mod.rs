@@ -129,7 +129,7 @@ pub struct Fix {
 	pub replacement: String,
 }
 
-pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
+pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions, exclude: &[PathBuf]) -> i32 {
 	if !target_dir.exists() {
 		eprintln!("Target directory does not exist: {target_dir:?}");
 		return 1;
@@ -156,7 +156,7 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 	}
 
 	for src_dir in src_dirs {
-		let file_infos = collect_rust_files(&src_dir);
+		let file_infos = collect_rust_files(&src_dir, exclude);
 		let try_new_types = if opts.unconventional_new {
 			unconventional_new::collect_try_new_types(&file_infos)
 		} else {
@@ -241,7 +241,7 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 	}
 }
 
-pub fn run_format(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
+pub fn run_format(target_dir: &Path, opts: &RustCheckOptions, exclude: &[PathBuf]) -> i32 {
 	if !target_dir.exists() {
 		eprintln!("Target directory does not exist: {target_dir:?}");
 		return 1;
@@ -283,7 +283,7 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 	// unconventional_new the try_new callsite rename is cross-file: after renaming
 	// a `fn new` definition we must re-collect the type set and fix callers in
 	// other files. We therefore loop project-wide until no more fixes land.
-	let all_file_paths: Vec<PathBuf> = src_dirs.iter().flat_map(|d| collect_rust_files(d)).map(|f| f.path).collect();
+	let all_file_paths: Vec<PathBuf> = src_dirs.iter().flat_map(|d| collect_rust_files(d, exclude)).map(|f| f.path).collect();
 
 	loop {
 		// Re-collect cross-file type sets from current on-disk state each round.
@@ -370,13 +370,22 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions) -> i32 {
 	}
 }
 
-pub fn collect_rust_files(target_dir: &Path) -> Vec<FileInfo> {
+pub fn collect_rust_files(target_dir: &Path, exclude: &[PathBuf]) -> Vec<FileInfo> {
 	let mut file_infos = Vec::default();
+
+	let cwd = std::env::current_dir().expect("failed to get cwd");
+	let exclude_abs: Vec<PathBuf> = exclude.iter().map(|p| if p.is_absolute() { p.clone() } else { cwd.join(p) }).collect();
 
 	let walker = WalkDir::new(target_dir).into_iter().filter_entry(|e| {
 		let name = e.file_name().to_string_lossy();
 		if name.starts_with('.') || name == "target" || name == "libs" {
 			return false;
+		}
+		if !exclude_abs.is_empty() {
+			let entry_abs = if e.path().is_absolute() { e.path().to_path_buf() } else { cwd.join(e.path()) };
+			if exclude_abs.iter().any(|ex| entry_abs.starts_with(ex)) {
+				return false;
+			}
 		}
 		// skip git submodule roots (directory containing a .git entry that isn't the repo root)
 		e.depth() == 0 || !e.path().join(".git").exists()
