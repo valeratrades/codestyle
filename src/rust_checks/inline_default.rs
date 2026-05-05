@@ -62,7 +62,7 @@ fn has_incompatible_derive(struct_item: &ItemStruct) -> bool {
 	false
 }
 
-use super::{Fix, Violation, skip::has_skip_marker_for_rule};
+use super::{Fix, Violation, path_rewrite::span_to_byte, skip::has_skip_marker_for_rule};
 
 const RULE: &str = "inline-default";
 
@@ -305,25 +305,4 @@ fn rewrite_struct(content: &str, struct_item: &ItemStruct, struct_start: usize, 
 /// Advance past the newline immediately after `pos`.
 fn consume_trailing_newline(content: &str, pos: usize) -> usize {
 	if content.as_bytes().get(pos) == Some(&b'\n') { pos + 1 } else { pos }
-}
-
-fn span_to_byte(content: &str, pos: proc_macro2::LineColumn) -> Option<usize> {
-	let mut current_line = 1;
-	let mut line_start = 0;
-
-	for (i, ch) in content.char_indices() {
-		if current_line == pos.line {
-			return Some(line_start + pos.column);
-		}
-		if ch == '\n' {
-			current_line += 1;
-			line_start = i + 1;
-		}
-	}
-
-	if current_line == pos.line {
-		return Some(line_start + pos.column);
-	}
-
-	None
 }

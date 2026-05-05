@@ -5,22 +5,38 @@ use syn::{ExprPath, TypePath, UseTree, spanned::Spanned, visit::Visit};
 use super::Fix;
 
 /// Converts a `LineColumn` position to a byte offset in `content`.
+///
+/// `proc_macro2::LineColumn::column` counts Unicode characters from the start of
+/// the line, not bytes — so we walk char-by-char and accumulate byte widths.
 pub fn span_to_byte(content: &str, pos: proc_macro2::LineColumn) -> Option<usize> {
 	let mut current_line = 1;
 	let mut line_start = 0;
 
 	for (i, ch) in content.char_indices() {
 		if current_line == pos.line {
-			return Some(line_start + pos.column);
+			let mut col_chars = 0;
+			for (j, c) in content[i..].char_indices() {
+				if col_chars == pos.column {
+					return Some(i + j);
+				}
+				if c == '\n' {
+					return None;
+				}
+				col_chars += 1;
+			}
+			if col_chars == pos.column {
+				return Some(content.len());
+			}
+			return None;
 		}
 		if ch == '\n' {
 			current_line += 1;
-			line_start = i + 1;
+			line_start = i + ch.len_utf8();
 		}
 	}
 
-	if current_line == pos.line {
-		return Some(line_start + pos.column);
+	if current_line == pos.line && pos.column == 0 {
+		return Some(line_start);
 	}
 
 	None

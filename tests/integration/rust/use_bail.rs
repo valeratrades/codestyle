@@ -165,6 +165,31 @@ fn return_err_with_format_args() {
 }
 
 #[test]
+fn return_err_with_multibyte_chars_in_message() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		use eyre::eyre;
+
+		fn test() -> eyre::Result<()> {
+			return Err(eyre!("source dir not found at '{}' — run `apply translate` first", source_dir.display()));
+		}
+		"#,
+		&opts(),
+	), @r#"
+	# Assert mode
+	[use-bail] /main.rs:4: use `bail!(...)` instead of `return Err(eyre!(...))`
+
+	# Format mode
+	use eyre::eyre;
+	use eyre::bail;
+
+	fn test() -> eyre::Result<()> {
+		bail!("source dir not found at '{}' — run `apply translate` first" , source_dir . display ());
+	}
+	"#);
+}
+
+#[test]
 fn bail_import_not_added_when_present() {
 	insta::assert_snapshot!(test_case(
 		r#"

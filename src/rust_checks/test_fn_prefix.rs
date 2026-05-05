@@ -7,7 +7,7 @@ use std::path::Path;
 
 use syn::{Attribute, ItemFn, visit::Visit};
 
-use super::{Fix, Violation, skip::SkipVisitor};
+use super::{Fix, Violation, path_rewrite::span_to_byte, skip::SkipVisitor};
 
 const RULE: &str = "test-fn-prefix";
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
@@ -96,25 +96,4 @@ fn is_test_attr(attr: &Attribute) -> bool {
 	}
 
 	false
-}
-
-fn span_to_byte(content: &str, pos: proc_macro2::LineColumn) -> Option<usize> {
-	let mut current_line = 1;
-	let mut line_start = 0;
-
-	for (i, ch) in content.char_indices() {
-		if current_line == pos.line {
-			return Some(line_start + pos.column);
-		}
-		if ch == '\n' {
-			current_line += 1;
-			line_start = i + 1;
-		}
-	}
-
-	if current_line == pos.line {
-		return Some(line_start + pos.column);
-	}
-
-	None
 }

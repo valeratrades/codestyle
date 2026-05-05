@@ -439,6 +439,6 @@ fn format_deletes_snapshots_dir_when_format_applied() {
 	let temp = fixture.write_to_tempdir();
 	let snapshots_dir = temp.root.join("tests/snapshots");
 	assert!(snapshots_dir.exists(), "snapshots dir should exist before format");
-	codestyle::rust_checks::run_format(&temp.root, &opts());
+	codestyle::rust_checks::run_format(&temp.root, &opts(), &[]);
 	assert!(!snapshots_dir.exists(), "snapshots dir should be deleted after format");
 }

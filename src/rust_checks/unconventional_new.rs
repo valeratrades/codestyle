@@ -9,7 +9,7 @@ use std::{collections::HashSet, path::Path};
 
 use syn::{Expr, ExprCall, ExprPath, ImplItem, Item, PathSegment, ReturnType, Type, visit::Visit};
 
-use super::{FileInfo, Fix, Violation, skip::SkipVisitor};
+use super::{FileInfo, Fix, Violation, path_rewrite::span_to_byte, skip::SkipVisitor};
 
 const RULE: &str = "unconventional-new";
 
@@ -152,25 +152,4 @@ fn returns_result(output: &ReturnType) -> bool {
 		return false;
 	};
 	type_path.path.segments.last().is_some_and(|seg: &PathSegment| seg.ident == "Result")
-}
-
-fn span_to_byte(content: &str, pos: proc_macro2::LineColumn) -> Option<usize> {
-	let mut current_line = 1;
-	let mut line_start = 0;
-
-	for (i, ch) in content.char_indices() {
-		if current_line == pos.line {
-			return Some(line_start + pos.column);
-		}
-		if ch == '\n' {
-			current_line += 1;
-			line_start = i + 1;
-		}
-	}
-
-	if current_line == pos.line {
-		return Some(line_start + pos.column);
-	}
-
-	None
 }

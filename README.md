@@ -7,12 +7,22 @@
 [<img alt="ci errors" src="https://img.shields.io/github/actions/workflow/status/valeratrades/codestyle/errors.yml?branch=master&style=for-the-badge&style=flat-square&label=errors&labelColor=420d09" height="20">](https://github.com/valeratrades/codestyle/actions?query=branch%3Amaster) <!--NB: Won't find it if repo is private-->
 [<img alt="ci warnings" src="https://img.shields.io/github/actions/workflow/status/valeratrades/codestyle/warnings.yml?branch=master&style=for-the-badge&style=flat-square&label=warnings&labelColor=d16002" height="20">](https://github.com/valeratrades/codestyle/actions?query=branch%3Amaster) <!--NB: Won't find it if repo is private-->
 
-A code style checker and formatter for Rust that enforces opinionated conventions beyond what rustfmt and clippy provide.
+An opinionated style checker and auto-formatter for Rust, layered on top of `rustfmt` and `clippy`.
+
+It enforces conventions those tools don't cover (loop comments, impl block placement, format-string variable embedding, banned crates, manual `IGNORED_ERROR` annotations instead of silently masking with `unwrap_or`, etc.) and can either assert violations (CI) or auto-fix them in place (`format`).
 <!-- markdownlint-disable -->
 <details>
 <summary>
 <h2>Installation</h2>
 </summary>
+
+#### Prebuilt binary (linux-x86_64)
+
+Grab the latest release from [GitHub releases](https://github.com/valeratrades/codestyle/releases), or via [`cargo-binstall`](https://github.com/cargo-bins/cargo-binstall):
+
+```sh
+cargo binstall codestyle
+```
 
 #### Cargo
 
@@ -35,44 +45,67 @@ cargo install --path .
 #### Basic usage
 
 ```sh
-# Check for violations
-codestyle rust assert ./my-project
+# Check for violations (exit 1 on failure)
+codestyle rust assert .
 
-# Auto-fix violations
-codestyle rust format ./my-project
+# Auto-fix violations in place
+codestyle rust format .
 ```
 
-#### Check options
+#### Toggling checks
 
-Each check can be enabled or disabled with `--<check>=true|false`:
+Each check has a default and can be flipped with `--<check>=true|false`. Pass flags before the subcommand:
 
 ```sh
 # Enable instrument check (off by default)
-codestyle rust --instrument=true assert ./my-project
+codestyle rust --instrument=true assert .
 
 # Disable specific checks
-codestyle rust --loops=false --embed-simple-vars=false assert ./my-project
+codestyle rust --loops=false --embed-simple-vars=false assert .
+```
+
+#### Excluding paths
+
+Use `--exclude` (repeatable, before the subcommand) to skip vendored or third-party trees:
+
+```sh
+codestyle --exclude libs/nautilus_trader --exclude vendor rust assert .
 ```
 
 #### Available flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--instrument` | false | Check async functions for `#[instrument]` |
-| `--loops` | true | Check endless loops for `//LOOP` comments |
-| `--impl-follows-type` | true | Check impl blocks follow type definitions |
-| `--embed-simple-vars` | true | Check format strings embed simple variables |
-| `--insta-inline-snapshot` | true | Check insta macros use inline snapshots |
+| `--cargo-dep-ordering` | true | Order and group dependencies in `Cargo.toml` |
+| `--instrument` | false | Require `#[instrument]` on async functions |
+| `--loops` | true | Endless loops must carry a `//LOOP` comment |
+| `--join-split-impls` | true | Join split `impl` blocks for the same type |
+| `--impl-folds` | false | Wrap `impl` blocks in vim 1-fold markers |
+| `--impl-follows-type` | true | `impl` blocks follow their type definition |
+| `--embed-simple-vars` | true | Embed simple vars directly in format strings |
+| `--insta-inline-snapshot` | true | `insta` macros use inline `@""` syntax |
+| `--no-chrono` | true | Forbid `chrono` (use `jiff` instead) |
+| `--no-tokio-spawn` | true | Forbid `tokio::spawn` (use structured concurrency) |
+| `--use-bail` | true | Replace `return Err(eyre!(...))` with `bail!(...)` |
+| `--test-fn-prefix` | false | Test fns must not start with `test_` |
+| `--pub-first` | true | `pub` items come before private items |
+| `--ignored-error-comment` | true | `unwrap_or*` and `let _ =` need `//IGNORED_ERROR` |
+| `--workspace-dep-hoisting` | true | Hoist shared deps to `[workspace.dependencies]` |
+| `--unconventional-new` | true | `fn new` returning `Result` -> rename to `try_new` |
+| `--prefer-default-over-bare-new` | false | Argument-less `pub fn new()` -> `Default` |
+| `--inline-default` | true | Inline `impl Default` bodies as field defaults (RFC 3681) |
+| `--prefer-ahash` | false | Replace `HashMap` with `ahash::AHashMap` |
+| `--too-explicit` | true | Rewrite inline fully-qualified `std::` paths and add imports |
 
 #### Format mode
 
-Format mode will:
-1. Automatically fix violations where possible
-2. Delete any `.snap` and `.pending-snap` files (when insta check enabled)
-3. Report violations that require manual fixing
+`format` will:
+1. Auto-fix violations where possible.
+2. Delete `.snap` / `.pending-snap` files (when the `insta` check is enabled).
+3. Report violations that still need manual fixing.
 
 ```sh
-codestyle rust format ./my-project
+codestyle rust format .
 # codestyle: fixed 3 violation(s)
 # codestyle: 1 violation(s) need manual fixing:
 #   [loops] src/main.rs:42:5: Endless loop without //LOOP comment

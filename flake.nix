@@ -3,10 +3,9 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     rust-overlay.url = "github:oxalica/rust-overlay";
     flake-utils.url = "github:numtide/flake-utils";
-    pre-commit-hooks.url = "github:cachix/git-hooks.nix";
-    v_flakes.url = "github:valeratrades/v_flakes?ref=v1.5";
+    v_flakes.url = "github:valeratrades/v_flakes?ref=v1.6.9";
   };
-  outputs = { self, nixpkgs, rust-overlay, flake-utils, pre-commit-hooks, v_flakes }:
+  outputs = { self, nixpkgs, rust-overlay, flake-utils, v_flakes }:
     flake-utils.lib.eachDefaultSystem (
       system:
       let
@@ -15,11 +14,10 @@
           inherit system overlays;
           allowUnfree = true;
         };
-        #NB: can't load rust-bin from nightly.latest, as there are week guarantees of which components will be available on each day.
+        #NB: can't load rust-bin from nightly.latest, as there are weak guarantees of which components will be available on each day.
         rust = pkgs.rust-bin.selectLatestNightlyWith (toolchain: toolchain.default.override {
           extensions = [ "rust-src" "rust-analyzer" "rust-docs" "rustc-codegen-cranelift-preview" ];
         });
-        pre-commit-check = pre-commit-hooks.lib.${system}.run (v_flakes.files.preCommit { inherit pkgs; });
         manifest = (pkgs.lib.importTOML ./Cargo.toml).package;
         pname = manifest.name;
         stdenv = pkgs.stdenvAdapters.useMoldLinker pkgs.stdenv;
@@ -32,21 +30,18 @@
             };
           };
         };
-        github =
-          let
-            jobDeps = { packages = [ "mold" ]; debug = true; };
-          in
-          v_flakes.github {
-            inherit pkgs pname rs;
-            lastSupportedVersion = "nightly-2026-01-03";
-            enable = true;
-            jobs.default = true;
-            jobs.warnings.install = jobDeps;
-            release = {
-              default = true;
-              trigger = [ "tag" ];
-            };
+        github = v_flakes.github {
+          inherit pkgs pname rs;
+          enable = true;
+          lastSupportedVersion = "nightly-2026-01-03";
+          jobs = {
+            default = true;
+            warnings.install = { packages = [ "mold" ]; };
           };
+          release = {
+            targets = [ "x86_64-unknown-linux-gnu" ];
+          };
+        };
         readme = v_flakes.readme-fw {
           inherit pkgs pname;
           defaults = true;
@@ -84,19 +79,14 @@
           with pkgs;
           mkShell {
             inherit stdenv;
-            shellHook =
-              pre-commit-check.shellHook
-              + combined.shellHook
-              + ''
-                cp -f ${(v_flakes.files.treefmt) { inherit pkgs; }} ./.treefmt.toml
-              '';
+            shellHook = combined.shellHook;
 
             packages = [
               mold
               openssl
               pkg-config
               rust
-            ] ++ pre-commit-check.enabledPackages ++ combined.enabledPackages;
+            ] ++ combined.enabledPackages;
 
             env.RUST_BACKTRACE = 1;
             env.RUST_LIB_BACKTRACE = 0;

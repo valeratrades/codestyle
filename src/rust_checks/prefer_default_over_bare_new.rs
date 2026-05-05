@@ -16,7 +16,7 @@ use std::{collections::HashSet, path::Path};
 
 use syn::{Expr, ExprCall, ExprPath, ImplItem, ImplItemFn, Item, Type, Visibility, visit::Visit};
 
-use super::{FileInfo, Fix, Violation, skip::SkipVisitor};
+use super::{FileInfo, Fix, Violation, path_rewrite::span_to_byte, skip::SkipVisitor};
 
 const RULE: &str = "prefer-default-over-bare-new";
 
@@ -185,25 +185,4 @@ impl<'a> Visit<'a> for PreferDefaultVisitor<'a> {
 		self.check_call(node);
 		syn::visit::visit_expr_call(self, node);
 	}
-}
-
-fn span_to_byte(content: &str, pos: proc_macro2::LineColumn) -> Option<usize> {
-	let mut current_line = 1;
-	let mut line_start = 0;
-
-	for (i, ch) in content.char_indices() {
-		if current_line == pos.line {
-			return Some(line_start + pos.column);
-		}
-		if ch == '\n' {
-			current_line += 1;
-			line_start = i + 1;
-		}
-	}
-
-	if current_line == pos.line {
-		return Some(line_start + pos.column);
-	}
-
-	None
 }

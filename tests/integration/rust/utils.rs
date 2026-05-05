@@ -84,7 +84,7 @@ pub(crate) fn test_case(fixture_str: &str, opts: &RustCheckOptions) -> String {
 
 	// Format mode: apply fixes
 	let temp_format = fixture.write_to_tempdir();
-	rust_checks::run_format(&temp_format.root, opts);
+	rust_checks::run_format(&temp_format.root, opts, &[]);
 	let result = temp_format.read_all_from_disk();
 	let format_out = result.render();
 
@@ -138,7 +138,7 @@ fn collect_violations(root: &Path, opts: &RustCheckOptions, is_format_mode: bool
 		prefer_ahash, prefer_default_over_bare_new, pub_first, test_fn_prefix, too_explicit, unconventional_new, use_bail,
 	};
 
-	let file_infos = rust_checks::collect_rust_files(root);
+	let file_infos = rust_checks::collect_rust_files(root, &[]);
 	let try_new_types = if opts.unconventional_new {
 		unconventional_new::collect_try_new_types(&file_infos)
 	} else {

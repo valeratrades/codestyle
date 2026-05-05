@@ -8,7 +8,7 @@ use std::{collections::HashSet, path::Path};
 use proc_macro2::Span;
 use syn::{Expr, ExprCall, ExprMacro, ExprReturn, ItemUse, Macro, UseTree, spanned::Spanned, visit::Visit};
 
-use super::{Fix, Violation, skip::SkipVisitor};
+use super::{Fix, Violation, path_rewrite::span_to_byte, skip::SkipVisitor};
 
 const RULE: &str = "use-bail";
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
@@ -242,25 +242,4 @@ fn is_err_call(call: &ExprCall) -> bool {
 
 fn get_macro_name(mac: &Macro) -> String {
 	mac.path.segments.last().map(|s| s.ident.to_string()).unwrap_or_default()
-}
-
-fn span_to_byte(content: &str, pos: proc_macro2::LineColumn) -> Option<usize> {
-	let mut current_line = 1;
-	let mut line_start = 0;
-
-	for (i, ch) in content.char_indices() {
-		if current_line == pos.line {
-			return Some(line_start + pos.column);
-		}
-		if ch == '\n' {
-			current_line += 1;
-			line_start = i + 1;
-		}
-	}
-
-	if current_line == pos.line {
-		return Some(line_start + pos.column);
-	}
-
-	None
 }
