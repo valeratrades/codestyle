@@ -178,6 +178,26 @@ fn arbitrary_fn_call_in_field_passes() {
 }
 
 #[test]
+fn macro_call_in_field_passes() {
+	// `crate::default_core!()` is a macro invocation — we can't know what it expands to,
+	// so treat it the same as any other call and skip.
+	assert_check_passing(
+		r#"
+		#[derive(Debug)]
+		pub struct A {
+			c: DataActorCore,
+		}
+		impl Default for A {
+			fn default() -> Self {
+				Self { c: crate::default_core!() }
+			}
+		}
+		"#,
+		&opts(),
+	);
+}
+
+#[test]
 fn method_call_in_field_passes() {
 	// "Player".to_string() is a method call — skip
 	assert_check_passing(

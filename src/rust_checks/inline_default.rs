@@ -20,7 +20,7 @@
 
 use std::{collections::HashMap, path::Path};
 
-use syn::{Block, Expr, ExprCall, ExprMethodCall, ExprStruct, Fields, ImplItem, Item, ItemImpl, ItemStruct, spanned::Spanned, visit::Visit};
+use syn::{Block, Expr, ExprCall, ExprMacro, ExprMethodCall, ExprStruct, Fields, ImplItem, Item, ItemImpl, ItemStruct, spanned::Spanned, visit::Visit};
 
 fn block_has_fn_calls(block: &Block) -> bool {
 	struct Finder(bool);
@@ -30,6 +30,12 @@ fn block_has_fn_calls(block: &Block) -> bool {
 		}
 
 		fn visit_expr_method_call(&mut self, _: &'a ExprMethodCall) {
+			self.0 = true;
+		}
+
+		// Macro invocations (`foo!(…)`, `crate::bar!()`) can expand to anything, including
+		// non-const work. Treat them the same as fn calls.
+		fn visit_expr_macro(&mut self, _: &'a ExprMacro) {
 			self.0 = true;
 		}
 	}
