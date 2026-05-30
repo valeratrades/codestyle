@@ -241,6 +241,43 @@ fn join_preserves_existing_fold_markers() {
 }
 
 #[test]
+fn join_with_multibyte_char_in_second_doc_comment() {
+	// Regression: a multibyte char (em-dash) in the second impl block's doc comment,
+	// positioned before the impl's opening brace, must not corrupt the join.
+	// `find_impl_brace` returned a char index that was treated as a byte offset, so
+	// every multibyte char before the brace shifted the items slice and produced
+	// broken Rust (an orphaned ` {` and a dropped closing brace / between-section).
+	insta::assert_snapshot!(test_case(
+		r#"
+		struct Foo;
+		impl Foo {
+			fn one() {}
+		}
+
+		my_macro!(Foo, c);
+
+		/// doc comment with an em-dash — before the brace
+		impl Foo {
+			fn two() {}
+		}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[join-split-impls] /main.rs:8: split `impl Foo` blocks should be joined into one
+
+	# Format mode
+	struct Foo;
+	impl Foo {
+		fn one() {}
+		fn two() {}
+	}
+
+	my_macro!(Foo, c);
+	");
+}
+
+#[test]
 fn join_preserves_nested_indentation() {
 	// Functions with nested blocks should preserve their internal indentation
 	insta::assert_snapshot!(test_case(

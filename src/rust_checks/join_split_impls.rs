@@ -184,15 +184,20 @@ fn span_position_to_byte(content: &str, line: usize, column: usize) -> Option<us
 
 /// Find the opening brace of an impl block, skipping braces inside comments.
 /// This handles fold markers like `/*{{{1*/` which contain braces in comments.
+///
+/// Returns a **byte offset** into `text` (not a char index): callers add it to a
+/// byte position, so a multibyte char (e.g. an em-dash in a doc comment) before
+/// the brace would otherwise shift the result and corrupt the slice. Iterating via
+/// `char_indices` keeps the position in bytes while we scan char-by-char.
 fn find_impl_brace(text: &str) -> Option<usize> {
 	let mut in_block_comment = false;
 	let mut in_line_comment = false;
-	let chars: Vec<char> = text.chars().collect();
+	let chars: Vec<(usize, char)> = text.char_indices().collect();
 	let mut i = 0;
 
 	while i < chars.len() {
-		let ch = chars[i];
-		let next_ch = chars.get(i + 1).copied();
+		let (byte_offset, ch) = chars[i];
+		let next_ch = chars.get(i + 1).map(|(_, c)| *c);
 
 		// Handle comment boundaries
 		if !in_block_comment && !in_line_comment {
@@ -208,7 +213,7 @@ fn find_impl_brace(text: &str) -> Option<usize> {
 			}
 			// Found a brace outside of comments
 			if ch == '{' {
-				return Some(i);
+				return Some(byte_offset);
 			}
 		} else if in_block_comment {
 			if ch == '*' && next_ch == Some('/') {
