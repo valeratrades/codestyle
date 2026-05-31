@@ -185,8 +185,8 @@ fn try_new_callsite_renamed_cross_file() {
 		&opts(),
 	), @"
 	# Assert mode
-	[unconventional-new] /main.rs:2: `Foo::new` was renamed to `try_new`
 	[unconventional-new] /lib.rs:3: `fn new` returns `Result` — rename to `try_new` to signal fallibility
+	[unconventional-new] /main.rs:2: `Foo::new` was renamed to `try_new`
 
 	# Format mode
 	//- /lib.rs

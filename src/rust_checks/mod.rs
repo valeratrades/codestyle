@@ -376,7 +376,7 @@ pub fn collect_rust_files(target_dir: &Path, exclude: &[PathBuf]) -> Vec<FileInf
 	let cwd = std::env::current_dir().expect("failed to get cwd");
 	let exclude_abs: Vec<PathBuf> = exclude.iter().map(|p| if p.is_absolute() { p.clone() } else { cwd.join(p) }).collect();
 
-	let walker = WalkDir::new(target_dir).into_iter().filter_entry(|e| {
+	let walker = WalkDir::new(target_dir).sort_by_file_name().into_iter().filter_entry(|e| {
 		let name = e.file_name().to_string_lossy();
 		if name.starts_with('.') || name == "target" || name == "libs" {
 			return false;
