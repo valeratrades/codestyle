@@ -50,6 +50,9 @@ codestyle rust assert .
 
 # Auto-fix violations in place
 codestyle rust format .
+
+# Collect occurrences into a per-rule markdown worktable for manual review
+codestyle --only ignored-error rust audit .
 ```
 
 #### Toggling checks
@@ -109,6 +112,23 @@ codestyle rust format .
 # codestyle: fixed 3 violation(s)
 # codestyle: 1 violation(s) need manual fixing:
 #   [loops] src/main.rs:42:5: Endless loop without //LOOP comment
+```
+
+#### Audit mode
+
+Some rules flag patterns that are genuinely hard to auto-fix and need human judgement case-by-case
+(e.g. `ignored-error` flags every `unwrap_or*` / `let _ = …` — each must be individually decided
+"keep & justify vs switch to Error/Panic"). `audit` scaffolds that review: it collects every
+occurrence of each audit-capable rule into `<target_dir>/tmp/audit/<rule>.md` (override with
+`--audit-dir`) as a `- [ ]` checklist with a `TODO: reason` line per item, under a header that
+spells out the default decision. It's a collection step, not a gate — it always exits 0 on success.
+
+Only a subset of rules know how to audit (currently just `ignored-error`), and audit is normally
+run with `--only`:
+
+```sh
+codestyle --only ignored-error rust audit .
+# codestyle: wrote 12 occurrence(s) to ./docs/.readme_assets/tmp/audit/ignored-error.md
 ```
 
 

@@ -42,6 +42,14 @@ enum RustMode {
 		/// Target directory to check
 		target_dir: PathBuf,
 	},
+	/// Collect occurrences of audit-capable rules into per-rule markdown worktables for manual review
+	Audit {
+		/// Target directory to check
+		target_dir: PathBuf,
+		/// Directory to write per-rule audit markdown files [default: <target_dir>/tmp/audit/]
+		#[arg(long)]
+		audit_dir: Option<PathBuf>,
+	},
 }
 #[derive(Args)]
 struct RustCheckOptionsArgs {
@@ -135,6 +143,7 @@ fn main() {
 			match mode {
 				RustMode::Assert { target_dir } => rust_checks::run_assert(&target_dir, &opts, &cli.exclude),
 				RustMode::Format { target_dir } => rust_checks::run_format(&target_dir, &opts, &cli.exclude),
+				RustMode::Audit { target_dir, audit_dir } => rust_checks::run_audit(&target_dir, &opts, &cli.exclude, audit_dir.as_deref()),
 			}
 		}
 	};

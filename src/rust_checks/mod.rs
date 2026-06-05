@@ -241,6 +241,96 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions, exclude: &[PathBuf
 	}
 }
 
+/// Collect occurrences of audit-capable rules into per-rule markdown worktables for manual review.
+///
+/// Unlike [`run_assert`] (a pass/fail gate) and [`run_format`] (an auto-fixer), `audit` is a
+/// collection step: it reuses each audit-capable rule's existing `check()` and renders the found
+/// occurrences to a `- [ ]` checklist scaffolded with `TODO: reason`, one markdown file per rule.
+///
+/// Audit-capable rules are an explicit allowlist below. v1: only `ignored_error`. A rule with its
+/// option disabled (e.g. `ignored_error` default-false) contributes nothing — run with
+/// `--only ignored-error` to enable it. Returns 0 on success, non-zero only on IO/dir errors.
+pub fn run_audit(target_dir: &Path, opts: &RustCheckOptions, exclude: &[PathBuf], audit_dir: Option<&Path>) -> i32 {
+	if !target_dir.exists() {
+		eprintln!("Target directory does not exist: {target_dir:?}");
+		return 1;
+	}
+
+	let src_dirs = find_src_dirs(target_dir);
+	if src_dirs.is_empty() {
+		eprintln!("No source directories found");
+		return 1;
+	}
+
+	// Group violations by rule, retaining each violation's source contents so the renderer can
+	// quote the offending line back (Violation carries file/line/column but not source text).
+	let mut by_rule: std::collections::BTreeMap<&'static str, Vec<(Violation, String)>> = std::collections::BTreeMap::default();
+
+	for src_dir in src_dirs {
+		let file_infos = collect_rust_files(&src_dir, exclude);
+		for info in &file_infos {
+			if let Some(ref tree) = info.syntax_tree {
+				// Audit-capable rule allowlist. v1: ignored_error only.
+				if opts.ignored_error {
+					for v in ignored_error::check(&info.path, &info.contents, tree) {
+						by_rule.entry(v.rule).or_default().push((v, info.contents.clone()));
+					}
+				}
+			}
+		}
+	}
+
+	let default_dir = target_dir.join("tmp/audit");
+	let audit_dir = audit_dir.unwrap_or(&default_dir);
+	if let Err(e) = fs::create_dir_all(audit_dir) {
+		eprintln!("codestyle: failed to create audit dir {audit_dir:?}: {e}");
+		return 1;
+	}
+
+	for (rule, mut group) in by_rule {
+		group.sort_by(|(a, _), (b, _)| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
+		let markdown = render_audit_markdown(rule, &group);
+		let out_path = audit_dir.join(format!("{rule}.md"));
+		if let Err(e) = fs::write(&out_path, markdown) {
+			eprintln!("codestyle: failed to write {out_path:?}: {e}");
+			return 1;
+		}
+		println!("codestyle: wrote {} occurrence(s) to {}", group.len(), out_path.display());
+	}
+
+	0
+}
+
+/// Render one rule's occurrences into a markdown worktable: a rule-specific header followed by a
+/// `- [ ]` checklist item per occurrence, each with a `TODO: reason` child line. The source line is
+/// quoted back from the file contents captured during collection.
+fn render_audit_markdown(rule: &str, occurrences: &[(Violation, String)]) -> String {
+	let mut out = String::default();
+	out.push_str(audit_header(rule));
+	for (v, contents) in occurrences {
+		let src_line = contents.lines().nth(v.line - 1).unwrap_or("").trim();
+		out.push_str(&format!("- [ ] `{}:{}:{}` — `{src_line}`\n  TODO: reason\n", v.file, v.line, v.column));
+	}
+	out
+}
+
+/// Rule-specific audit-file header. v1 has a single audit-capable rule; match on it explicitly so
+/// adding a rule to the allowlist forces a header decision rather than silently reusing another's.
+fn audit_header(rule: &str) -> &'static str {
+	match rule {
+		"ignored-error" => {
+			"# `ignored-error` audit\n\n\
+			Goal: every flagged `unwrap_or(_else/_default)` and `let _ = …` is either **KEEP** (one-line why)\n\
+			or switched to **PANIC** / **ERROR** instead. No silent defaulting / discarding of state.\n\n\
+			Verdict legend: `TODO` | `KEEP: <why>` | `PANIC` | `ERROR: <how>` | `REMOVE: <why dead>` | `DONE`\n\n\
+			**Default decision is Error/Panic.** KEEP is a special case that must be very well justified —\n\
+			if unsure, error/panic. Dead code is `REMOVE`, not kept.\n\n\
+			---\n\n"
+		}
+		other => panic!("no audit header defined for rule {other:?} — every audit-capable rule needs one"),
+	}
+}
+
 pub fn run_format(target_dir: &Path, opts: &RustCheckOptions, exclude: &[PathBuf]) -> i32 {
 	if !target_dir.exists() {
 		eprintln!("Target directory does not exist: {target_dir:?}");
