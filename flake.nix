@@ -3,7 +3,7 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     rust-overlay.url = "github:oxalica/rust-overlay";
     flake-utils.url = "github:numtide/flake-utils";
-    v_flakes.url = "github:valeratrades/v_flakes?ref=v1.6.9";
+    v_flakes.url = "github:valeratrades/v_flakes?ref=v1.6";
   };
   outputs = { self, nixpkgs, rust-overlay, flake-utils, v_flakes }:
     flake-utils.lib.eachDefaultSystem (
@@ -49,7 +49,7 @@
           rootDir = ./.;
           badges = [ "msrv" "crates_io" "docs_rs" "loc" "ci" ];
         };
-        combined = v_flakes.utils.combine [ github rs readme ];
+        combined = v_flakes.utils.combine { inherit rust; modules = [ github rs readme ]; };
       in
       {
         packages =

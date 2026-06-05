@@ -12,10 +12,6 @@ struct Cli {
 	#[arg(long)]
 	exclude: Vec<PathBuf>,
 
-	/// Run only the named check(s), disabling all others (repeatable, e.g. --only loops). Accepts kebab-case names. Explicit --<check>=… flags still take precedence.
-	#[arg(long)]
-	only: Vec<String>,
-
 	#[command(subcommand)]
 	command: Commands,
 }
@@ -53,6 +49,10 @@ enum RustMode {
 }
 #[derive(Args)]
 struct RustCheckOptionsArgs {
+	/// Run only the named check(s), disabling all others (repeatable, e.g. --only loops). Accepts kebab-case names. Explicit --<check>=… flags still take precedence.
+	#[arg(long)]
+	only: Vec<String>,
+
 	/// Order and group dependencies in Cargo.toml [default: true]
 	#[arg(long)]
 	cargo_dep_ordering: Option<bool>,
@@ -133,31 +133,15 @@ struct RustCheckOptionsArgs {
 	#[arg(long)]
 	too_explicit: Option<bool>,
 }
-fn main() {
-	v_utils::clientside!();
-	let cli = Cli::parse();
-
-	let exit_code = match cli.command {
-		Commands::Rust { mode, options } => {
-			let opts = options.resolve(&cli.only);
-			match mode {
-				RustMode::Assert { target_dir } => rust_checks::run_assert(&target_dir, &opts, &cli.exclude),
-				RustMode::Format { target_dir } => rust_checks::run_format(&target_dir, &opts, &cli.exclude),
-				RustMode::Audit { target_dir, audit_dir } => rust_checks::run_audit(&target_dir, &opts, &cli.exclude, audit_dir.as_deref()),
-			}
-		}
-	};
-
-	std::process::exit(exit_code);
-}
-
 impl RustCheckOptionsArgs {
 	/// Resolve CLI flags into [`RustCheckOptions`].
 	///
 	/// Without `--only`, each check falls back to its default. With `--only`, every check
 	/// starts disabled and only the named ones are enabled; explicit `--<check>=…` flags
 	/// still win in either mode. Names are matched in kebab-case (e.g. `embed-simple-vars`).
-	fn resolve(self, only: &[String]) -> RustCheckOptions {
+	fn resolve(self) -> RustCheckOptions {
+		let RustCheckOptionsArgs { only, .. } = &self;
+		let only = only.clone();
 		let args = self;
 		let d = RustCheckOptions::default();
 		let only_mode = !only.is_empty();
@@ -211,4 +195,22 @@ impl RustCheckOptionsArgs {
 
 		opts
 	}
+}
+
+fn main() {
+	v_utils::clientside!();
+	let cli = Cli::parse();
+
+	let exit_code = match cli.command {
+		Commands::Rust { mode, options } => {
+			let opts = options.resolve();
+			match mode {
+				RustMode::Assert { target_dir } => rust_checks::run_assert(&target_dir, &opts, &cli.exclude),
+				RustMode::Format { target_dir } => rust_checks::run_format(&target_dir, &opts, &cli.exclude),
+				RustMode::Audit { target_dir, audit_dir } => rust_checks::run_audit(&target_dir, &opts, &cli.exclude, audit_dir.as_deref()),
+			}
+		}
+	};
+
+	std::process::exit(exit_code);
 }

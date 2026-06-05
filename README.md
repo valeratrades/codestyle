@@ -52,7 +52,7 @@ codestyle rust assert .
 codestyle rust format .
 
 # Collect occurrences into a per-rule markdown worktable for manual review
-codestyle --only ignored-error rust audit .
+codestyle rust --only ignored-error audit .
 ```
 
 #### Toggling checks
@@ -127,7 +127,7 @@ Only a subset of rules know how to audit (currently just `ignored-error`), and a
 run with `--only`:
 
 ```sh
-codestyle --only ignored-error rust audit .
+codestyle rust --only ignored-error audit .
 # codestyle: wrote 12 occurrence(s) to ./docs/.readme_assets/tmp/audit/ignored-error.md
 ```
 

@@ -22,7 +22,7 @@ pub mod use_bail;
 pub mod workspace_dep_hoisting;
 
 use std::{
-	collections::HashSet,
+	collections::{BTreeMap, HashSet},
 	fs,
 	path::{Path, PathBuf},
 	process::Command,
@@ -264,7 +264,7 @@ pub fn run_audit(target_dir: &Path, opts: &RustCheckOptions, exclude: &[PathBuf]
 
 	// Group violations by rule, retaining each violation's source contents so the renderer can
 	// quote the offending line back (Violation carries file/line/column but not source text).
-	let mut by_rule: std::collections::BTreeMap<&'static str, Vec<(Violation, String)>> = std::collections::BTreeMap::default();
+	let mut by_rule: BTreeMap<&'static str, Vec<(Violation, String)>> = BTreeMap::default();
 
 	for src_dir in src_dirs {
 		let file_infos = collect_rust_files(&src_dir, exclude);
@@ -309,7 +309,10 @@ fn render_audit_markdown(rule: &str, occurrences: &[(Violation, String)]) -> Str
 	out.push_str(audit_header(rule));
 	for (v, contents) in occurrences {
 		let src_line = contents.lines().nth(v.line - 1).unwrap_or("").trim();
-		out.push_str(&format!("- [ ] `{}:{}:{}` — `{src_line}`\n  TODO: reason\n", v.file, v.line, v.column));
+		out.push_str(&format!(
+			"- [ ] `{}:{}:{}` — `{src_line}`\n  TODO: decision (if decision is KEEP, - justify)\n",
+			v.file, v.line, v.column
+		));
 	}
 	out
 }
@@ -318,15 +321,14 @@ fn render_audit_markdown(rule: &str, occurrences: &[(Violation, String)]) -> Str
 /// adding a rule to the allowlist forces a header decision rather than silently reusing another's.
 fn audit_header(rule: &str) -> &'static str {
 	match rule {
-		"ignored-error" => {
+		"ignored-error" =>
 			"# `ignored-error` audit\n\n\
 			Goal: every flagged `unwrap_or(_else/_default)` and `let _ = …` is either **KEEP** (one-line why)\n\
 			or switched to **PANIC** / **ERROR** instead. No silent defaulting / discarding of state.\n\n\
 			Verdict legend: `TODO` | `KEEP: <why>` | `PANIC` | `ERROR: <how>` | `REMOVE: <why dead>` | `DONE`\n\n\
 			**Default decision is Error/Panic.** KEEP is a special case that must be very well justified —\n\
 			if unsure, error/panic. Dead code is `REMOVE`, not kept.\n\n\
-			---\n\n"
-		}
+			---\n\n",
 		other => panic!("no audit header defined for rule {other:?} — every audit-capable rule needs one"),
 	}
 }

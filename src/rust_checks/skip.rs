@@ -227,10 +227,7 @@ mod tests {
 	#[test]
 	fn parse_skip_specific_rule_bracket() {
 		assert_eq!(parse_skip_comment("//#[codestyle::skip(pub-first)]"), Some(SkipMarker::Rule("pub-first".to_string())));
-		assert_eq!(
-			parse_skip_comment("// #[codestyle::skip(ignored-error)]"),
-			Some(SkipMarker::Rule("ignored-error".to_string()))
-		);
+		assert_eq!(parse_skip_comment("// #[codestyle::skip(ignored-error)]"), Some(SkipMarker::Rule("ignored-error".to_string())));
 		assert_eq!(parse_skip_comment("//#[codestyle::skip( loop-comment )]"), Some(SkipMarker::Rule("loop-comment".to_string())));
 	}
 

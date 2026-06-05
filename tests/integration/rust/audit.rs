@@ -32,7 +32,7 @@ fn audit_collects_unwrap_or_and_let_underscore() {
 		}
 		fn some_result() -> Result<(), ()> { Ok(()) }
 		"#,
-	), @r#"
+	), @"
 	# `ignored-error` audit
 
 	Goal: every flagged `unwrap_or(_else/_default)` and `let _ = …` is either **KEEP** (one-line why)
@@ -46,10 +46,10 @@ fn audit_collects_unwrap_or_and_let_underscore() {
 	---
 
 	- [ ] `/main.rs:3:11` — `let y = x.unwrap_or(0);`
-	  TODO: reason
+	  TODO: decision (if decision is KEEP, - justify)
 	- [ ] `/main.rs:4:5` — `let _ = some_result();`
-	  TODO: reason
-	"#);
+	  TODO: decision (if decision is KEEP, - justify)
+	");
 }
 
 /// An occurrence with an `//IGNORED_ERROR` justification is already resolved and must not appear in
