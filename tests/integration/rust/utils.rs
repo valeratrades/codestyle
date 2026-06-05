@@ -20,7 +20,7 @@ pub(crate) fn opts_for(check: &str) -> RustCheckOptions {
 		use_bail: check == "use_bail",
 		test_fn_prefix: check == "test_fn_prefix",
 		pub_first: check == "pub_first",
-		ignored_error_comment: check == "ignored_error_comment",
+		ignored_error: check == "ignored_error",
 		workspace_dep_hoisting: check == "workspace_dep_hoisting",
 		unconventional_new: check == "unconventional_new",
 		prefer_default_over_bare_new: check == "prefer_default_over_bare_new",
@@ -134,7 +134,7 @@ pub(crate) fn test_case_assert_only(fixture_str: &str, opts: &RustCheckOptions) 
 
 fn collect_violations(root: &Path, opts: &RustCheckOptions, is_format_mode: bool) -> Vec<Violation> {
 	use codestyle::rust_checks::{
-		embed_simple_vars, ignored_error_comment, impl_folds, impl_follows_type, inline_default, insta_snapshots, instrument, join_split_impls, loops, no_chrono, no_tokio_spawn,
+		embed_simple_vars, ignored_error, impl_folds, impl_follows_type, inline_default, insta_snapshots, instrument, join_split_impls, loops, no_chrono, no_tokio_spawn,
 		prefer_ahash, prefer_default_over_bare_new, pub_first, test_fn_prefix, too_explicit, unconventional_new, use_bail,
 	};
 
@@ -189,8 +189,8 @@ fn collect_violations(root: &Path, opts: &RustCheckOptions, is_format_mode: bool
 			if opts.pub_first {
 				violations.extend(pub_first::check(&info.path, &info.contents, tree));
 			}
-			if opts.ignored_error_comment {
-				violations.extend(ignored_error_comment::check(&info.path, &info.contents, tree));
+			if opts.ignored_error {
+				violations.extend(ignored_error::check(&info.path, &info.contents, tree));
 			}
 			if opts.unconventional_new {
 				violations.extend(unconventional_new::check(&info.path, &info.contents, tree, &try_new_types));

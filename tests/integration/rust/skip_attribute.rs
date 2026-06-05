@@ -31,7 +31,7 @@ fn all_opts() -> RustCheckOptions {
 		use_bail: true,
 		test_fn_prefix: false,
 		pub_first: true,
-		ignored_error_comment: true,
+		ignored_error: true,
 		workspace_dep_hoisting: false,
 		unconventional_new: true,
 		prefer_default_over_bare_new: false,
@@ -44,8 +44,8 @@ fn all_opts() -> RustCheckOptions {
 // === codestyle::skip on functions ===
 
 #[test]
-fn skip_on_function_ignores_ignored_error_comment() {
-	// A function with //@codestyle::skip should not trigger ignored_error_comment violations
+fn skip_on_function_ignores_ignored_error() {
+	// A function with //@codestyle::skip should not trigger ignored_error violations
 	assert_check_passing(
 		r#"
 		//@codestyle::skip
@@ -54,7 +54,7 @@ fn skip_on_function_ignores_ignored_error_comment() {
 			let y = x.unwrap_or(0);
 		}
 		"#,
-		&opts_for("ignored_error_comment"),
+		&opts_for("ignored_error"),
 	);
 }
 
@@ -199,9 +199,9 @@ fn skip_does_not_affect_sibling_items() {
 			let y = x.unwrap_or(0);
 		}
 		"#,
-		&opts_for("ignored_error_comment"),
+		&opts_for("ignored_error"),
 	), @"
-	[ignored-error-comment] /main.rs:9: `unwrap_or` without `//IGNORED_ERROR` comment
+	[ignored-error] /main.rs:9: `unwrap_or` without `//IGNORED_ERROR` comment
 	HINT: Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
 	");
 }
@@ -217,7 +217,7 @@ fn nested_skip_works() {
 			let y = x.unwrap_or(0);
 		}
 		"#,
-		&opts_for("ignored_error_comment"),
+		&opts_for("ignored_error"),
 	);
 }
 
@@ -250,7 +250,7 @@ fn all_skip_comment_variants_work() {
 			let y = x.unwrap_or(0);
 		}
 		"#,
-		&opts_for("ignored_error_comment"),
+		&opts_for("ignored_error"),
 	);
 }
 
@@ -266,9 +266,9 @@ fn without_skip_violations_are_detected() {
 			let y = x.unwrap_or(0);
 		}
 		"#,
-		&opts_for("ignored_error_comment"),
+		&opts_for("ignored_error"),
 	), @"
-	[ignored-error-comment] /main.rs:3: `unwrap_or` without `//IGNORED_ERROR` comment
+	[ignored-error] /main.rs:3: `unwrap_or` without `//IGNORED_ERROR` comment
 	HINT: Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
 	");
 }
@@ -277,22 +277,22 @@ fn without_skip_violations_are_detected() {
 
 #[test]
 fn skip_specific_rule_only_skips_that_rule() {
-	// skip(ignored-error-comment) should skip that rule but still check others
+	// skip(ignored-error) should skip that rule but still check others
 	assert_check_passing(
 		r#"
-		//#[codestyle::skip(ignored-error-comment)]
+		//#[codestyle::skip(ignored-error)]
 		fn skipped_unwrap() {
 			let x: Option<i32> = None;
 			let y = x.unwrap_or(0);
 		}
 		"#,
-		&opts_for("ignored_error_comment"),
+		&opts_for("ignored_error"),
 	);
 }
 
 #[test]
 fn skip_specific_rule_does_not_affect_other_rules() {
-	// skip(pub-first) should not skip ignored-error-comment
+	// skip(pub-first) should not skip ignored-error
 	insta::assert_snapshot!(test_case_assert_only(
 		r#"
 		//#[codestyle::skip(pub-first)]
@@ -301,9 +301,9 @@ fn skip_specific_rule_does_not_affect_other_rules() {
 			let y = x.unwrap_or(0);
 		}
 		"#,
-		&opts_for("ignored_error_comment"),
+		&opts_for("ignored_error"),
 	), @"
-	[ignored-error-comment] /main.rs:4: `unwrap_or` without `//IGNORED_ERROR` comment
+	[ignored-error] /main.rs:4: `unwrap_or` without `//IGNORED_ERROR` comment
 	HINT: Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
 	");
 }
@@ -313,13 +313,13 @@ fn skip_specific_rule_at_syntax() {
 	// @codestyle::skip(rule) syntax should also work
 	assert_check_passing(
 		r#"
-		//@codestyle::skip(ignored-error-comment)
+		//@codestyle::skip(ignored-error)
 		fn skipped() {
 			let x: Option<i32> = None;
 			let y = x.unwrap_or(0);
 		}
 		"#,
-		&opts_for("ignored_error_comment"),
+		&opts_for("ignored_error"),
 	);
 }
 
@@ -328,13 +328,13 @@ fn skip_specific_rule_with_spaces() {
 	// Spaces inside parens should be trimmed
 	assert_check_passing(
 		r#"
-		// #[codestyle::skip( ignored-error-comment )]
+		// #[codestyle::skip( ignored-error )]
 		fn skipped() {
 			let x: Option<i32> = None;
 			let y = x.unwrap_or(0);
 		}
 		"#,
-		&opts_for("ignored_error_comment"),
+		&opts_for("ignored_error"),
 	);
 }
 

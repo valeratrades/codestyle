@@ -1,6 +1,6 @@
 pub mod cargo_dep_ordering;
 pub mod embed_simple_vars;
-pub mod ignored_error_comment;
+pub mod ignored_error;
 pub mod impl_folds;
 pub mod impl_follows_type;
 pub mod inline_default;
@@ -80,7 +80,7 @@ pub struct RustCheckOptions {
 	pub pub_first: bool,
 	/// Check for //IGNORED_ERROR comments on unwrap_or/unwrap_or_default/unwrap_or_else and `let _ = ...` (default: true)
 	#[default = false] // useful, but too many false positives. Sadly, the time commitment might not be worth it, unless I somehow make this smarter
-	pub ignored_error_comment: bool,
+	pub ignored_error: bool,
 	/// Check that shared dependencies are hoisted to [workspace.dependencies] (default: true)
 	#[default = true]
 	pub workspace_dep_hoisting: bool,
@@ -206,8 +206,8 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions, exclude: &[PathBuf
 				if opts.pub_first {
 					all_violations.extend(pub_first::check(&info.path, &info.contents, tree));
 				}
-				if opts.ignored_error_comment {
-					all_violations.extend(ignored_error_comment::check(&info.path, &info.contents, tree));
+				if opts.ignored_error {
+					all_violations.extend(ignored_error::check(&info.path, &info.contents, tree));
 				}
 				if opts.unconventional_new {
 					all_violations.extend(unconventional_new::check(&info.path, &info.contents, tree, &try_new_types));
@@ -525,8 +525,8 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions, try_new_ty
 				}
 			}
 
-			if first_fix.is_none() && opts.ignored_error_comment {
-				for v in ignored_error_comment::check(&info.path, &info.contents, tree) {
+			if first_fix.is_none() && opts.ignored_error {
+				for v in ignored_error::check(&info.path, &info.contents, tree) {
 					if let Some(fix) = v.fix.clone() {
 						first_fix = Some((v, fix));
 						break;
@@ -643,8 +643,8 @@ fn collect_unfixable(info: &FileInfo, opts: &RustCheckOptions, try_new_types: &H
 		if opts.pub_first {
 			unfixable.extend(pub_first::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
 		}
-		if opts.ignored_error_comment {
-			unfixable.extend(ignored_error_comment::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
+		if opts.ignored_error {
+			unfixable.extend(ignored_error::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
 		}
 		if opts.unconventional_new {
 			unfixable.extend(unconventional_new::check(&info.path, &info.contents, tree, try_new_types).into_iter().filter(|v| v.fix.is_none()));

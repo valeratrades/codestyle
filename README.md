@@ -89,7 +89,7 @@ codestyle --exclude libs/nautilus_trader --exclude vendor rust assert .
 | `--use-bail` | true | Replace `return Err(eyre!(...))` with `bail!(...)` |
 | `--test-fn-prefix` | false | Test fns must not start with `test_` |
 | `--pub-first` | true | `pub` items come before private items |
-| `--ignored-error-comment` | true | `unwrap_or*` and `let _ =` need `//IGNORED_ERROR` |
+| `--ignored-error` | true | `unwrap_or*` and `let _ =` need `//IGNORED_ERROR` |
 | `--workspace-dep-hoisting` | true | Hoist shared deps to `[workspace.dependencies]` |
 | `--unconventional-new` | true | `fn new` returning `Result` -> rename to `try_new` |
 | `--prefer-default-over-bare-new` | false | Argument-less `pub fn new()` -> `Default` |

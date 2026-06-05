@@ -12,6 +12,10 @@ struct Cli {
 	#[arg(long)]
 	exclude: Vec<PathBuf>,
 
+	/// Run only the named check(s), disabling all others (repeatable, e.g. --only loops). Accepts kebab-case names. Explicit --<check>=… flags still take precedence.
+	#[arg(long)]
+	only: Vec<String>,
+
 	#[command(subcommand)]
 	command: Commands,
 }
@@ -95,7 +99,7 @@ struct RustCheckOptionsArgs {
 
 	/// Check for //IGNORED_ERROR comments on unwrap_or/unwrap_or_default/unwrap_or_else and `let _ = ...` [default: true]
 	#[arg(long)]
-	ignored_error_comment: Option<bool>,
+	ignored_error: Option<bool>,
 
 	/// Check that shared dependencies are hoisted to [workspace.dependencies] [default: true]
 	#[arg(long)]
@@ -127,7 +131,7 @@ fn main() {
 
 	let exit_code = match cli.command {
 		Commands::Rust { mode, options } => {
-			let opts: RustCheckOptions = options.into();
+			let opts = options.resolve(&cli.only);
 			match mode {
 				RustMode::Assert { target_dir } => rust_checks::run_assert(&target_dir, &opts, &cli.exclude),
 				RustMode::Format { target_dir } => rust_checks::run_format(&target_dir, &opts, &cli.exclude),
@@ -138,15 +142,39 @@ fn main() {
 	std::process::exit(exit_code);
 }
 
-impl From<RustCheckOptionsArgs> for RustCheckOptions {
-	fn from(args: RustCheckOptionsArgs) -> Self {
+impl RustCheckOptionsArgs {
+	/// Resolve CLI flags into [`RustCheckOptions`].
+	///
+	/// Without `--only`, each check falls back to its default. With `--only`, every check
+	/// starts disabled and only the named ones are enabled; explicit `--<check>=…` flags
+	/// still win in either mode. Names are matched in kebab-case (e.g. `embed-simple-vars`).
+	fn resolve(self, only: &[String]) -> RustCheckOptions {
+		let args = self;
 		let d = RustCheckOptions::default();
-		macro_rules! or_default {
-			($($field:ident),+ $(,)?) => {
-				Self { $($field: args.$field.unwrap_or(d.$field)),+ }
-			};
+		let only_mode = !only.is_empty();
+		let mut matched = vec![false; only.len()];
+
+		macro_rules! resolve {
+			($($field:ident),+ $(,)?) => {{
+				// Base value when no explicit flag is passed: the default, or `false` under --only
+				// unless this check is named (matched in kebab-case against the field ident).
+				$(
+					let base = if only_mode {
+						let name = stringify!($field).replace('_', "-");
+						match only.iter().position(|o| *o == name) {
+							Some(i) => { matched[i] = true; true }
+							None => false,
+						}
+					} else {
+						d.$field
+					};
+					let $field = args.$field.unwrap_or(base);
+				)+
+				RustCheckOptions { $($field),+ }
+			}};
 		}
-		or_default!(
+
+		let opts = resolve!(
 			cargo_dep_ordering,
 			instrument,
 			loops,
@@ -160,13 +188,18 @@ impl From<RustCheckOptionsArgs> for RustCheckOptions {
 			use_bail,
 			test_fn_prefix,
 			pub_first,
-			ignored_error_comment,
+			ignored_error,
 			workspace_dep_hoisting,
 			unconventional_new,
 			prefer_default_over_bare_new,
 			inline_default,
 			prefer_ahash,
 			too_explicit,
-		)
+		);
+
+		let unknown: Vec<&String> = only.iter().zip(&matched).filter(|(_, m)| !**m).map(|(o, _)| o).collect();
+		assert!(unknown.is_empty(), "--only got unknown check name(s): {unknown:?}");
+
+		opts
 	}
 }
