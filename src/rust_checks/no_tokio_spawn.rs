@@ -6,7 +6,7 @@
 use std::path::Path;
 
 use proc_macro2::Span;
-use syn::{Expr, ExprCall, ExprPath, spanned::Spanned, visit::Visit};
+use syn::{Attribute, Expr, ExprCall, ExprPath, ItemFn, ItemMod, Meta, spanned::Spanned, visit::Visit};
 
 use super::{Violation, skip::SkipVisitor};
 
@@ -22,6 +22,10 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 struct TokioSpawnVisitor {
 	path_str: String,
 	violations: Vec<Violation>,
+	/// Nesting depth of enclosing test contexts (`#[test]`/`#[tokio::test]` fns and
+	/// `#[cfg(test)]` modules). Spawns inside tests are intentionally allowed — unstructured
+	/// concurrency in a test is short-lived and torn down with the test runtime.
+	test_depth: usize,
 }
 
 impl TokioSpawnVisitor {
@@ -29,6 +33,7 @@ impl TokioSpawnVisitor {
 		Self {
 			path_str: path.display().to_string(),
 			violations: Vec::default(),
+			test_depth: 0,
 		}
 	}
 
@@ -64,11 +69,45 @@ impl TokioSpawnVisitor {
 
 impl<'a> Visit<'a> for TokioSpawnVisitor {
 	fn visit_expr_call(&mut self, node: &'a ExprCall) {
-		if let Expr::Path(ExprPath { path, .. }) = &*node.func
+		if self.test_depth == 0
+			&& let Expr::Path(ExprPath { path, .. }) = &*node.func
 			&& let Some(variant) = self.is_tokio_spawn_path(path)
 		{
 			self.report_tokio_spawn(node.func.span(), variant);
 		}
 		syn::visit::visit_expr_call(self, node);
 	}
+
+	fn visit_item_fn(&mut self, node: &'a ItemFn) {
+		let is_test = node.attrs.iter().any(is_test_attr);
+		self.test_depth += usize::from(is_test);
+		syn::visit::visit_item_fn(self, node);
+		self.test_depth -= usize::from(is_test);
+	}
+
+	fn visit_item_mod(&mut self, node: &'a ItemMod) {
+		let is_test = node.attrs.iter().any(is_cfg_test_attr);
+		self.test_depth += usize::from(is_test);
+		syn::visit::visit_item_mod(self, node);
+		self.test_depth -= usize::from(is_test);
+	}
+}
+
+/// A `#[test]` / `#[tokio::test]` / `#[cfg(test)]` attribute on a function — anything marking it
+/// as test-only code. The last segment matching `test` covers `tokio::test`, `rstest::rstest`-style
+/// renames are not handled, but the common runtime attributes are.
+fn is_test_attr(attr: &Attribute) -> bool {
+	if is_cfg_test_attr(attr) {
+		return true;
+	}
+	attr.path().segments.last().is_some_and(|s| s.ident == "test")
+}
+
+/// A `#[cfg(test)]` attribute.
+fn is_cfg_test_attr(attr: &Attribute) -> bool {
+	if !attr.path().is_ident("cfg") {
+		return false;
+	}
+	let Meta::List(list) = &attr.meta else { return false };
+	list.tokens.to_string().split(|c: char| !c.is_alphanumeric() && c != '_').any(|t| t == "test")
 }

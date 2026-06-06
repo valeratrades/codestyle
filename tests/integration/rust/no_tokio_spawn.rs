@@ -40,6 +40,39 @@ fn non_tokio_spawn_passes() {
 	);
 }
 
+#[test]
+fn spawn_in_test_fn_is_allowed() {
+	assert_check_passing(
+		r#"
+		#[test]
+		fn my_test() {
+			tokio::spawn(async { println!("ok in test"); });
+		}
+
+		#[tokio::test]
+		async fn my_async_test() {
+			tokio::task::spawn(async { println!("also ok"); });
+		}
+		"#,
+		&opts(),
+	);
+}
+
+#[test]
+fn spawn_in_cfg_test_mod_is_allowed() {
+	assert_check_passing(
+		r#"
+		#[cfg(test)]
+		mod tests {
+			fn helper() {
+				tokio::spawn(async { println!("ok in cfg(test) mod"); });
+			}
+		}
+		"#,
+		&opts(),
+	);
+}
+
 // === Violation cases (no autofix) ===
 
 #[test]
