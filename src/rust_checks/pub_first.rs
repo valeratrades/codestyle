@@ -536,12 +536,25 @@ fn char_col_to_byte(line: &str, column: usize) -> Option<usize> {
 	line.char_indices().nth(column).map(|(b, _)| b).or_else(|| (line.chars().count() == column).then_some(line.len()))
 }
 
-/// Find the byte position of the start of the line containing `pos`
+/// Find the byte position of the start of the line containing `pos`.
+/// `pos` is clamped to a char boundary first, since callers derive it via byte arithmetic
+/// that can land inside a multi-byte char.
 fn find_line_start(content: &str, pos: usize) -> usize {
+	let pos = floor_char_boundary(content, pos);
 	content[..pos].rfind('\n').map(|i| i + 1).unwrap_or(0)
 }
 
 /// Find the byte position of the end of the line containing `pos` (the newline char position)
 fn find_line_end(content: &str, pos: usize) -> usize {
+	let pos = floor_char_boundary(content, pos);
 	content[pos..].find('\n').map(|i| pos + i).unwrap_or(content.len())
+}
+
+/// Largest byte index `<= pos` that lies on a char boundary (std's is still unstable).
+fn floor_char_boundary(content: &str, pos: usize) -> usize {
+	let mut pos = pos.min(content.len());
+	while !content.is_char_boundary(pos) {
+		pos -= 1;
+	}
+	pos
 }
