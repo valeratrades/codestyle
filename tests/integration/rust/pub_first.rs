@@ -1120,6 +1120,28 @@ fn private_before_pub_not_moved_past_test_module() {
 	");
 }
 
+// === Multi-byte chars in doc comments must not corrupt span byte offsets ===
+
+#[test]
+fn multibyte_doc_comment_before_item() {
+	// proc-macro2 reports span columns as char offsets, not byte offsets. A doc comment
+	// containing multi-byte chars (e.g. box-drawing `─`) used to make span_position_to_byte
+	// land inside a char boundary, panicking during reorder.
+	insta::assert_snapshot!(test_case(
+		"\n\t\t\t/// ─── private ───\n\t\t\tfn private() {}\n\n\t\t\t/// ─── public ───\n\t\t\tpub fn public() {}\n\t\t\t",
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:4: public item should come before private items
+
+	# Format mode
+	/// ─── public ───
+	pub fn public() {}
+	/// ─── private ───
+	fn private() {}
+	");
+}
+
 // === Type alias referencing local type should not be moved to top ===
 
 #[test]

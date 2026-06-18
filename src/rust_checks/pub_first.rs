@@ -504,14 +504,15 @@ fn find_item_text_start(content: &str, span_start: usize) -> usize {
 }
 
 /// Convert a line/column position to byte offset in content.
-/// Lines are 1-indexed, columns are 0-indexed (byte offset within line).
+/// Lines are 1-indexed; columns are 0-indexed UTF-8 char offsets within the line
+/// (proc-macro2 reports columns as char counts, not bytes).
 fn span_position_to_byte(content: &str, line: usize, column: usize) -> Option<usize> {
 	let mut current_line = 1;
 	let mut line_start = 0;
 
 	for (i, ch) in content.char_indices() {
 		if current_line == line {
-			return Some(line_start + column);
+			return Some(char_col_to_byte(&content[line_start..], column).map(|b| line_start + b)?);
 		}
 		if ch == '\n' {
 			current_line += 1;
@@ -520,10 +521,19 @@ fn span_position_to_byte(content: &str, line: usize, column: usize) -> Option<us
 	}
 
 	if current_line == line {
-		return Some(line_start + column);
+		return char_col_to_byte(&content[line_start..], column).map(|b| line_start + b);
 	}
 
 	None
+}
+
+/// Byte offset of the `column`-th char within `line` (the column may equal the char count,
+/// pointing one-past-the-end, which is what end spans use).
+fn char_col_to_byte(line: &str, column: usize) -> Option<usize> {
+	if column == 0 {
+		return Some(0);
+	}
+	line.char_indices().nth(column).map(|(b, _)| b).or_else(|| (line.chars().count() == column).then_some(line.len()))
 }
 
 /// Find the byte position of the start of the line containing `pos`
