@@ -1,6 +1,7 @@
 env:
   CARGO_INCREMENTAL: '0'
   CARGO_NET_RETRY: '10'
+  RUSTC_WRAPPER: ''
   RUSTUP_MAX_RETRIES: '10'
   RUST_BACKTRACE: short
 jobs:
@@ -15,8 +16,13 @@ jobs:
     - uses: actions/checkout@v4
     - name: Install Nix
       uses: DeterminateSystems/nix-installer-action@main
-    - name: Restore Nix cache
-      uses: DeterminateSystems/magic-nix-cache-action@main
+      with:
+        extra-conf: lazy-trees = true
+    - name: Setup Nix cache
+      uses: nix-community/cache-nix-action@v7
+      with:
+        primary-key: nix-${{ runner.os }}-${{ hashFiles('**/flake.lock') }}
+        restore-prefixes-first-match: nix-${{ runner.os }}-
     - uses: actions/checkout@v4
       with:
         path: my_gh_stuff
@@ -54,8 +60,13 @@ jobs:
     steps:
     - name: Install Nix
       uses: DeterminateSystems/nix-installer-action@main
+      with:
+        extra-conf: lazy-trees = true
     - name: Setup Nix cache
-      uses: DeterminateSystems/magic-nix-cache-action@main
+      uses: nix-community/cache-nix-action@v7
+      with:
+        primary-key: nix-${{ runner.os }}-${{ hashFiles('**/flake.lock') }}
+        restore-prefixes-first-match: nix-${{ runner.os }}-
     - name: Cache packages
       run: '# Pre-fetch packages into nix store so they''re cached for dependent jobs
 
@@ -66,7 +77,7 @@ jobs:
 
         '
   pre_ci:
-    uses: valeratrades/.github/.github/workflows/pre_ci.yml@master
+    uses: valeratrades/.github/.github/workflows/pre_ci.yml@main
   rust-clippy:
     if: github.event_name != 'pull_request'
     name: Clippy
@@ -78,8 +89,13 @@ jobs:
     - uses: actions/checkout@v4
     - name: Install Nix
       uses: DeterminateSystems/nix-installer-action@main
-    - name: Restore Nix cache
-      uses: DeterminateSystems/magic-nix-cache-action@main
+      with:
+        extra-conf: lazy-trees = true
+    - name: Setup Nix cache
+      uses: nix-community/cache-nix-action@v7
+      with:
+        primary-key: nix-${{ runner.os }}-${{ hashFiles('**/flake.lock') }}
+        restore-prefixes-first-match: nix-${{ runner.os }}-
     - uses: dtolnay/rust-toolchain@clippy
     - name: Download modified by pre-ci Cargo.toml files
       uses: actions/download-artifact@v4
@@ -111,20 +127,29 @@ jobs:
     - uses: actions/checkout@v4
     - name: Install Nix
       uses: DeterminateSystems/nix-installer-action@main
-    - name: Restore Nix cache
-      uses: DeterminateSystems/magic-nix-cache-action@main
+      with:
+        extra-conf: lazy-trees = true
+    - name: Setup Nix cache
+      uses: nix-community/cache-nix-action@v7
+      with:
+        primary-key: nix-${{ runner.os }}-${{ hashFiles('**/flake.lock') }}
+        restore-prefixes-first-match: nix-${{ runner.os }}-
     - uses: dtolnay/rust-toolchain@nightly
     - name: Download modified by pre-ci Cargo.toml files
       uses: actions/download-artifact@v4
       with:
         name: modified-cargo-files
     - uses: dtolnay/install@cargo-docs-rs
-    - run: nix-shell -p mold pkg-config openssl.out openssl.dev --command "export
-        LD_LIBRARY_PATH=\"\$(nix-build '<nixpkgs>' -A mold --no-out-link)/lib\${LD_LIBRARY_PATH:+:}\$LD_LIBRARY_PATH\"
-        && export LD_LIBRARY_PATH=\"\$(nix-build '<nixpkgs>' -A pkg-config --no-out-link)/lib\${LD_LIBRARY_PATH:+:}\$LD_LIBRARY_PATH\"
-        && export LD_LIBRARY_PATH=\"\$(nix-build '<nixpkgs>' -A openssl.out --no-out-link)/lib\${LD_LIBRARY_PATH:+:}\$LD_LIBRARY_PATH\"
-        && export LD_LIBRARY_PATH=\"\$(nix-build '<nixpkgs>' -A openssl.dev --no-out-link)/lib\${LD_LIBRARY_PATH:+:}\$LD_LIBRARY_PATH\"
-        && cargo docs-rs"
+    - run: "nix-shell -p mold pkg-config openssl.out openssl.dev --command \"export\
+        \ LD_LIBRARY_PATH=\\\"\\$(nix-build '<nixpkgs>' -A mold --no-out-link)/lib\\\
+        ${LD_LIBRARY_PATH:+:}\\$LD_LIBRARY_PATH\\\" && export LD_LIBRARY_PATH=\\\"\
+        \\$(nix-build '<nixpkgs>' -A pkg-config --no-out-link)/lib\\${LD_LIBRARY_PATH:+:}\\\
+        $LD_LIBRARY_PATH\\\" && export LD_LIBRARY_PATH=\\\"\\$(nix-build '<nixpkgs>'\
+        \ -A openssl.out --no-out-link)/lib\\${LD_LIBRARY_PATH:+:}\\$LD_LIBRARY_PATH\\\
+        \" && export LD_LIBRARY_PATH=\\\"\\$(nix-build '<nixpkgs>' -A openssl.dev\
+        \ --no-out-link)/lib\\${LD_LIBRARY_PATH:+:}\\$LD_LIBRARY_PATH\\\" && for p\
+        \ in \\$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[].name');\
+        \ do\n  cargo docs-rs -p \\\"\\$p\\\"\ndone\n\""
     timeout-minutes: 45
   rust-machete:
     name: Unused Dependencies
@@ -137,8 +162,13 @@ jobs:
         tool: cargo-machete
     - name: Install Nix
       uses: DeterminateSystems/nix-installer-action@main
-    - name: Restore Nix cache
-      uses: DeterminateSystems/magic-nix-cache-action@main
+      with:
+        extra-conf: lazy-trees = true
+    - name: Setup Nix cache
+      uses: nix-community/cache-nix-action@v7
+      with:
+        primary-key: nix-${{ runner.os }}-${{ hashFiles('**/flake.lock') }}
+        restore-prefixes-first-match: nix-${{ runner.os }}-
     - name: Cargo Machete
       run: "nix-shell -p mold pkg-config openssl.out openssl.dev --command \"export\
         \ LD_LIBRARY_PATH=\\\"\\$(nix-build '<nixpkgs>' -A mold --no-out-link)/lib\\\
@@ -159,8 +189,13 @@ jobs:
     - uses: actions/checkout@v4
     - name: Install Nix
       uses: DeterminateSystems/nix-installer-action@main
-    - name: Restore Nix cache
-      uses: DeterminateSystems/magic-nix-cache-action@main
+      with:
+        extra-conf: lazy-trees = true
+    - name: Setup Nix cache
+      uses: nix-community/cache-nix-action@v7
+      with:
+        primary-key: nix-${{ runner.os }}-${{ hashFiles('**/flake.lock') }}
+        restore-prefixes-first-match: nix-${{ runner.os }}-
     - name: Installation
       uses: taiki-e/install-action@v2
       with:
@@ -185,8 +220,13 @@ jobs:
     - uses: actions/checkout@v4
     - name: Install Nix
       uses: DeterminateSystems/nix-installer-action@main
-    - name: Restore Nix cache
-      uses: DeterminateSystems/magic-nix-cache-action@main
+      with:
+        extra-conf: lazy-trees = true
+    - name: Setup Nix cache
+      uses: nix-community/cache-nix-action@v7
+      with:
+        primary-key: nix-${{ runner.os }}-${{ hashFiles('**/flake.lock') }}
+        restore-prefixes-first-match: nix-${{ runner.os }}-
     - name: Installation
       uses: taiki-e/install-action@v2
       with:
@@ -212,8 +252,13 @@ jobs:
       uses: actions/checkout@v4
     - name: Install Nix
       uses: DeterminateSystems/nix-installer-action@main
-    - name: Restore Nix cache
-      uses: DeterminateSystems/magic-nix-cache-action@main
+      with:
+        extra-conf: lazy-trees = true
+    - name: Setup Nix cache
+      uses: nix-community/cache-nix-action@v7
+      with:
+        primary-key: nix-${{ runner.os }}-${{ hashFiles('**/flake.lock') }}
+        restore-prefixes-first-match: nix-${{ runner.os }}-
     - name: Installation
       uses: taiki-e/install-action@v2
       with:
