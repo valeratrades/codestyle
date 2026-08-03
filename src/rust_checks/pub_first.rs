@@ -1,6 +1,6 @@
 //! Rule: items are ordered as follows:
-//! 1. All const items (regardless of visibility)
-//! 2. All type items (regardless of visibility)
+//! 1. All const items (pub before private)
+//! 2. All type items (pub before private)
 //! 3. All pub items (Parser > Subcommand > Args > main > trait > other)
 //! 4. All private items (Parser > Subcommand > Args > main > trait > other)
 
@@ -76,6 +76,10 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		}
 	}
 
+	if let Some(v) = check_pub_within_section(&items, &anchor_ranges, content, &path_str, |item| item.is_const, "public `const` should come before private ones") {
+		return vec![v];
+	}
+
 	// 2. Check type ordering - all type items should come after const but before everything else
 	let mut first_non_const_non_type_idx: Option<usize> = None;
 	for (i, item) in items.iter().enumerate() {
@@ -95,6 +99,10 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 				fix,
 			}];
 		}
+	}
+
+	if let Some(v) = check_pub_within_section(&items, &anchor_ranges, content, &path_str, |item| item.is_type, "public `type` should come before private ones") {
+		return vec![v];
 	}
 
 	// 3. Check pub/private ordering - pub items should come before private (excluding const/type)
@@ -224,6 +232,39 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	}
 
 	vec![]
+}
+
+/// Within the const/type sections, pub items come before private ones.
+fn check_pub_within_section(
+	items: &[ItemInfo],
+	anchor_ranges: &[(usize, usize)],
+	content: &str,
+	path_str: &str,
+	in_section: fn(&ItemInfo) -> bool,
+	message: &str,
+) -> Option<Violation> {
+	let mut first_private_idx: Option<usize> = None;
+	for (i, item) in items.iter().enumerate() {
+		if !in_section(item) {
+			continue;
+		}
+		if !item.is_pub && first_private_idx.is_none() {
+			first_private_idx = Some(i);
+		}
+		if item.is_pub
+			&& let Some(target_idx) = first_private_idx
+		{
+			return Some(Violation {
+				rule: RULE,
+				file: path_str.to_string(),
+				line: item.start_line,
+				column: 0,
+				message: message.to_string(),
+				fix: create_move_fix(content, items, anchor_ranges, i, target_idx),
+			});
+		}
+	}
+	None
 }
 
 struct KindRule {

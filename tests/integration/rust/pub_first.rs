@@ -665,6 +665,44 @@ fn correct_ordering_passes() {
 }
 
 #[test]
+fn private_const_before_pub_const_needs_reordering() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		const INTERNAL: u32 = 42;
+		pub const VERSION: u32 = 1;
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:2: public `const` should come before private ones
+
+	# Format mode
+	pub const VERSION: u32 = 1;
+	const INTERNAL: u32 = 42;
+	");
+}
+
+#[test]
+fn private_type_before_pub_type_needs_reordering() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		const A: u32 = 1;
+		type PrivInt = i64;
+		pub type PubInt = i32;
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:3: public `type` should come before private ones
+
+	# Format mode
+	const A: u32 = 1;
+	pub type PubInt = i32;
+	type PrivInt = i64;
+	");
+}
+
+#[test]
 fn const_after_type_needs_reordering() {
 	insta::assert_snapshot!(test_case(
 		r#"
@@ -835,10 +873,10 @@ fn full_ordering_combined() {
 	[pub-first] /main.rs:5: `const` should come before all other items
 
 	# Format mode
-	const INTERNAL: u32 = 42;
 	pub const VERSION: &str = "1.0";
-	type InternalInt = i64;
+	const INTERNAL: u32 = 42;
 	pub type PubInt = i32;
+	type InternalInt = i64;
 	pub fn main() {}
 	pub trait PubTrait {}
 	pub struct Config;
