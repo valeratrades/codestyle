@@ -1,4 +1,10 @@
-#!/usr/bin/env rust-script
+#!/home/v/nix/home/scripts/nix-run-cached
+---cargo
+
+[package]
+edition = "2024"
+---
+
 //! Picks what `cl review` should run, biased towards whatever is least recently run in the given
 //! project. Emits the ready-to-use prompt on stdout and a human label on stderr.
 //!
