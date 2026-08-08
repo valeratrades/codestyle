@@ -1,5 +1,8 @@
 # Everything `cl review` draws from. An entry is either a `skill` (naming <dir>/SKILL.md next to this
-# file) or a standalone `prompt` handed to the agent as-is.
+# file) or a standalone `prompt` handed to the agent as-is, which must carry a `name`.
+#
+# `name` is what `cl review -f` lists and matches against first; the skill/prompt body is searched
+# too, at a tenth of the weight.
 #
 # `importance` is 1.0..=3.0, default 1.0. Raising it spaces that entry's own runs more evenly, and
 # wins it a larger share of runs against lower-set entries. See pick.rs for the sampling itself.
@@ -10,6 +13,7 @@
   }
 
   {
+    name = "shrink module boundary";
     importance = 1.5;
     prompt = ''
       Find the single worst public function in this codebase that should be private or removed
@@ -17,12 +21,14 @@
     '';
   }
   {
+    name = "nest into an inline module";
     prompt = ''
       Find a self-contained piece of complex functionality in a large file, and nest it in an inlined
       module. This reduces entropy, cause piceces of complex machinery there suddenly don't mingle.
     '';
   }
   {
+    name = "kill a masking fallback";
     importance = 1.5;
     prompt = ''
       Hunt for one fallback that masks tainted state (unwrap_or, let _ =, silent default) and replace
@@ -30,12 +36,14 @@
     '';
   }
   {
+    name = "assert an unchecked invariant";
     prompt = ''
       Find a place where an invariant is assumed but not asserted, and add the assert. Pick the
       assertion that would catch the nastiest latent bug.
     '';
   }
   {
+    name = "collapse duplicated logic";
     importance = 1.5;
     prompt = ''
       Locate the most duplicated logic in the codebase and collapse it into a single source of truth,
@@ -43,18 +51,21 @@
     '';
   }
   {
+    name = "fix the worst error handling";
     prompt = ''
       Find the worst error-handling site (a swallowed error, a vague message, a stringly-typed error)
       and improve it with thiserror/miette/proper context.
     '';
   }
   {
+    name = "rename a confusing symbol";
     prompt = ''
       Pick the most confusingly-named symbol in the codebase and rename it to something that matches
       what it actually does. Update all call sites.
     '';
   }
   {
+    name = "delete dead code";
     importance = 1.5;
     prompt = ''
       Find dead code, unused pub items, or unreachable branches and delete them. Verify nothing
@@ -62,6 +73,7 @@
     '';
   }
   {
+    name = "prune tautological tests";
     prompt = ''
       Pick a module and go through tests there. For each you justify why it should be kept. The
       default action is deletion. Goal is to eliminate all that are tautalogical (eg some logic
