@@ -1,8 +1,8 @@
 # Everything `cl review` draws from. An entry is either a `skill` (naming <dir>/SKILL.md next to this
 # file) or a standalone `prompt` handed to the agent as-is, which must carry a `name`.
 #
-# `name` is what `cl review -f` lists and matches against first; the skill/prompt body is searched
-# too, at a tenth of the weight.
+# `name` is the only thing `cl review -f` matches against, so keep it descriptive; the body just
+# fills the preview pane.
 #
 # `importance` is 1.0..=3.0, default 1.0. Raising it spaces that entry's own runs more evenly, and
 # wins it a larger share of runs against lower-set entries. See pick.rs for the sampling itself.
