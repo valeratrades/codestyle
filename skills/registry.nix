@@ -65,6 +65,15 @@
     '';
   }
   {
+    name = "strip meaning from test fixture names";
+    prompt = ''
+      Find test fixtures (config files, profiles, option and item names) that borrow names from real
+      usage, eg `methods/omni.nix` in an integration test, and rename them to bare letters (`a.nix`,
+      `b.nix`). A reader must see they mean nothing beyond the test, and that nothing outside the test
+      env is read.
+    '';
+  }
+  {
     name = "delete dead code";
     importance = 1.5;
     prompt = ''
