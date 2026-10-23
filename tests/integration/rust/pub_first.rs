@@ -459,9 +459,10 @@ fn impl_blocks_preserved_during_reorder() {
 
 	# Format mode
 	pub struct Foo;
-	pub fn public_fn() {}
-	fn private_helper() {}
 
+	pub fn public_fn() {}
+
+	fn private_helper() {}
 
 	impl Foo {
 		fn method(&self) {}
@@ -488,6 +489,7 @@ fn doc_comments_preserved_during_reorder() {
 	# Format mode
 	/// Public struct
 	pub struct Foo;
+
 	/// Private helper function
 	fn private_helper() {}
 	");
@@ -512,6 +514,7 @@ fn attributes_preserved_during_reorder() {
 	# Format mode
 	#[derive(Debug)]
 	pub struct Foo;
+
 	#[cfg(test)]
 	fn private_test_helper() {}
 	");
@@ -537,7 +540,9 @@ fn blank_lines_preserved_during_reorder() {
 
 	# Format mode
 	pub fn public1() {}
+
 	pub fn public2() {}
+
 	fn helper1() {}
 
 	fn helper2() {}
@@ -568,9 +573,10 @@ fn trait_impl_preserved_during_reorder() {
 
 	# Format mode
 	pub struct Foo;
-	pub fn public() {}
-	fn private() {}
 
+	pub fn public() {}
+
+	fn private() {}
 
 	impl Default for Foo {
 		fn default() -> Self {
@@ -600,6 +606,7 @@ fn use_statements_at_top_preserved() {
 	use std::io;
 
 	pub fn public() {}
+
 	fn private() {}
 	");
 }
@@ -622,6 +629,7 @@ fn static_preserved_during_reorder() {
 
 	# Format mode
 	pub fn public() {}
+
 	static CACHE: &str = "test";
 
 	fn private() {}
@@ -946,7 +954,9 @@ fn clap_parser_not_moved_above_mod_and_use() {
 
 	#[derive(Parser)]
 	struct Cli {}
+
 	fn main() {}
+
 	fn other() {}
 	");
 }
@@ -1072,6 +1082,7 @@ fn code_items_above_trailing_mod_and_use() {
 
 	#[derive(clap::Parser)]
 	struct Cli {}
+
 	#[derive(clap::Subcommand)]
 	enum Commands {}
 	fn main() {}
@@ -1145,8 +1156,8 @@ fn private_before_pub_not_moved_past_test_module() {
 	use std::fmt;
 
 	pub fn public_fn() -> u32 { 42 }
-	fn private_helper() {}
 
+	fn private_helper() {}
 
 	#[cfg(test)]
 	mod tests {
@@ -1175,6 +1186,7 @@ fn multibyte_doc_comment_before_item() {
 	# Format mode
 	/// ─── public ───
 	pub fn public() {}
+
 	/// ─── private ───
 	fn private() {}
 	");
@@ -1279,5 +1291,79 @@ fn type_alias_referencing_local_type_respects_pub_ordering() {
 	}
 	type BookSnapshot = Book;
 	fn helper() {}
+	");
+}
+
+#[test]
+fn moved_items_keep_one_blank_line_between_items() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		pub enum Aim {}
+
+		/// Doc a.
+		fn a() {}
+
+		/// Doc b.
+		fn b() {}
+
+		/// Doc apply.
+		pub fn apply() {}
+
+		/// Doc generate.
+		pub fn generate() {}
+
+		/// Doc c.
+		fn c() {}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:9: public item should come before private items
+
+	# Format mode
+	pub enum Aim {}
+
+	/// Doc apply.
+	pub fn apply() {}
+
+	/// Doc generate.
+	pub fn generate() {}
+
+	/// Doc a.
+	fn a() {}
+
+	/// Doc b.
+	fn b() {}
+
+	/// Doc c.
+	fn c() {}
+	");
+}
+
+#[test]
+fn item_moved_below_anchors_leaves_no_double_blank_line() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		use std::io;
+
+		fn helper() {}
+
+		mod other;
+
+		fn after() {}
+		"#,
+		&opts(),
+	), @"
+	# Assert mode
+	[pub-first] /main.rs:3: item should come after mod/use declarations
+
+	# Format mode
+	use std::io;
+
+	mod other;
+
+	fn helper() {}
+
+	fn after() {}
 	");
 }

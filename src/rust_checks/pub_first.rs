@@ -191,11 +191,6 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 			}
 			// This code item is before a later anchor — move it after the last anchor
 			let item_text = &content[item.text_start..item.text_end];
-			let remove_end = if item.text_end < content.len() && content.as_bytes()[item.text_end] == b'\n' {
-				item.text_end + 1
-			} else {
-				item.text_end
-			};
 
 			// Find insert position: right after the last anchor's line end
 			let last_anchor_line_end = find_line_end(content, last_anchor_end);
@@ -205,9 +200,8 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 				last_anchor_line_end
 			};
 
-			// Build fix: replace the span from item start to insert_pos
-			// with: (content between remove_end and insert_pos) + blank line + item_text + newline
-			let between = &content[remove_end..insert_pos];
+			// The separator that preceded the item stays in front of what followed it.
+			let between = content[item.text_end..insert_pos].trim_start();
 			let mut replacement = String::default();
 			replacement.push_str(between);
 			if !replacement.ends_with("\n\n") {
@@ -235,14 +229,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 }
 
 /// Within the const/type sections, pub items come before private ones.
-fn check_pub_within_section(
-	items: &[ItemInfo],
-	anchor_ranges: &[(usize, usize)],
-	content: &str,
-	path_str: &str,
-	in_section: fn(&ItemInfo) -> bool,
-	message: &str,
-) -> Option<Violation> {
+fn check_pub_within_section(items: &[ItemInfo], anchor_ranges: &[(usize, usize)], content: &str, path_str: &str, in_section: fn(&ItemInfo) -> bool, message: &str) -> Option<Violation> {
 	let mut first_private_idx: Option<usize> = None;
 	for (i, item) in items.iter().enumerate() {
 		if !in_section(item) {
@@ -426,14 +413,12 @@ fn create_move_fix(content: &str, items: &[ItemInfo], anchor_ranges: &[(usize, u
 	let to_item = &items[to_idx];
 
 	let item_text = &content[from_item.text_start..from_item.text_end];
-
-	let remove_end = if from_item.text_end < content.len() && content.as_bytes()[from_item.text_end] == b'\n' {
-		from_item.text_end + 1
-	} else {
-		from_item.text_end
-	};
-
 	let insert_pos = to_item.text_start;
+
+	// The moved item takes its leading separator along and goes in front of `to_item`; whatever followed it stays put.
+	let gap = &content[insert_pos..from_item.text_start];
+	let gap_body = gap.trim_end();
+	let separator = &gap[gap_body.len()..];
 
 	// Collect anchor items in the gap between to_item and from_item.
 	// These must stay above the reordered code items.
@@ -446,15 +431,10 @@ fn create_move_fix(content: &str, items: &[ItemInfo], anchor_ranges: &[(usize, u
 
 	if gap_anchors.is_empty() {
 		// Simple case: no anchors in the gap, just move the item
-		let mut replacement = String::default();
-		replacement.push_str(item_text);
-		replacement.push('\n');
-		replacement.push_str(&content[insert_pos..from_item.text_start]);
-
 		return Some(Fix {
 			start_byte: insert_pos,
-			end_byte: remove_end,
-			replacement,
+			end_byte: from_item.text_end,
+			replacement: format!("{item_text}{separator}{gap_body}"),
 		});
 	}
 
@@ -489,9 +469,7 @@ fn create_move_fix(content: &str, items: &[ItemInfo], anchor_ranges: &[(usize, u
 		code_text.push_str(&content[pos..from_item.text_start]);
 	}
 
-	// Trim trailing blank lines from code_text to avoid accumulation across iterations
-	let code_text = code_text.trim_end_matches('\n');
-	let code_suffix = if code_text.is_empty() { "" } else { "\n" };
+	let code_text = code_text.trim_end();
 
 	let mut replacement = String::default();
 	replacement.push_str(&anchor_text);
@@ -500,15 +478,14 @@ fn create_move_fix(content: &str, items: &[ItemInfo], anchor_ranges: &[(usize, u
 		replacement.push('\n');
 	}
 	replacement.push_str(item_text);
-	replacement.push('\n');
 	if !code_text.is_empty() {
+		replacement.push_str(separator);
 		replacement.push_str(code_text);
-		replacement.push_str(code_suffix);
 	}
 
 	Some(Fix {
 		start_byte: insert_pos,
-		end_byte: remove_end,
+		end_byte: from_item.text_end,
 		replacement,
 	})
 }
