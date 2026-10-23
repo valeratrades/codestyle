@@ -1,7 +1,7 @@
 cargo-features = ["codegen-backend"]
 [package]
 name = "codestyle"
-version = "0.2.81"
+version = "0.2.82"
 edition = "2024"
 authors = ["Valeriy Sakharov <valeratrades@gmail.com>"]
 description = "A code style checker and formatter for Rust"
@@ -54,3 +54,6 @@ get_last_with_len = "allow"
 
 [lints.rust]
 unused_features = "allow"
+
+[lints.cargo]
+non_kebab_case_bins = "allow"
