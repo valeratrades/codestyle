@@ -7,6 +7,7 @@
 
 use std::{collections::HashSet, path::Path};
 
+use proc_macro2::{Delimiter, TokenStream, TokenTree};
 use syn::{Expr, ExprCall, ExprPath, ImplItem, Item, PathSegment, ReturnType, Type, visit::Visit};
 
 use super::{FileInfo, Fix, Violation, path_rewrite::span_to_byte, skip::SkipVisitor};
@@ -89,6 +90,45 @@ impl<'a> UnconventionalNewVisitor<'a> {
 		});
 	}
 
+	/// syn leaves macro arguments unparsed, so `Type::new(` call-sites in them are found on the raw token tree.
+	fn check_macro_tokens(&mut self, tokens: TokenStream) {
+		let tts: Vec<TokenTree> = tokens.into_iter().collect();
+		for (i, tt) in tts.iter().enumerate() {
+			if let TokenTree::Group(g) = tt {
+				self.check_macro_tokens(g.stream());
+			}
+			let [TokenTree::Ident(ty), TokenTree::Punct(c1), TokenTree::Punct(c2), TokenTree::Ident(new), TokenTree::Group(args)] = &tts[i..(i + 5).min(tts.len())] else {
+				continue;
+			};
+			if c1.as_char() != ':' || c2.as_char() != ':' || new != "new" || args.delimiter() != Delimiter::Parenthesis {
+				continue;
+			}
+			let type_name = ty.to_string();
+			if !self.try_new_types.contains(&type_name) {
+				continue;
+			}
+			self.push_call_violation(&type_name, new.span());
+		}
+	}
+
+	fn push_call_violation(&mut self, type_name: &str, span: proc_macro2::Span) {
+		let fix = span_to_byte(self.content, span.start()).and_then(|start| {
+			span_to_byte(self.content, span.end()).map(|end| Fix {
+				start_byte: start,
+				end_byte: end,
+				replacement: "try_new".to_string(),
+			})
+		});
+		self.violations.push(Violation {
+			rule: RULE,
+			file: self.path_str.clone(),
+			line: span.start().line,
+			column: span.start().column,
+			message: format!("`{type_name}::new` was renamed to `try_new`"),
+			fix,
+		});
+	}
+
 	fn check_call(&mut self, expr: &ExprCall) {
 		let Expr::Path(ExprPath { path, .. }) = expr.func.as_ref() else {
 			return;
@@ -106,22 +146,7 @@ impl<'a> UnconventionalNewVisitor<'a> {
 		if !self.try_new_types.contains(&type_name) {
 			return;
 		}
-		let span = last.ident.span();
-		let fix = span_to_byte(self.content, span.start()).and_then(|start| {
-			span_to_byte(self.content, span.end()).map(|end| Fix {
-				start_byte: start,
-				end_byte: end,
-				replacement: "try_new".to_string(),
-			})
-		});
-		self.violations.push(Violation {
-			rule: RULE,
-			file: self.path_str.clone(),
-			line: span.start().line,
-			column: span.start().column,
-			message: format!("`{type_name}::new` was renamed to `try_new`"),
-			fix,
-		});
+		self.push_call_violation(&type_name, last.ident.span());
 	}
 }
 
@@ -136,6 +161,11 @@ impl<'a> Visit<'a> for UnconventionalNewVisitor<'a> {
 			}
 		}
 		syn::visit::visit_item_impl(self, node);
+	}
+
+	fn visit_macro(&mut self, node: &'a syn::Macro) {
+		self.check_macro_tokens(node.tokens.clone());
+		syn::visit::visit_macro(self, node);
 	}
 
 	fn visit_expr_call(&mut self, node: &'a ExprCall) {

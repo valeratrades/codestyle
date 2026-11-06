@@ -5,7 +5,7 @@
 //!
 //! Only inline usages are flagged — `use` statements with full paths are already correct style.
 
-use std::path::Path;
+use std::{collections::HashSet, path::Path};
 
 use syn::{spanned::Spanned, visit::Visit};
 
@@ -76,18 +76,26 @@ const REWRITES: &[Rewrite] = &[
 ];
 
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
-	let visitor = TooExplicitVisitor::new(path, content);
+	let file_scope_byte = path_rewrite::first_use_line_start(content);
+	let scopes = enumerate_scopes(content, file, file_scope_byte);
+
+	let blocked: HashSet<(usize, &'static str)> = scopes
+		.iter()
+		.flat_map(|scope| REWRITES.iter().filter(|r| short_name_taken(scope.items, r)).map(|r| (scope.insert_byte, r.short_name)))
+		.collect();
+
+	let visitor = TooExplicitVisitor::new(path, content, blocked.clone());
 	let mut skip_visitor = SkipVisitor::for_rule(visitor, content, RULE);
 	skip_visitor.visit_file(file);
 	let mut violations = skip_visitor.inner.violations;
 	let violation_scope_bytes = skip_visitor.inner.violation_scope_bytes;
 
-	let file_scope_byte = path_rewrite::first_use_line_start(content);
-	let scopes = enumerate_scopes(content, file, file_scope_byte);
-
 	for rewrite in REWRITES {
 		let short_name = rewrite.short_name;
 		for scope in &scopes {
+			if blocked.contains(&(scope.insert_byte, short_name)) {
+				continue;
+			}
 			let has_import = path_rewrite::is_name_imported_in_scope(scope.items, short_name);
 			// Needs import if: a violation in this scope introduced a bare name, OR a previous
 			// fix iteration left a bare name without an import in this scope.
@@ -115,6 +123,95 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	}
 
 	violations
+}
+
+/// Whether the rewrite's short name already means something else in this scope, or might (a glob import
+/// could provide it, and an explicit import added by the fix would shadow that).
+fn short_name_taken(items: &[syn::Item], rewrite: &Rewrite) -> bool {
+	struct V<'a> {
+		name: &'a str,
+		full: &'a [&'static str],
+		taken: bool,
+		has_glob: bool,
+		imports_full: bool,
+	}
+	impl V<'_> {
+		fn walk(&mut self, tree: &syn::UseTree, prefix: &mut Vec<String>) {
+			match tree {
+				syn::UseTree::Path(p) => {
+					prefix.push(p.ident.to_string());
+					self.walk(&p.tree, prefix);
+					prefix.pop();
+				}
+				syn::UseTree::Name(n) if n.ident == self.name => {
+					if prefix.iter().map(String::as_str).eq(self.full[..self.full.len() - 1].iter().copied()) {
+						self.imports_full = true;
+					} else {
+						self.taken = true;
+					}
+				}
+				syn::UseTree::Rename(r) if r.rename == self.name => self.taken = true,
+				syn::UseTree::Group(g) => g.items.iter().for_each(|t| self.walk(t, prefix)),
+				syn::UseTree::Glob(_) => self.has_glob = true,
+				_ => {}
+			}
+		}
+
+		fn item(&mut self, ident: &syn::Ident) {
+			self.taken |= ident == self.name;
+		}
+	}
+	impl<'ast> Visit<'ast> for V<'_> {
+		fn visit_item_mod(&mut self, node: &'ast syn::ItemMod) {
+			self.item(&node.ident);
+		}
+
+		fn visit_item_use(&mut self, node: &'ast syn::ItemUse) {
+			self.walk(&node.tree, &mut Vec::new());
+		}
+
+		fn visit_item_struct(&mut self, node: &'ast syn::ItemStruct) {
+			self.item(&node.ident);
+		}
+
+		fn visit_item_enum(&mut self, node: &'ast syn::ItemEnum) {
+			self.item(&node.ident);
+		}
+
+		fn visit_item_union(&mut self, node: &'ast syn::ItemUnion) {
+			self.item(&node.ident);
+		}
+
+		fn visit_item_trait(&mut self, node: &'ast syn::ItemTrait) {
+			self.item(&node.ident);
+		}
+
+		fn visit_item_type(&mut self, node: &'ast syn::ItemType) {
+			self.item(&node.ident);
+		}
+
+		fn visit_item_fn(&mut self, node: &'ast syn::ItemFn) {
+			self.item(&node.sig.ident);
+			syn::visit::visit_item_fn(self, node);
+		}
+
+		fn visit_item_const(&mut self, node: &'ast syn::ItemConst) {
+			self.item(&node.ident);
+		}
+
+		fn visit_item_static(&mut self, node: &'ast syn::ItemStatic) {
+			self.item(&node.ident);
+		}
+	}
+	let mut v = V {
+		name: rewrite.short_name,
+		full: rewrite.segments,
+		taken: false,
+		has_glob: false,
+		imports_full: false,
+	};
+	items.iter().for_each(|item| v.visit_item(item));
+	v.taken || (v.has_glob && !v.imports_full)
 }
 
 struct ScopeInfo<'a> {
@@ -158,11 +255,14 @@ struct TooExplicitVisitor<'a> {
 	/// Stack of insert-bytes as we descend into inline mods. Empty = file scope.
 	scope_stack: Vec<usize>,
 	file_scope_byte: usize,
+	/// `(scope insert-byte, short name)` pairs whose short name is not free to use.
+	blocked: HashSet<(usize, &'static str)>,
 }
 
 impl<'a> TooExplicitVisitor<'a> {
-	fn new(path: &Path, content: &'a str) -> Self {
+	fn new(path: &Path, content: &'a str, blocked: HashSet<(usize, &'static str)>) -> Self {
 		Self {
+			blocked,
 			path_str: path.display().to_string(),
 			content,
 			violations: Vec::default(),
@@ -204,7 +304,9 @@ impl<'a> Visit<'a> for TooExplicitVisitor<'a> {
 
 	fn visit_type_path(&mut self, node: &'a syn::TypePath) {
 		for rewrite in REWRITES {
-			if let Some(fix) = path_rewrite::rewrite_full_type_path(self.content, node, rewrite.segments, rewrite.short_name) {
+			if !self.blocked.contains(&(self.current_scope_byte(), rewrite.short_name))
+				&& let Some(fix) = path_rewrite::rewrite_full_type_path(self.content, node, rewrite.segments, rewrite.short_name)
+			{
 				self.push_rewrite_violation(fix, node.span().start().line, node.span().start().column, rewrite);
 				return;
 			}
@@ -214,7 +316,9 @@ impl<'a> Visit<'a> for TooExplicitVisitor<'a> {
 
 	fn visit_expr_path(&mut self, node: &'a syn::ExprPath) {
 		for rewrite in REWRITES {
-			if let Some(fix) = path_rewrite::rewrite_full_expr_path(self.content, node, rewrite.segments, rewrite.short_name) {
+			if !self.blocked.contains(&(self.current_scope_byte(), rewrite.short_name))
+				&& let Some(fix) = path_rewrite::rewrite_full_expr_path(self.content, node, rewrite.segments, rewrite.short_name)
+			{
 				self.push_rewrite_violation(fix, node.span().start().line, node.span().start().column, rewrite);
 				return;
 			}

@@ -282,3 +282,31 @@ fn multiple_types_in_one_file() {
 	}
 	"#);
 }
+
+#[test]
+fn short_name_bound_to_a_different_item_is_not_used() {
+	assert_check_passing(
+		r#"
+		use axum::extract::Path;
+
+		fn f(cache: &std::path::Path) {}
+		"#,
+		&opts(),
+	);
+	assert_check_passing(
+		r#"
+		struct Path;
+
+		fn f(cache: &std::path::Path) {}
+		"#,
+		&opts(),
+	);
+	assert_check_passing(
+		r#"
+		use axum::extract::*;
+
+		fn f(cache: &std::path::Path, Path(id): Path<String>) {}
+		"#,
+		&opts(),
+	);
+}

@@ -202,3 +202,43 @@ fn try_new_callsite_renamed_cross_file() {
 	}
 	");
 }
+
+#[test]
+fn call_sites_inside_macro_invocations_are_renamed() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		struct Foo;
+		impl Foo {
+			pub fn new(x: i32) -> Result<Self, String> {
+				Ok(Self)
+			}
+		}
+		fn f() {
+			assert!(Foo::new(1).is_err());
+			let v = vec![Foo::new(2), Foo::new(3)];
+			println!("{}", Foo::new(4).is_ok());
+		}
+		"#,
+		&opts(),
+	), @r#"
+	# Assert mode
+	[unconventional-new] /main.rs:3: `fn new` returns `Result` — rename to `try_new` to signal fallibility
+	[unconventional-new] /main.rs:8: `Foo::new` was renamed to `try_new`
+	[unconventional-new] /main.rs:9: `Foo::new` was renamed to `try_new`
+	[unconventional-new] /main.rs:9: `Foo::new` was renamed to `try_new`
+	[unconventional-new] /main.rs:10: `Foo::new` was renamed to `try_new`
+
+	# Format mode
+	struct Foo;
+	impl Foo {
+		pub fn try_new(x: i32) -> Result<Self, String> {
+			Ok(Self)
+		}
+	}
+	fn f() {
+		assert!(Foo::try_new(1).is_err());
+		let v = vec![Foo::try_new(2), Foo::try_new(3)];
+		println!("{}", Foo::try_new(4).is_ok());
+	}
+	"#);
+}

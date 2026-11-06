@@ -70,7 +70,7 @@ fn has_incompatible_derive(struct_item: &ItemStruct) -> bool {
 
 use super::{Fix, Violation, path_rewrite::span_to_byte, skip::has_skip_marker_for_rule};
 
-const RULE: &str = "inline-default";
+pub(super) const RULE: &str = "inline-default";
 
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let path_str = path.display().to_string();

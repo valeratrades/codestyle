@@ -348,6 +348,7 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions, exclude: &[PathBuf
 	let mut fixed_count = 0;
 	let mut unfixable_violations = Vec::default();
 	let mut modified_files: HashSet<PathBuf> = HashSet::default();
+	let mut inline_default_files: HashSet<PathBuf> = HashSet::default();
 
 	// Cargo.toml checks
 	if opts.cargo_dep_ordering {
@@ -400,7 +401,7 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions, exclude: &[PathBuf
 
 		let mut round_fixed = 0;
 		for file_path in &all_file_paths {
-			let (file_fixed, file_unfixable) = format_file_iteratively(file_path, opts, &try_new_types, &nontrivial_default_types);
+			let (file_fixed, file_unfixable) = format_file_iteratively(file_path, opts, &try_new_types, &nontrivial_default_types, &mut inline_default_files);
 			if file_fixed > 0 {
 				modified_files.insert(file_path.clone());
 				if opts.insta_inline_snapshot
@@ -425,9 +426,9 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions, exclude: &[PathBuf
 		run_cargo_add(target_dir, &modified_files, prefer_ahash::DEPENDENCIES);
 	}
 
-	if opts.inline_default && !modified_files.is_empty() {
+	if opts.inline_default && !inline_default_files.is_empty() {
 		let mut visited_roots: HashSet<PathBuf> = HashSet::default();
-		for file_path in &modified_files {
+		for file_path in &inline_default_files {
 			if let Some(root_file) = find_crate_lib_or_main(file_path)
 				&& visited_roots.insert(root_file.clone())
 				&& let Ok(content) = fs::read_to_string(&root_file)
@@ -496,7 +497,7 @@ pub fn collect_rust_files(target_dir: &Path, exclude: &[PathBuf]) -> Vec<FileInf
 /// Format a single file iteratively - apply one fix at a time, re-parse, repeat.
 /// Unfixable violations are only collected on the final pass (when no more fixes are found),
 /// ensuring line numbers are stable and no duplicates are reported.
-fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions, try_new_types: &HashSet<String>, nontrivial_default_types: &HashSet<String>) -> (usize, Vec<Violation>) {
+fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions, try_new_types: &HashSet<String>, nontrivial_default_types: &HashSet<String>, inline_default_files: &mut HashSet<PathBuf>) -> (usize, Vec<Violation>) {
 	let mut fixed_count = 0;
 
 	loop {
@@ -673,7 +674,7 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions, try_new_ty
 		}
 
 		// Apply the fix if found
-		let Some((_violation, fix)) = first_fix else {
+		let Some((violation, fix)) = first_fix else {
 			// No more fixes - collect unfixable violations now (final pass)
 			return (fixed_count, collect_unfixable(&info, opts, try_new_types, nontrivial_default_types));
 		};
@@ -683,6 +684,9 @@ fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions, try_new_ty
 			new_content.replace_range(fix.start_byte..fix.end_byte, &fix.replacement);
 			if fs::write(file_path, new_content).is_ok() {
 				fixed_count += 1;
+				if violation.rule == inline_default::RULE {
+					inline_default_files.insert(file_path.to_path_buf());
+				}
 				// Loop again to find more violations in the modified file
 				continue;
 			}

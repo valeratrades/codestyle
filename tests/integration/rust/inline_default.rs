@@ -427,3 +427,37 @@ fn multiple_const_fields() {
 	}
 	");
 }
+
+#[test]
+fn feature_not_injected_when_only_other_rules_fixed_something() {
+	let opts = codestyle::rust_checks::RustCheckOptions {
+		pub_first: true,
+		..opts()
+	};
+	insta::assert_snapshot!(test_case(
+		r#"
+		//- /Cargo.toml
+		[package]
+		name = "mylib"
+		version = "0.1.0"
+
+		//- /src/lib.rs
+		fn private() {}
+		pub fn public() {}
+		"#,
+		&opts,
+	), @r#"
+	# Assert mode
+	[pub-first] /src/lib.rs:2: public item should come before private items
+
+	# Format mode
+	//- /Cargo.toml
+	[package]
+	name = "mylib"
+	version = "0.1.0"
+
+	//- /src/lib.rs
+	pub fn public() {}
+	fn private() {}
+	"#);
+}
