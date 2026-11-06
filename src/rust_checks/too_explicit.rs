@@ -143,13 +143,12 @@ fn short_name_taken(items: &[syn::Item], rewrite: &Rewrite) -> bool {
 					self.walk(&p.tree, prefix);
 					prefix.pop();
 				}
-				syn::UseTree::Name(n) if n.ident == self.name => {
+				syn::UseTree::Name(n) if n.ident == self.name =>
 					if prefix.iter().map(String::as_str).eq(self.full[..self.full.len() - 1].iter().copied()) {
 						self.imports_full = true;
 					} else {
 						self.taken = true;
-					}
-				}
+					},
 				syn::UseTree::Rename(r) if r.rename == self.name => self.taken = true,
 				syn::UseTree::Group(g) => g.items.iter().for_each(|t| self.walk(t, prefix)),
 				syn::UseTree::Glob(_) => self.has_glob = true,

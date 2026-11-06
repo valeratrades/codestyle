@@ -104,6 +104,24 @@ pub struct RustCheckOptions {
 	pub too_explicit: bool,
 }
 
+impl RustCheckOptions {
+	/// `tests/` is exempt from runtime-discipline rules; formatting and test-convention rules still apply there
+	fn scoped_to(&self, target_dir: &Path, file: &Path) -> Self {
+		let relative = file.strip_prefix(target_dir).expect("files are collected from under target_dir");
+		if !relative.components().any(|c| c.as_os_str() == "tests") {
+			return self.clone();
+		}
+		Self {
+			instrument: false,
+			loops: false,
+			no_tokio_spawn: false,
+			ignored_error: false,
+			prefer_ahash: false,
+			..self.clone()
+		}
+	}
+}
+
 #[derive(Clone, Default, derive_new::new)]
 pub struct FileInfo {
 	pub contents: String,
@@ -168,6 +186,7 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions, exclude: &[PathBuf
 			HashSet::default()
 		};
 		for info in &file_infos {
+			let opts = &opts.scoped_to(target_dir, &info.path);
 			if opts.instrument {
 				all_violations.extend(instrument::check_instrument(info));
 			}
@@ -269,6 +288,7 @@ pub fn run_audit(target_dir: &Path, opts: &RustCheckOptions, exclude: &[PathBuf]
 	for src_dir in src_dirs {
 		let file_infos = collect_rust_files(&src_dir, exclude);
 		for info in &file_infos {
+			let opts = &opts.scoped_to(target_dir, &info.path);
 			if let Some(ref tree) = info.syntax_tree {
 				// Audit-capable rule allowlist. v1: ignored_error only.
 				if opts.ignored_error {
@@ -401,7 +421,13 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions, exclude: &[PathBuf
 
 		let mut round_fixed = 0;
 		for file_path in &all_file_paths {
-			let (file_fixed, file_unfixable) = format_file_iteratively(file_path, opts, &try_new_types, &nontrivial_default_types, &mut inline_default_files);
+			let (file_fixed, file_unfixable) = format_file_iteratively(
+				file_path,
+				&opts.scoped_to(target_dir, file_path),
+				&try_new_types,
+				&nontrivial_default_types,
+				&mut inline_default_files,
+			);
 			if file_fixed > 0 {
 				modified_files.insert(file_path.clone());
 				if opts.insta_inline_snapshot
@@ -497,7 +523,13 @@ pub fn collect_rust_files(target_dir: &Path, exclude: &[PathBuf]) -> Vec<FileInf
 /// Format a single file iteratively - apply one fix at a time, re-parse, repeat.
 /// Unfixable violations are only collected on the final pass (when no more fixes are found),
 /// ensuring line numbers are stable and no duplicates are reported.
-fn format_file_iteratively(file_path: &Path, opts: &RustCheckOptions, try_new_types: &HashSet<String>, nontrivial_default_types: &HashSet<String>, inline_default_files: &mut HashSet<PathBuf>) -> (usize, Vec<Violation>) {
+fn format_file_iteratively(
+	file_path: &Path,
+	opts: &RustCheckOptions,
+	try_new_types: &HashSet<String>,
+	nontrivial_default_types: &HashSet<String>,
+	inline_default_files: &mut HashSet<PathBuf>,
+) -> (usize, Vec<Violation>) {
 	let mut fixed_count = 0;
 
 	loop {

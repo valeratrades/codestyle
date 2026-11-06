@@ -111,3 +111,26 @@ fn nested_spawn() {
 	[no-tokio-spawn] /main.rs:3: Usage of `tokio::spawn` is disallowed. Unstructured concurrency makes code harder to reason about. See: https://vorpus.org/blog/notes-on-structured-concurrency-or-go-statement-considered-harmful/
 	");
 }
+
+#[test]
+fn spawn_under_tests_dir_is_allowed() {
+	let fixture = v_fixtures::Fixture::parse(
+		r#"
+		//- /Cargo.toml
+		[package]
+		name = "mylib"
+		version = "0.1.0"
+
+		//- /src/lib.rs
+		pub fn noop() {}
+
+		//- /tests/live.rs
+		async fn spawn_server() {
+			tokio::spawn(async {});
+		}
+		"#,
+	);
+	let temp = fixture.write_to_tempdir();
+	assert_eq!(codestyle::rust_checks::run_assert(&temp.root, &opts(), &[]), 0);
+	assert_eq!(codestyle::rust_checks::run_format(&temp.root, &opts(), &[]), 0);
+}
