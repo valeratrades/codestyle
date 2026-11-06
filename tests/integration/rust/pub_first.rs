@@ -1367,3 +1367,115 @@ fn item_moved_below_anchors_leaves_no_double_blank_line() {
 	fn after() {}
 	");
 }
+
+// === macro_rules! is textually scoped: uses must stay below the definition ===
+
+#[test]
+fn pub_fn_using_macro_is_not_hoisted_above_its_definition() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		struct Row;
+
+		macro_rules! columns {
+			() => {
+				"a, b"
+			};
+		}
+
+		pub fn get() -> &'static str {
+			columns!()
+		}
+		"#,
+		&opts(),
+	), @r#"
+	# Assert mode
+	[pub-first] /main.rs:9: public item should come before private items
+
+	# Format mode
+	macro_rules! columns {
+		() => {
+			"a, b"
+		};
+	}
+
+	pub fn get() -> &'static str {
+		columns!()
+	}
+
+	struct Row;
+	"#);
+}
+
+#[test]
+fn pub_fn_using_macro_from_macro_use_mod_is_not_hoisted_above_it() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		struct Row;
+
+		#[macro_use]
+		mod macros {
+			macro_rules! columns {
+				() => {
+					"a, b"
+				};
+			}
+		}
+
+		pub fn get() -> &'static str {
+			columns!()
+		}
+		"#,
+		&opts(),
+	), @r#"
+	# Assert mode
+	[pub-first] /main.rs:12: public item should come before private items
+
+	# Format mode
+	#[macro_use]
+	mod macros {
+		macro_rules! columns {
+			() => {
+				"a, b"
+			};
+		}
+	}
+
+	pub fn get() -> &'static str {
+		columns!()
+	}
+
+	struct Row;
+	"#);
+}
+
+#[test]
+fn pub_fn_not_using_macro_does_not_drag_it_along() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		struct Row;
+
+		macro_rules! columns {
+			() => {
+				"a, b"
+			};
+		}
+
+		pub fn get() {}
+		"#,
+		&opts(),
+	), @r#"
+	# Assert mode
+	[pub-first] /main.rs:9: public item should come before private items
+
+	# Format mode
+	pub fn get() {}
+
+	struct Row;
+
+	macro_rules! columns {
+		() => {
+			"a, b"
+		};
+	}
+	"#);
+}

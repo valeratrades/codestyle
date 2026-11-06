@@ -29,23 +29,30 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 
 	// Collect byte ranges of mod/use/extern-crate items so the fix can avoid displacing
 	// them when reordering. These conventionally live at the top of the file.
-	let anchor_ranges: Vec<(usize, usize)> = file
+	// `macro_rules!` definitions (also those escaping an inline `#[macro_use] mod`) are textually scoped, so they
+	// are anchors only for items that invoke them: see `create_move_fix`.
+	let anchors: Vec<Anchor> = file
 		.items
 		.iter()
-		.filter(|item| match item {
-			// Only `mod foo;` declarations are anchors, not inline `mod foo { ... }` blocks
-			Item::Mod(m) => m.content.is_none(),
-			Item::Use(_) | Item::ExternCrate(_) => true,
-			_ => false,
-		})
 		.filter_map(|item| {
+			let macros = match item {
+				// Only `mod foo;` declarations are anchors, not inline `mod foo { ... }` blocks
+				Item::Mod(m) if m.content.is_none() => None,
+				Item::Mod(m) if has_macro_use(&m.attrs) => Some(exported_macro_names(item)),
+				Item::Macro(m) if m.ident.is_some() => Some(exported_macro_names(item)),
+				Item::Use(_) | Item::ExternCrate(_) => None,
+				_ => return None,
+			};
 			let start_byte = span_position_to_byte(content, item.span().start().line, item.span().start().column)?;
 			let end_byte = span_position_to_byte(content, item.span().end().line, item.span().end().column)?;
-			let text_start = find_item_text_start(content, start_byte);
-			let text_end = find_line_end(content, end_byte);
-			Some((text_start, text_end))
+			Some(Anchor {
+				start: find_item_text_start(content, start_byte),
+				end: find_line_end(content, end_byte),
+				macros,
+			})
 		})
 		.collect();
+	let anchor_ranges = anchors.as_slice();
 
 	// Collect all top-level items with their visibility and positions
 	// We need to track the text boundaries carefully to include doc comments
@@ -64,7 +71,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		if item.is_const
 			&& let Some(target_idx) = first_non_const_idx
 		{
-			let fix = create_move_fix(content, &items, &anchor_ranges, i, target_idx);
+			let fix = create_move_fix(content, &items, anchor_ranges, i, target_idx);
 			return vec![Violation {
 				rule: RULE,
 				file: path_str,
@@ -76,7 +83,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		}
 	}
 
-	if let Some(v) = check_pub_within_section(&items, &anchor_ranges, content, &path_str, |item| item.is_const, "public `const` should come before private ones") {
+	if let Some(v) = check_pub_within_section(&items, anchor_ranges, content, &path_str, |item| item.is_const, "public `const` should come before private ones") {
 		return vec![v];
 	}
 
@@ -89,7 +96,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		if item.is_type
 			&& let Some(target_idx) = first_non_const_non_type_idx
 		{
-			let fix = create_move_fix(content, &items, &anchor_ranges, i, target_idx);
+			let fix = create_move_fix(content, &items, anchor_ranges, i, target_idx);
 			return vec![Violation {
 				rule: RULE,
 				file: path_str,
@@ -101,7 +108,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		}
 	}
 
-	if let Some(v) = check_pub_within_section(&items, &anchor_ranges, content, &path_str, |item| item.is_type, "public `type` should come before private ones") {
+	if let Some(v) = check_pub_within_section(&items, anchor_ranges, content, &path_str, |item| item.is_type, "public `type` should come before private ones") {
 		return vec![v];
 	}
 
@@ -119,7 +126,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		if item.is_pub
 			&& let Some(target_idx) = first_private_idx
 		{
-			let fix = create_move_fix(content, &items, &anchor_ranges, i, target_idx);
+			let fix = create_move_fix(content, &items, anchor_ranges, i, target_idx);
 			return vec![Violation {
 				rule: RULE,
 				file: path_str,
@@ -173,7 +180,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	});
 
 	for rule in rules {
-		if let Some(v) = check_kind_ordering(&items, &anchor_ranges, content, &path_str, rule) {
+		if let Some(v) = check_kind_ordering(&items, anchor_ranges, content, &path_str, rule) {
 			return vec![v];
 		}
 	}
@@ -181,7 +188,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	// 5. Check that non-const/non-type code items don't appear before mod/use/extern-crate anchors.
 	// This catches the case where mod/use declarations are scattered below code items (e.g., fn main
 	// sitting above `mod foo;` and `use bar;`). Const and type items are allowed above anchors.
-	if let Some(last_anchor_end) = anchor_ranges.iter().map(|(_, end)| *end).max() {
+	if let Some(last_anchor_end) = anchor_ranges.iter().filter(|a| a.macros.is_none()).map(|a| a.end).max() {
 		for item in &items {
 			if item.is_const || item.is_type {
 				continue;
@@ -229,7 +236,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 }
 
 /// Within the const/type sections, pub items come before private ones.
-fn check_pub_within_section(items: &[ItemInfo], anchor_ranges: &[(usize, usize)], content: &str, path_str: &str, in_section: fn(&ItemInfo) -> bool, message: &str) -> Option<Violation> {
+fn check_pub_within_section(items: &[ItemInfo], anchor_ranges: &[Anchor], content: &str, path_str: &str, in_section: fn(&ItemInfo) -> bool, message: &str) -> Option<Violation> {
 	let mut first_private_idx: Option<usize> = None;
 	for (i, item) in items.iter().enumerate() {
 		if !in_section(item) {
@@ -263,7 +270,7 @@ struct KindRule {
 
 /// Check that items of a specific kind (main/trait/struct) appear before lower-priority items
 /// within a visibility category (pub/private), excluding const and type items.
-fn check_kind_ordering(items: &[ItemInfo], anchor_ranges: &[(usize, usize)], content: &str, path_str: &str, rule: KindRule) -> Option<Violation> {
+fn check_kind_ordering(items: &[ItemInfo], anchor_ranges: &[Anchor], content: &str, path_str: &str, rule: KindRule) -> Option<Violation> {
 	let mut first_lower_idx: Option<usize> = None;
 	for (i, item) in items.iter().enumerate() {
 		if item.is_pub == rule.is_pub && !item.is_const && !item.is_type {
@@ -286,6 +293,26 @@ fn check_kind_ordering(items: &[ItemInfo], anchor_ranges: &[(usize, usize)], con
 		}
 	}
 	None
+}
+
+/// Byte range of an item that reordering must not displace past its dependants.
+struct Anchor {
+	start: usize,
+	end: usize,
+	/// Set for `macro_rules!` definitions: names of the macros made available to the items below.
+	macros: Option<Vec<String>>,
+}
+
+fn has_macro_use(attrs: &[syn::Attribute]) -> bool {
+	attrs.iter().any(|a| a.path().is_ident("macro_use"))
+}
+
+fn exported_macro_names(item: &Item) -> Vec<String> {
+	match item {
+		Item::Macro(m) => m.ident.iter().map(|i| i.to_string()).collect(),
+		Item::Mod(m) if has_macro_use(&m.attrs) => m.content.iter().flat_map(|(_, items)| items).flat_map(exported_macro_names).collect(),
+		_ => vec![],
+	}
 }
 
 /// Represents an item with its visibility and position info
@@ -404,7 +431,7 @@ fn has_clap_derive(attrs: &[syn::Attribute], trait_name: &str) -> bool {
 ///
 /// Anchor items (mod/use/extern crate) in the gap between from and to are kept before the
 /// reordered code items — the moved item is placed after all anchors.
-fn create_move_fix(content: &str, items: &[ItemInfo], anchor_ranges: &[(usize, usize)], from_idx: usize, to_idx: usize) -> Option<Fix> {
+fn create_move_fix(content: &str, items: &[ItemInfo], anchor_ranges: &[Anchor], from_idx: usize, to_idx: usize) -> Option<Fix> {
 	if from_idx <= to_idx {
 		return None;
 	}
@@ -424,8 +451,9 @@ fn create_move_fix(content: &str, items: &[ItemInfo], anchor_ranges: &[(usize, u
 	// These must stay above the reordered code items.
 	let mut gap_anchors: Vec<(usize, usize)> = anchor_ranges
 		.iter()
-		.filter(|(start, _)| *start >= to_item.text_start && *start < from_item.text_start)
-		.copied()
+		.filter(|a| a.start >= to_item.text_start && a.start < from_item.text_start)
+		.filter(|a| a.macros.as_ref().is_none_or(|names| names.iter().any(|n| item_text.contains(&format!("{n}!")))))
+		.map(|a| (a.start, a.end))
 		.collect();
 	gap_anchors.sort_by_key(|(start, _)| *start);
 
