@@ -105,19 +105,34 @@ pub struct RustCheckOptions {
 }
 
 impl RustCheckOptions {
-	/// `tests/` is exempt from runtime-discipline rules; formatting and test-convention rules still apply there
+	/// Under `tests/` only formatting and test-convention rules run
 	fn scoped_to(&self, target_dir: &Path, file: &Path) -> Self {
 		let relative = file.strip_prefix(target_dir).expect("files are collected from under target_dir");
 		if !relative.components().any(|c| c.as_os_str() == "tests") {
 			return self.clone();
 		}
+		// no `..` rest: a new rule doesn't compile until it's explicitly admitted to or kept out of tests/
 		Self {
+			cargo_dep_ordering: false,
 			instrument: false,
 			loops: false,
+			join_split_impls: self.join_split_impls,
+			impl_folds: self.impl_folds,
+			impl_follows_type: self.impl_follows_type,
+			embed_simple_vars: self.embed_simple_vars,
+			insta_inline_snapshot: self.insta_inline_snapshot,
+			no_chrono: false,
 			no_tokio_spawn: false,
+			use_bail: self.use_bail,
+			test_fn_prefix: self.test_fn_prefix,
+			pub_first: self.pub_first,
 			ignored_error: false,
+			workspace_dep_hoisting: false,
+			inline_default: self.inline_default,
+			unconventional_new: self.unconventional_new,
+			prefer_default_over_bare_new: self.prefer_default_over_bare_new,
 			prefer_ahash: false,
-			..self.clone()
+			too_explicit: self.too_explicit,
 		}
 	}
 }
