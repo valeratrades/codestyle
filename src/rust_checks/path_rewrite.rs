@@ -178,28 +178,6 @@ pub fn remove_from_group(source: &str, rel_start: usize, rel_end: usize) -> Stri
 	result
 }
 
-fn rewrite_path_segments(content: &str, path: &syn::Path, segments: &[&str], short_name: &str, exact: bool) -> Option<Fix> {
-	if exact {
-		if path.segments.len() != segments.len() {
-			return None;
-		}
-	} else if path.segments.len() < segments.len() {
-		return None;
-	}
-	for (seg, expected) in path.segments.iter().zip(segments) {
-		if seg.ident != *expected {
-			return None;
-		}
-	}
-	let first_start = span_to_byte(content, path.segments[0].ident.span().start())?;
-	let last_end = span_to_byte(content, path.segments[segments.len() - 1].ident.span().end())?;
-	Some(Fix {
-		start_byte: first_start,
-		end_byte: last_end,
-		replacement: short_name.to_string(),
-	})
-}
-
 /// If `node` exactly matches the given `segments`, returns a [`Fix`] replacing the full path
 /// with `short_name`.
 ///
@@ -230,16 +208,6 @@ pub fn is_name_imported(file: &syn::File, short_name: &str) -> bool {
 	let mut visitor = ImportVisitor { name: short_name, found: false };
 	syn::visit::visit_file(&mut visitor, file);
 	visitor.found
-}
-
-fn use_tree_contains_name(tree: &UseTree, name: &str) -> bool {
-	match tree {
-		UseTree::Name(n) => n.ident == name,
-		UseTree::Rename(r) => r.rename == name,
-		UseTree::Path(p) => use_tree_contains_name(&p.tree, name),
-		UseTree::Group(g) => g.items.iter().any(|t| use_tree_contains_name(t, name)),
-		UseTree::Glob(_) => false,
-	}
 }
 
 /// Returns `true` if `short_name` appears as a bare identifier in non-use code in `file`.
@@ -290,4 +258,36 @@ pub fn has_bare_usage(file: &syn::File, short_name: &str) -> bool {
 /// Example: `segments = ["std", "sync", "Arc"]` matches `std::sync::Arc::clone(...)`.
 pub fn rewrite_full_expr_path(content: &str, node: &ExprPath, segments: &[&str], short_name: &str) -> Option<Fix> {
 	rewrite_path_segments(content, &node.path, segments, short_name, false)
+}
+
+fn rewrite_path_segments(content: &str, path: &syn::Path, segments: &[&str], short_name: &str, exact: bool) -> Option<Fix> {
+	if exact {
+		if path.segments.len() != segments.len() {
+			return None;
+		}
+	} else if path.segments.len() < segments.len() {
+		return None;
+	}
+	for (seg, expected) in path.segments.iter().zip(segments) {
+		if seg.ident != *expected {
+			return None;
+		}
+	}
+	let first_start = span_to_byte(content, path.segments[0].ident.span().start())?;
+	let last_end = span_to_byte(content, path.segments[segments.len() - 1].ident.span().end())?;
+	Some(Fix {
+		start_byte: first_start,
+		end_byte: last_end,
+		replacement: short_name.to_string(),
+	})
+}
+
+fn use_tree_contains_name(tree: &UseTree, name: &str) -> bool {
+	match tree {
+		UseTree::Name(n) => n.ident == name,
+		UseTree::Rename(r) => r.rename == name,
+		UseTree::Path(p) => use_tree_contains_name(&p.tree, name),
+		UseTree::Group(g) => g.items.iter().any(|t| use_tree_contains_name(t, name)),
+		UseTree::Glob(_) => false,
+	}
 }

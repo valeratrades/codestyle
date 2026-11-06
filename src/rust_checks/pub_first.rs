@@ -526,11 +526,7 @@ fn find_item_text_start(content: &str, span_start: usize) -> usize {
 	// Look backwards line by line to find doc comments or blank lines that should be included
 	let mut current_start = line_start;
 
-	loop {
-		if current_start == 0 {
-			break;
-		}
-
+	while current_start > 0 {
 		// Find the previous line
 		let prev_line_end = current_start - 1; // Position of the \n
 		let prev_line_start = find_line_start(content, prev_line_end.saturating_sub(1));

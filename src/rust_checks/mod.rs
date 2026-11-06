@@ -336,38 +336,6 @@ pub fn run_audit(target_dir: &Path, opts: &RustCheckOptions, exclude: &[PathBuf]
 	0
 }
 
-/// Render one rule's occurrences into a markdown worktable: a rule-specific header followed by a
-/// `- [ ]` checklist item per occurrence, each with a `TODO: reason` child line. The source line is
-/// quoted back from the file contents captured during collection.
-fn render_audit_markdown(rule: &str, occurrences: &[(Violation, String)]) -> String {
-	let mut out = String::default();
-	out.push_str(audit_header(rule));
-	for (v, contents) in occurrences {
-		let src_line = contents.lines().nth(v.line - 1).unwrap_or("").trim();
-		out.push_str(&format!(
-			"- [ ] `{}:{}:{}` — `{src_line}`\n  TODO: decision (if decision is KEEP, - justify)\n",
-			v.file, v.line, v.column
-		));
-	}
-	out
-}
-
-/// Rule-specific audit-file header. v1 has a single audit-capable rule; match on it explicitly so
-/// adding a rule to the allowlist forces a header decision rather than silently reusing another's.
-fn audit_header(rule: &str) -> &'static str {
-	match rule {
-		"ignored-error" =>
-			"# `ignored-error` audit\n\n\
-			Goal: every flagged `unwrap_or(_else/_default)` and `let _ = …` is either **KEEP** (one-line why)\n\
-			or switched to **PANIC** / **ERROR** instead. No silent defaulting / discarding of state.\n\n\
-			Verdict legend: `TODO` | `KEEP: <why>` | `PANIC` | `ERROR: <how>` | `REMOVE: <why dead>` | `DONE`\n\n\
-			**Default decision is Error/Panic.** KEEP is a special case that must be very well justified —\n\
-			if unsure, error/panic. Dead code is `REMOVE`, not kept.\n\n\
-			---\n\n",
-		other => panic!("no audit header defined for rule {other:?} — every audit-capable rule needs one"),
-	}
-}
-
 pub fn run_format(target_dir: &Path, opts: &RustCheckOptions, exclude: &[PathBuf]) -> i32 {
 	if !target_dir.exists() {
 		eprintln!("Target directory does not exist: {target_dir:?}");
@@ -414,6 +382,7 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions, exclude: &[PathBuf
 	let all_file_paths: Vec<PathBuf> = src_dirs.iter().flat_map(|d| collect_rust_files(d, exclude)).map(|f| f.path).collect();
 
 	loop {
+		//LOOP: fixpoint, until a round lands no fix
 		// Re-collect cross-file type sets from current on-disk state each round.
 		// unconventional_new needs try_new_types; prefer_default_over_bare_new needs nontrivial_default_types.
 		let needs_reparse = opts.unconventional_new || opts.prefer_default_over_bare_new;
@@ -535,6 +504,48 @@ pub fn collect_rust_files(target_dir: &Path, exclude: &[PathBuf]) -> Vec<FileInf
 	}
 	file_infos
 }
+
+/// Walk up from `file_path` to find the crate's `src/lib.rs`, falling back to `src/main.rs`.
+///
+/// Works for both standalone crates and sub-crates inside a workspace: it looks for the
+/// nearest ancestor directory that contains a `Cargo.toml` (i.e. the crate root), then
+/// checks `<crate_root>/src/lib.rs` and `<crate_root>/src/main.rs` in that order.
+pub fn find_crate_lib_or_main(file_path: &Path) -> Option<PathBuf> {
+	let crate_root = file_path.parent()?.ancestors().find(|dir| dir.join("Cargo.toml").exists())?;
+	["lib.rs", "main.rs"].into_iter().map(|f| crate_root.join("src").join(f)).find(|p| p.exists())
+}
+
+/// Render one rule's occurrences into a markdown worktable: a rule-specific header followed by a
+/// `- [ ]` checklist item per occurrence, each with a `TODO: reason` child line. The source line is
+/// quoted back from the file contents captured during collection.
+fn render_audit_markdown(rule: &str, occurrences: &[(Violation, String)]) -> String {
+	let mut out = String::default();
+	out.push_str(audit_header(rule));
+	for (v, contents) in occurrences {
+		let src_line = contents.lines().nth(v.line - 1).unwrap_or("").trim();
+		out.push_str(&format!(
+			"- [ ] `{}:{}:{}` — `{src_line}`\n  TODO: decision (if decision is KEEP, - justify)\n",
+			v.file, v.line, v.column
+		));
+	}
+	out
+}
+
+/// Rule-specific audit-file header. v1 has a single audit-capable rule; match on it explicitly so
+/// adding a rule to the allowlist forces a header decision rather than silently reusing another's.
+fn audit_header(rule: &str) -> &'static str {
+	match rule {
+		"ignored-error" =>
+			"# `ignored-error` audit\n\n\
+			Goal: every flagged `unwrap_or(_else/_default)` and `let _ = …` is either **KEEP** (one-line why)\n\
+			or switched to **PANIC** / **ERROR** instead. No silent defaulting / discarding of state.\n\n\
+			Verdict legend: `TODO` | `KEEP: <why>` | `PANIC` | `ERROR: <how>` | `REMOVE: <why dead>` | `DONE`\n\n\
+			**Default decision is Error/Panic.** KEEP is a special case that must be very well justified —\n\
+			if unsure, error/panic. Dead code is `REMOVE`, not kept.\n\n\
+			---\n\n",
+		other => panic!("no audit header defined for rule {other:?} — every audit-capable rule needs one"),
+	}
+}
 /// Format a single file iteratively - apply one fix at a time, re-parse, repeat.
 /// Unfixable violations are only collected on the final pass (when no more fixes are found),
 /// ensuring line numbers are stable and no duplicates are reported.
@@ -548,6 +559,7 @@ fn format_file_iteratively(
 	let mut fixed_count = 0;
 
 	loop {
+		//LOOP: fixpoint, until no fixable violation remains
 		let Some(info) = parse_rust_file(file_path.to_path_buf()) else {
 			break;
 		};
@@ -998,17 +1010,11 @@ fn run_cargo_add(target_dir: &Path, modified_files: &HashSet<PathBuf>, deps: &[D
 
 /// Walk up from `file_path` to find the nearest `Cargo.toml` containing `[package]`.
 fn find_package_cargo_toml(file_path: &Path) -> Option<PathBuf> {
-	let mut dir = file_path.parent()?;
-	loop {
-		let candidate = dir.join("Cargo.toml");
-		if candidate.exists()
-			&& let Ok(content) = fs::read_to_string(&candidate)
-			&& content.contains("[package]")
-		{
-			return Some(candidate);
-		}
-		dir = dir.parent()?;
-	}
+	file_path
+		.parent()?
+		.ancestors()
+		.map(|dir| dir.join("Cargo.toml"))
+		.find(|candidate| fs::read_to_string(candidate).is_ok_and(|content| content.contains("[package]")))
 }
 
 /// Read the `name` field from `[package]` in a Cargo.toml.
@@ -1034,40 +1040,10 @@ fn read_package_name(cargo_toml: &Path) -> Option<String> {
 	None
 }
 
-/// Walk up from `file_path` to find the crate's `src/lib.rs`, falling back to `src/main.rs`.
-///
-/// Works for both standalone crates and sub-crates inside a workspace: it looks for the
-/// nearest ancestor directory that contains a `Cargo.toml` (i.e. the crate root), then
-/// checks `<crate_root>/src/lib.rs` and `<crate_root>/src/main.rs` in that order.
-pub fn find_crate_lib_or_main(file_path: &Path) -> Option<PathBuf> {
-	let mut dir = file_path.parent()?;
-	loop {
-		if dir.join("Cargo.toml").exists() {
-			let lib = dir.join("src").join("lib.rs");
-			if lib.exists() {
-				return Some(lib);
-			}
-			let main = dir.join("src").join("main.rs");
-			if main.exists() {
-				return Some(main);
-			}
-			return None;
-		}
-		dir = dir.parent()?;
-	}
-}
-
 /// Walk up from `target_dir` to find a `Cargo.toml` with `[workspace]`.
 fn find_workspace_root(target_dir: &Path) -> Option<PathBuf> {
-	let mut dir = target_dir;
-	loop {
-		let candidate = dir.join("Cargo.toml");
-		if candidate.exists()
-			&& let Ok(content) = fs::read_to_string(&candidate)
-			&& content.contains("[workspace]")
-		{
-			return Some(dir.to_path_buf());
-		}
-		dir = dir.parent()?;
-	}
+	target_dir
+		.ancestors()
+		.find(|dir| fs::read_to_string(dir.join("Cargo.toml")).is_ok_and(|content| content.contains("[workspace]")))
+		.map(Path::to_path_buf)
 }

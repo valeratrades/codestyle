@@ -13,15 +13,6 @@ use super::{Fix, Violation, path_rewrite, skip::SkipVisitor};
 
 const RULE: &str = "too-explicit";
 
-struct Rewrite {
-	/// Fully-qualified path segments, e.g. `["std", "sync", "Arc"]`.
-	segments: &'static [&'static str],
-	/// Short name to replace the full path with, e.g. `"Arc"`.
-	short_name: &'static str,
-	/// The `use` line to insert if the import is missing, e.g. `"use std::sync::Arc;\n"`.
-	use_import: &'static str,
-}
-
 const REWRITES: &[Rewrite] = &[
 	Rewrite {
 		segments: &["std", "sync", "Arc"],
@@ -123,6 +114,15 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	}
 
 	violations
+}
+
+struct Rewrite {
+	/// Fully-qualified path segments, e.g. `["std", "sync", "Arc"]`.
+	segments: &'static [&'static str],
+	/// Short name to replace the full path with, e.g. `"Arc"`.
+	short_name: &'static str,
+	/// The `use` line to insert if the import is missing, e.g. `"use std::sync::Arc;\n"`.
+	use_import: &'static str,
 }
 
 /// Whether the rewrite's short name already means something else in this scope, or might (a glob import

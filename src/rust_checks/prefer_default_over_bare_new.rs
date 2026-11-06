@@ -20,21 +20,13 @@ use super::{FileInfo, Fix, Violation, path_rewrite::span_to_byte, skip::SkipVisi
 
 const RULE: &str = "prefer-default-over-bare-new";
 
-struct HasFnCallVisitor {
-	found: bool,
-}
-
-impl<'a> Visit<'a> for HasFnCallVisitor {
-	fn visit_expr_call(&mut self, _node: &'a ExprCall) {
-		self.found = true;
-	}
-}
-
-fn default_impl_has_fn_calls(impl_block: &syn::ItemImpl) -> bool {
-	let mut visitor = HasFnCallVisitor { found: false };
-	visitor.visit_item_impl(impl_block);
-	visitor.found
-}
+/// Types whose zero-argument `::new()` must NOT be rewritten to `::default()`.
+const NEW_EXCEPTIONS: &[&str] = &[
+	// `trybuild::TestCases` has only `new()` and no `Default` impl — it's a
+	// test-harness type that stupidly exposes bare `new()` with no alternative.
+	"TestCases", // until `feature(const_trait_impl` stabilizes, `::new()` is static on it, but `::default()` is not as it needs to go through the trait machinery
+	"OnceLock", "OpenOptions", "WayshotConnection",
+];
 
 /// Collect all type names whose `Default` trait impl body contains any function calls.
 /// These types must not have their `Type::new()` call-sites rewritten to `Type::default()`,
@@ -61,19 +53,27 @@ pub fn collect_nontrivial_default_types(file_infos: &[FileInfo]) -> HashSet<Stri
 	types
 }
 
-/// Types whose zero-argument `::new()` must NOT be rewritten to `::default()`.
-const NEW_EXCEPTIONS: &[&str] = &[
-	// `trybuild::TestCases` has only `new()` and no `Default` impl — it's a
-	// test-harness type that stupidly exposes bare `new()` with no alternative.
-	"TestCases", // until `feature(const_trait_impl` stabilizes, `::new()` is static on it, but `::default()` is not as it needs to go through the trait machinery
-	"OnceLock", "OpenOptions", "WayshotConnection",
-];
-
 pub fn check(path: &Path, content: &str, file: &syn::File, nontrivial_default_types: &HashSet<String>) -> Vec<Violation> {
 	let visitor = PreferDefaultVisitor::new(path, content, nontrivial_default_types);
 	let mut skip_visitor = SkipVisitor::for_rule(visitor, content, RULE);
 	skip_visitor.visit_file(file);
 	skip_visitor.inner.violations
+}
+
+struct HasFnCallVisitor {
+	found: bool,
+}
+
+impl<'a> Visit<'a> for HasFnCallVisitor {
+	fn visit_expr_call(&mut self, _node: &'a ExprCall) {
+		self.found = true;
+	}
+}
+
+fn default_impl_has_fn_calls(impl_block: &syn::ItemImpl) -> bool {
+	let mut visitor = HasFnCallVisitor { found: false };
+	visitor.visit_item_impl(impl_block);
+	visitor.found
 }
 
 struct PreferDefaultVisitor<'a> {

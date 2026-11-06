@@ -22,51 +22,9 @@ use std::{collections::HashMap, path::Path};
 
 use syn::{Block, Expr, ExprCall, ExprMacro, ExprMethodCall, ExprStruct, Fields, ImplItem, Item, ItemImpl, ItemStruct, spanned::Spanned, visit::Visit};
 
-fn block_has_fn_calls(block: &Block) -> bool {
-	struct Finder(bool);
-	impl<'a> Visit<'a> for Finder {
-		fn visit_expr_call(&mut self, _: &'a ExprCall) {
-			self.0 = true;
-		}
-
-		fn visit_expr_method_call(&mut self, _: &'a ExprMethodCall) {
-			self.0 = true;
-		}
-
-		// Macro invocations (`foo!(…)`, `crate::bar!()`) can expand to anything, including
-		// non-const work. Treat them the same as fn calls.
-		fn visit_expr_macro(&mut self, _: &'a ExprMacro) {
-			self.0 = true;
-		}
-	}
-	let mut f = Finder(false);
-	f.visit_block(block);
-	f.0
-}
-
 /// Derives that are known to not support RFC 3681 field defaults (e.g. serde).
 /// Matched as a suffix of the last path segment, case-insensitively.
 const INCOMPATIBLE_DERIVES: &[&str] = &["serialize", "deserialize"];
-
-fn has_incompatible_derive(struct_item: &ItemStruct) -> bool {
-	for attr in &struct_item.attrs {
-		if !attr.path().is_ident("derive") {
-			continue;
-		}
-		let Ok(list) = attr.meta.require_list() else {
-			continue;
-		};
-		// Parse token stream as comma-separated paths
-		let tokens = list.tokens.to_string();
-		for segment in tokens.split(',') {
-			let last = segment.trim().split("::").last().unwrap_or("").trim();
-			if INCOMPATIBLE_DERIVES.iter().any(|d| last.eq_ignore_ascii_case(d)) {
-				return true;
-			}
-		}
-	}
-	false
-}
 
 use super::{Fix, Violation, path_rewrite::span_to_byte, skip::has_skip_marker_for_rule};
 
@@ -143,6 +101,48 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	}
 
 	violations
+}
+
+fn block_has_fn_calls(block: &Block) -> bool {
+	struct Finder(bool);
+	impl<'a> Visit<'a> for Finder {
+		fn visit_expr_call(&mut self, _: &'a ExprCall) {
+			self.0 = true;
+		}
+
+		fn visit_expr_method_call(&mut self, _: &'a ExprMethodCall) {
+			self.0 = true;
+		}
+
+		// Macro invocations (`foo!(…)`, `crate::bar!()`) can expand to anything, including
+		// non-const work. Treat them the same as fn calls.
+		fn visit_expr_macro(&mut self, _: &'a ExprMacro) {
+			self.0 = true;
+		}
+	}
+	let mut f = Finder(false);
+	f.visit_block(block);
+	f.0
+}
+
+fn has_incompatible_derive(struct_item: &ItemStruct) -> bool {
+	for attr in &struct_item.attrs {
+		if !attr.path().is_ident("derive") {
+			continue;
+		}
+		let Ok(list) = attr.meta.require_list() else {
+			continue;
+		};
+		// Parse token stream as comma-separated paths
+		let tokens = list.tokens.to_string();
+		for segment in tokens.split(',') {
+			let last = segment.trim().split("::").last().unwrap_or("").trim();
+			if INCOMPATIBLE_DERIVES.iter().any(|d| last.eq_ignore_ascii_case(d)) {
+				return true;
+			}
+		}
+	}
+	false
 }
 
 /// Returns the struct item if `impl_block` is `impl Default for T` where T is a known struct.
