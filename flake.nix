@@ -17,11 +17,6 @@
 
         rs = v_flakes.rs {
           inherit pkgs rust;
-          style = {
-            modules = {
-              pub_first = false; #dbg: on the difficulties of auto-fixing using ourselves
-            };
-          };
         };
         github = v_flakes.github {
           inherit pkgs pname rs;
