@@ -381,8 +381,8 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions, exclude: &[PathBuf
 	// other files. We therefore loop project-wide until no more fixes land.
 	let all_file_paths: Vec<PathBuf> = src_dirs.iter().flat_map(|d| collect_rust_files(d, exclude)).map(|f| f.path).collect();
 
+	//LOOP: fixpoint, until a round lands no fix
 	loop {
-		//LOOP: fixpoint, until a round lands no fix
 		// Re-collect cross-file type sets from current on-disk state each round.
 		// unconventional_new needs try_new_types; prefer_default_over_bare_new needs nontrivial_default_types.
 		let needs_reparse = opts.unconventional_new || opts.prefer_default_over_bare_new;
@@ -558,8 +558,8 @@ fn format_file_iteratively(
 ) -> (usize, Vec<Violation>) {
 	let mut fixed_count = 0;
 
+	//LOOP: fixpoint, until no fixable violation remains
 	loop {
-		//LOOP: fixpoint, until no fixable violation remains
 		let Some(info) = parse_rust_file(file_path.to_path_buf()) else {
 			break;
 		};
