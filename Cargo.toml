@@ -9,6 +9,7 @@ license = "BlueOak-1.0.0"
 repository = "https://github.com/valeratrades/codestyle"
 keywords = ["codestyle", "linter", "formatter", "style"]
 categories = ["development-tools"]
+include = ["src/**/*", "LICENSE", "README.md", ".cargo/*", "build.rs"]
 
 [package.metadata.docs.rs]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
