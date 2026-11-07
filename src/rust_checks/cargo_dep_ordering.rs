@@ -20,7 +20,9 @@ pub fn check(path: &Path, content: &str) -> Vec<Violation> {
 	violations
 }
 struct DepEntry {
-	/// The full original line
+	/// `#` lines directly preceding the entry; they move with it
+	comments: String,
+	/// The full original entry, possibly spanning multiple lines
 	line: String,
 	group: DepGroup,
 }
@@ -141,22 +143,66 @@ fn parse_entries(body: &str) -> (Vec<DepEntry>, usize) {
 	let mut entries = Vec::default();
 	let mut last_dep_end = 0;
 	let mut pos = 0;
+	let mut comments = String::default();
+	let mut open: Option<(String, isize)> = None; // entry text so far, unclosed bracket depth
 
 	for line in body.lines() {
-		let line_end = pos + line.len() + 1; // +1 for the newline
+		let line_end = (pos + line.len() + 1).min(body.len()); // +1 for the newline
+		pos = line_end;
 		let trimmed = line.trim();
 
-		if !trimmed.is_empty() && !trimmed.starts_with('#') && trimmed.contains('=') {
-			let group = classify_dep(trimmed);
-			let normalized = normalize_workspace_syntax(trimmed);
-			entries.push(DepEntry { line: normalized, group });
-			last_dep_end = line_end.min(body.len());
+		let entry = match open.take() {
+			Some((mut text, depth)) => {
+				text.push('\n');
+				text.push_str(line);
+				(text, depth + bracket_depth_delta(line))
+			}
+			None if trimmed.starts_with('#') => {
+				comments.push_str(trimmed);
+				comments.push('\n');
+				continue;
+			}
+			None if trimmed.contains('=') => (trimmed.to_string(), bracket_depth_delta(trimmed)),
+			None => continue,
+		};
+		if entry.1 > 0 {
+			open = Some(entry);
+			continue;
 		}
-
-		pos = line_end;
+		let text = entry.0;
+		entries.push(DepEntry {
+			comments: std::mem::take(&mut comments),
+			group: classify_dep(&text),
+			line: normalize_workspace_syntax(&text),
+		});
+		last_dep_end = line_end;
 	}
+	assert!(open.is_none(), "dependency entry has unbalanced brackets: {open:?}");
 
 	(entries, last_dep_end)
+}
+
+/// Net `[`/`{` opened minus closed on `line`, ignoring strings and comments.
+// shortcut: multi-line `"""` strings are not tracked; upgrade to a real TOML parser if a dep value ever uses one.
+fn bracket_depth_delta(line: &str) -> isize {
+	let mut depth = 0;
+	let mut quote: Option<char> = None;
+	let mut chars = line.chars();
+	while let Some(c) = chars.next() {
+		match (quote, c) {
+			(Some('"'), '\\') => {
+				chars.next();
+			}
+			(Some(q), c) if c == q => quote = None,
+			(Some(_), _) => {}
+			(None, '"' | '\'') => quote = Some(c),
+			(None, '#') => break,
+			(None, '[' | '{') => depth += 1,
+			(None, ']' | '}') => depth -= 1,
+			(None, _) => {}
+		}
+	}
+	depth
 }
 
 fn classify_dep(line: &str) -> DepGroup {
@@ -206,22 +252,23 @@ fn normalize_workspace_syntax(line: &str) -> String {
 }
 
 fn format_entries(entries: &[DepEntry]) -> String {
-	let mut path_deps: Vec<&str> = Vec::default();
-	let mut regular_deps: Vec<&str> = Vec::default();
-	let mut workspace_deps: Vec<&str> = Vec::default();
+	let mut path_deps: Vec<&DepEntry> = Vec::default();
+	let mut regular_deps: Vec<&DepEntry> = Vec::default();
+	let mut workspace_deps: Vec<&DepEntry> = Vec::default();
 
 	for entry in entries {
 		match entry.group {
-			DepGroup::Path => path_deps.push(&entry.line),
-			DepGroup::Regular => regular_deps.push(&entry.line),
-			DepGroup::Workspace => workspace_deps.push(&entry.line),
+			DepGroup::Path => path_deps.push(entry),
+			DepGroup::Regular => regular_deps.push(entry),
+			DepGroup::Workspace => workspace_deps.push(entry),
 		}
 	}
 
 	// Sort each group alphabetically, with `.` ordered before `-` to match `cargo sort --workspace --grouped`.
 	// Default ASCII order puts `-` (45) before `.` (46); we reverse that for dep name sorting.
-	let sort_key = |s: &&str| {
-		s.chars()
+	let sort_key = |e: &&DepEntry| {
+		e.line
+			.chars()
 			.map(|c| {
 				if c == '.' {
 					'-'
@@ -237,19 +284,12 @@ fn format_entries(entries: &[DepEntry]) -> String {
 	regular_deps.sort_by_key(sort_key);
 	workspace_deps.sort_by_key(sort_key);
 
-	let mut groups: Vec<String> = Vec::default();
-
-	if !path_deps.is_empty() {
-		groups.push(path_deps.join("\n"));
-	}
-	if !regular_deps.is_empty() {
-		groups.push(regular_deps.join("\n"));
-	}
-	if !workspace_deps.is_empty() {
-		groups.push(workspace_deps.join("\n"));
-	}
-
-	groups.join("\n\n")
+	[path_deps, regular_deps, workspace_deps]
+		.into_iter()
+		.filter(|group| !group.is_empty())
+		.map(|group| group.iter().map(|e| format!("{}{}", e.comments, e.line)).collect::<Vec<_>>().join("\n"))
+		.collect::<Vec<_>>()
+		.join("\n\n")
 }
 
 #[cfg(test)]

@@ -591,3 +591,56 @@ name = "rust"
 "#;
 	assert_eq!(format(input), expected);
 }
+
+#[test]
+fn multiline_array_dep_passes() {
+	let content = r#"[dependencies]
+derive_more = { version = "2.1.1", features = [
+	"from",
+	"display",
+] }
+eyre = "0.6.12"
+"#;
+	assert!(check(content).is_empty());
+}
+
+#[test]
+fn multiline_array_dep_moves_as_unit() {
+	let input = r#"[dependencies]
+tokio = { version = "1.52.0", features = [
+	"macros", # needed for #[tokio::main]
+	"rt-multi-thread",
+] }
+serde.workspace = true
+miette = { version = "7.6.0", features = [
+	"fancy",
+] }
+"#;
+	let expected = r#"[dependencies]
+miette = { version = "7.6.0", features = [
+	"fancy",
+] }
+tokio = { version = "1.52.0", features = [
+	"macros", # needed for #[tokio::main]
+	"rt-multi-thread",
+] }
+
+serde.workspace = true
+"#;
+	assert_eq!(format(input), expected);
+}
+
+#[test]
+fn comment_above_dep_moves_with_it() {
+	let input = r#"[dependencies]
+tokio = "1"
+# pinned: 0.7 breaks derive(new) on enums
+derive-new = "0.6"
+"#;
+	let expected = r#"[dependencies]
+# pinned: 0.7 breaks derive(new) on enums
+derive-new = "0.6"
+tokio = "1"
+"#;
+	assert_eq!(format(input), expected);
+}
