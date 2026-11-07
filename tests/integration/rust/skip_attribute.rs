@@ -38,6 +38,8 @@ fn all_opts() -> RustCheckOptions {
 		inline_default: true,
 		prefer_ahash: false,
 		too_explicit: true,
+		split_asserts: true,
+		no_unbounded_channels: true,
 	}
 }
 

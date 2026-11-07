@@ -132,6 +132,14 @@ struct RustCheckOptionsArgs {
 	/// Rewrite inline fully-qualified std paths to short forms and add imports [default: true]
 	#[arg(long)]
 	too_explicit: Option<bool>,
+
+	/// Split `assert!(a && b)` into one assert per condition [default: true]
+	#[arg(long)]
+	split_asserts: Option<bool>,
+
+	/// Forbid unbounded channels without a `//UNBOUNDED` comment [default: true]
+	#[arg(long)]
+	no_unbounded_channels: Option<bool>,
 }
 impl RustCheckOptionsArgs {
 	/// Resolve CLI flags into [`RustCheckOptions`].
@@ -188,6 +196,8 @@ impl RustCheckOptionsArgs {
 			inline_default,
 			prefer_ahash,
 			too_explicit,
+			split_asserts,
+			no_unbounded_channels,
 		);
 
 		let unknown: Vec<&String> = only.iter().zip(&matched).filter(|(_, m)| !**m).map(|(o, _)| o).collect();

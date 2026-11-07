@@ -40,6 +40,13 @@ pub fn has_skip_marker_for_rule_at_line(content: &str, line: usize, rule: &str) 
 	}
 }
 
+/// A `//MARKER` (or `// MARKER`) justification comment on the given line or the one above, as `//LOOP` / `//IGNORED_ERROR`
+pub fn has_marker_comment(content: &str, line: usize, marker: &str) -> bool {
+	let lines: Vec<&str> = content.lines().collect();
+	let (tight, spaced) = (format!("//{marker}"), format!("// {marker}"));
+	(line.saturating_sub(2)..line.min(lines.len())).any(|i| lines[i].contains(&tight) || lines[i].contains(&spaced))
+}
+
 /// A visitor wrapper that automatically skips items marked with codestyle::skip.
 ///
 /// Wrap your visitor with this to get automatic skip handling without duplicating

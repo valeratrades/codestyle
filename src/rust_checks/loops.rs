@@ -1,6 +1,9 @@
 use syn::{Expr, Stmt, spanned::Spanned};
 
-use super::{FileInfo, Violation, skip::has_skip_marker_for_rule};
+use super::{
+	FileInfo, Violation,
+	skip::{has_marker_comment, has_skip_marker_for_rule},
+};
 
 const RULE: &str = "loop-comment";
 pub fn check_loops(file_info: &FileInfo) -> Vec<Violation> {
@@ -36,7 +39,7 @@ fn check_expr_for_loops(expr: &Expr, file_contents: &str, file_path: &str, viola
 	match expr {
 		Expr::Loop(loop_expr) => {
 			let span_start = loop_expr.loop_token.span().start();
-			if !has_loop_comment(file_contents, span_start.line) {
+			if !has_marker_comment(file_contents, span_start.line, "LOOP") {
 				violations.push(Violation {
 					rule: RULE,
 					file: file_path.to_string(),
@@ -78,26 +81,4 @@ fn check_expr_for_loops(expr: &Expr, file_contents: &str, file_path: &str, viola
 		}
 		_ => {}
 	}
-}
-
-fn has_loop_comment(file_contents: &str, loop_line: usize) -> bool {
-	let lines: Vec<&str> = file_contents.lines().collect();
-
-	// Check current line (inline comment)
-	if loop_line > 0 && loop_line <= lines.len() {
-		let current_line = lines[loop_line - 1];
-		if current_line.contains("//LOOP") || current_line.contains("// LOOP") {
-			return true;
-		}
-	}
-
-	// Check line above
-	if loop_line > 1 {
-		let prev_line = lines[loop_line - 2];
-		if prev_line.contains("//LOOP") || prev_line.contains("// LOOP") {
-			return true;
-		}
-	}
-
-	false
 }

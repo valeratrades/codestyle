@@ -27,6 +27,8 @@ pub(crate) fn opts_for(check: &str) -> RustCheckOptions {
 		inline_default: check == "inline_default",
 		prefer_ahash: check == "prefer_ahash",
 		too_explicit: check == "too_explicit",
+		split_asserts: check == "split_asserts",
+		no_unbounded_channels: check == "no_unbounded_channels",
 	}
 }
 
@@ -135,7 +137,7 @@ pub(crate) fn test_case_assert_only(fixture_str: &str, opts: &RustCheckOptions) 
 fn collect_violations(root: &Path, opts: &RustCheckOptions, is_format_mode: bool) -> Vec<Violation> {
 	use codestyle::rust_checks::{
 		embed_simple_vars, ignored_error, impl_folds, impl_follows_type, inline_default, insta_snapshots, instrument, join_split_impls, loops, no_chrono, no_tokio_spawn,
-		prefer_ahash, prefer_default_over_bare_new, pub_first, test_fn_prefix, too_explicit, unconventional_new, use_bail,
+		no_unbounded_channels, prefer_ahash, prefer_default_over_bare_new, pub_first, split_asserts, test_fn_prefix, too_explicit, unconventional_new, use_bail,
 	};
 
 	let file_infos = rust_checks::collect_rust_files(root, &[]);
@@ -206,6 +208,12 @@ fn collect_violations(root: &Path, opts: &RustCheckOptions, is_format_mode: bool
 			}
 			if opts.too_explicit {
 				violations.extend(too_explicit::check(&info.path, &info.contents, tree));
+			}
+			if opts.split_asserts {
+				violations.extend(split_asserts::check(&info.path, &info.contents, tree));
+			}
+			if opts.no_unbounded_channels {
+				violations.extend(no_unbounded_channels::check(&info.path, &info.contents, tree));
 			}
 		}
 	}

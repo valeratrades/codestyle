@@ -10,11 +10,13 @@ pub mod join_split_impls;
 pub mod loops;
 pub mod no_chrono;
 pub mod no_tokio_spawn;
+pub mod no_unbounded_channels;
 pub mod path_rewrite;
 pub mod prefer_ahash;
 pub mod prefer_default_over_bare_new;
 pub mod pub_first;
 pub mod skip;
+pub mod split_asserts;
 pub mod test_fn_prefix;
 pub mod too_explicit;
 pub mod unconventional_new;
@@ -102,6 +104,12 @@ pub struct RustCheckOptions {
 	/// Rewrite inline fully-qualified std paths to short forms and add imports (default: true)
 	#[default = true]
 	pub too_explicit: bool,
+	/// Split `assert!(a && b)` into one assert per condition (default: true)
+	#[default = true]
+	pub split_asserts: bool,
+	/// Forbid unbounded channels without a `//UNBOUNDED` comment (default: true)
+	#[default = true]
+	pub no_unbounded_channels: bool,
 }
 
 impl RustCheckOptions {
@@ -133,6 +141,8 @@ impl RustCheckOptions {
 			prefer_default_over_bare_new: self.prefer_default_over_bare_new,
 			prefer_ahash: false,
 			too_explicit: self.too_explicit,
+			split_asserts: self.split_asserts,
+			no_unbounded_channels: false,
 		}
 	}
 }
@@ -257,6 +267,12 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions, exclude: &[PathBuf
 				}
 				if opts.too_explicit {
 					all_violations.extend(too_explicit::check(&info.path, &info.contents, tree));
+				}
+				if opts.split_asserts {
+					all_violations.extend(split_asserts::check(&info.path, &info.contents, tree));
+				}
+				if opts.no_unbounded_channels {
+					all_violations.extend(no_unbounded_channels::check(&info.path, &info.contents, tree));
 				}
 			}
 		}
@@ -730,6 +746,15 @@ fn format_file_iteratively(
 					}
 				}
 			}
+
+			if first_fix.is_none() && opts.split_asserts {
+				for v in split_asserts::check(&info.path, &info.contents, tree) {
+					if let Some(fix) = v.fix.clone() {
+						first_fix = Some((v, fix));
+						break;
+					}
+				}
+			}
 		}
 
 		// Apply the fix if found
@@ -819,6 +844,12 @@ fn collect_unfixable(info: &FileInfo, opts: &RustCheckOptions, try_new_types: &H
 		}
 		if opts.too_explicit {
 			unfixable.extend(too_explicit::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
+		}
+		if opts.split_asserts {
+			unfixable.extend(split_asserts::check(&info.path, &info.contents, tree).into_iter().filter(|v| v.fix.is_none()));
+		}
+		if opts.no_unbounded_channels {
+			unfixable.extend(no_unbounded_channels::check(&info.path, &info.contents, tree));
 		}
 	}
 

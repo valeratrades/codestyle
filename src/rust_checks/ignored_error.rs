@@ -10,7 +10,10 @@ use std::{ops::Range, path::Path};
 
 use syn::{ExprMethodCall, Pat, PatWild, Stmt, spanned::Spanned, visit::Visit};
 
-use super::{Violation, skip::has_skip_marker_for_rule};
+use super::{
+	Violation,
+	skip::{has_marker_comment, has_skip_marker_for_rule},
+};
 
 const RULE: &str = "ignored-error";
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
@@ -39,28 +42,6 @@ impl<'a> IgnoredErrorVisitor<'a> {
 
 	fn is_in_skipped_range(&self, line: usize) -> bool {
 		self.skipped_ranges.iter().any(|r| r.contains(&line))
-	}
-
-	fn has_ignored_error_comment(&self, line: usize) -> bool {
-		let lines: Vec<&str> = self.content.lines().collect();
-
-		// Check current line (inline comment)
-		if line > 0 && line <= lines.len() {
-			let current_line = lines[line - 1];
-			if current_line.contains("//IGNORED_ERROR") || current_line.contains("// IGNORED_ERROR") {
-				return true;
-			}
-		}
-
-		// Check line above
-		if line > 1 {
-			let prev_line = lines[line - 2];
-			if prev_line.contains("//IGNORED_ERROR") || prev_line.contains("// IGNORED_ERROR") {
-				return true;
-			}
-		}
-
-		false
 	}
 
 	fn is_standalone_underscore<'b>(&self, pat: &'b Pat) -> Option<&'b PatWild> {
@@ -108,7 +89,7 @@ impl<'a> Visit<'a> for IgnoredErrorVisitor<'a> {
 		if matches!(method_name.as_str(), "unwrap_or" | "unwrap_or_default" | "unwrap_or_else") {
 			let span_start = node.method.span().start();
 			// Skip if in a skipped region or has the per-line comment
-			if !self.is_in_skipped_range(span_start.line) && !self.has_ignored_error_comment(span_start.line) {
+			if !self.is_in_skipped_range(span_start.line) && !has_marker_comment(self.content, span_start.line, "IGNORED_ERROR") {
 				self.violations.push(Violation {
 					rule: RULE,
 					file: self.path_str.clone(),
@@ -132,7 +113,7 @@ impl<'a> Visit<'a> for IgnoredErrorVisitor<'a> {
 		{
 			let span_start = wild.underscore_token.span.start();
 			// Skip if in a skipped region or has the per-line comment
-			if !self.is_in_skipped_range(span_start.line) && !self.has_ignored_error_comment(span_start.line) {
+			if !self.is_in_skipped_range(span_start.line) && !has_marker_comment(self.content, span_start.line, "IGNORED_ERROR") {
 				self.violations.push(Violation {
 					rule: RULE,
 					file: self.path_str.clone(),

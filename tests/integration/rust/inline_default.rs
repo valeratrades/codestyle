@@ -430,10 +430,7 @@ fn multiple_const_fields() {
 
 #[test]
 fn feature_not_injected_when_only_other_rules_fixed_something() {
-	let opts = codestyle::rust_checks::RustCheckOptions {
-		pub_first: true,
-		..opts()
-	};
+	let opts = codestyle::rust_checks::RustCheckOptions { pub_first: true, ..opts() };
 	insta::assert_snapshot!(test_case(
 		r#"
 		//- /Cargo.toml

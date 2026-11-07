@@ -55,6 +55,8 @@ codestyle --exclude libs/nautilus_trader --exclude vendor rust assert .
 | `--inline-default` | true | Inline `impl Default` bodies as field defaults (RFC 3681) |
 | `--prefer-ahash` | false | Replace `HashMap` with `ahash::AHashMap` |
 | `--too-explicit` | true | Rewrite inline fully-qualified `std::` paths and add imports |
+| `--split-asserts` | true | `assert!(a && b)` -> `assert!(a); assert!(b);` |
+| `--no-unbounded-channels` | true | Unbounded channels need a `//UNBOUNDED` comment |
 
 ### Format mode
 
