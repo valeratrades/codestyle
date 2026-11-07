@@ -275,6 +275,7 @@ impl<'a> TooExplicitVisitor<'a> {
 		self.scope_stack.last().copied().unwrap_or(self.file_scope_byte)
 	}
 
+	//#[codestyle::skip(swappable-args)]
 	fn push_rewrite_violation(&mut self, fix: Fix, line: usize, column: usize, rewrite: &Rewrite) {
 		self.violation_scope_bytes.push(self.current_scope_byte());
 		self.violations.push(Violation {

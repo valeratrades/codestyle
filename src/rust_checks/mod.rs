@@ -17,6 +17,7 @@ pub mod prefer_default_over_bare_new;
 pub mod pub_first;
 pub mod skip;
 pub mod split_asserts;
+pub mod swappable_args;
 pub mod test_fn_prefix;
 pub mod too_explicit;
 pub mod unconventional_new;
@@ -110,6 +111,9 @@ pub struct RustCheckOptions {
 	/// Forbid unbounded channels without a `//UNBOUNDED` comment (default: true)
 	#[default = true]
 	pub no_unbounded_channels: bool,
+	/// Flag fns with two parameters of the same primitive type (default: true)
+	#[default = true]
+	pub swappable_args: bool,
 }
 
 impl RustCheckOptions {
@@ -143,6 +147,7 @@ impl RustCheckOptions {
 			too_explicit: self.too_explicit,
 			split_asserts: self.split_asserts,
 			no_unbounded_channels: false,
+			swappable_args: false,
 		}
 	}
 }
@@ -273,6 +278,9 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions, exclude: &[PathBuf
 				}
 				if opts.no_unbounded_channels {
 					all_violations.extend(no_unbounded_channels::check(&info.path, &info.contents, tree));
+				}
+				if opts.swappable_args {
+					all_violations.extend(swappable_args::check(&info.path, &info.contents, tree));
 				}
 			}
 		}
@@ -850,6 +858,9 @@ fn collect_unfixable(info: &FileInfo, opts: &RustCheckOptions, try_new_types: &H
 		}
 		if opts.no_unbounded_channels {
 			unfixable.extend(no_unbounded_channels::check(&info.path, &info.contents, tree));
+		}
+		if opts.swappable_args {
+			unfixable.extend(swappable_args::check(&info.path, &info.contents, tree));
 		}
 	}
 

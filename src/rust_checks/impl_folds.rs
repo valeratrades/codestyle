@@ -106,6 +106,7 @@ fn check_close_marker_after_impl(content: &str, impl_end_byte: usize) -> bool {
 	false
 }
 
+//#[codestyle::skip(swappable-args)]
 fn generate_fix(content: &str, start_byte: usize, end_byte: usize, brace_open_offset: usize, has_open: bool, has_close: bool) -> Fix {
 	let impl_text = &content[start_byte..end_byte];
 
@@ -159,6 +160,7 @@ fn generate_fix(content: &str, start_byte: usize, end_byte: usize, brace_open_of
 	}
 }
 
+//#[codestyle::skip(swappable-args)]
 fn span_position_to_byte(content: &str, line: usize, column: usize) -> Option<usize> {
 	let mut current_line = 1;
 	let mut line_start = 0;

@@ -161,6 +161,7 @@ struct ImplBlockInfo {
 }
 
 /// Convert a line/column position to byte offset in content.
+//#[codestyle::skip(swappable-args)]
 fn span_position_to_byte(content: &str, line: usize, column: usize) -> Option<usize> {
 	let mut current_line = 1;
 	let mut line_start = 0;

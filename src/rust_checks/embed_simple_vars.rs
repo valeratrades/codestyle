@@ -347,6 +347,7 @@ fn collect_complex_argument(tokens: &[TokenTree], start: usize) -> Option<(Strin
 
 /// Convert a proc_macro2 line/column position to byte offset in content.
 /// Lines are 1-indexed, columns are 0-indexed character offsets within line.
+//#[codestyle::skip(swappable-args)]
 fn span_position_to_byte(content: &str, line: usize, column: usize) -> Option<usize> {
 	let mut current_line = 1;
 	let mut line_start = 0;
@@ -374,6 +375,7 @@ fn span_position_to_byte(content: &str, line: usize, column: usize) -> Option<us
 	None
 }
 
+//#[codestyle::skip(swappable-args)]
 fn create_full_macro_fix(new_fmt: &str, fmt_span: Span, last_arg_span: Option<Span>, content: &str) -> Option<Fix> {
 	let last_arg_span = last_arg_span?;
 

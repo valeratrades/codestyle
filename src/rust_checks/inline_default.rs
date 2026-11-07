@@ -263,6 +263,7 @@ fn make_compound_fix(content: &str, struct_item: &ItemStruct, impl_block: &ItemI
 
 /// Rewrite struct source by inserting ` = <init>` after each field's type annotation,
 /// and injecting `Default` into the derive list (or prepending `#[derive(Default)]`).
+//#[codestyle::skip(swappable-args)]
 fn rewrite_struct(content: &str, struct_item: &ItemStruct, struct_start: usize, struct_end: usize, field_inits: &HashMap<String, String>) -> Option<String> {
 	let Fields::Named(ref named) = struct_item.fields else {
 		return None;

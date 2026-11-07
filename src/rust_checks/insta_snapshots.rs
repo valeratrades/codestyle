@@ -273,6 +273,7 @@ impl PathCount {
 		}
 	}
 
+	//#[codestyle::skip(swappable-args)]
 	fn one(line: usize, col: usize) -> Self {
 		Self {
 			count: 1,

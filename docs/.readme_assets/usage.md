@@ -57,6 +57,7 @@ codestyle --exclude libs/nautilus_trader --exclude vendor rust assert .
 | `--too-explicit` | true | Rewrite inline fully-qualified `std::` paths and add imports |
 | `--split-asserts` | true | `assert!(a && b)` -> `assert!(a); assert!(b);` |
 | `--no-unbounded-channels` | true | Unbounded channels need a `//UNBOUNDED` comment |
+| `--swappable-args` | true | Fns with two params of the same primitive type (`u64`, `&str`, `bool`, ...) need newtypes or an args struct; trait impls, closures, tests exempt |
 
 ### Format mode
 

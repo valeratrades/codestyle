@@ -26,12 +26,14 @@ pub enum SkipMarker {
 
 /// Check if the line before the given span contains a codestyle::skip marker for a specific rule.
 /// Returns `true` if there's a skip-all marker OR a skip marker for the specified rule.
+//#[codestyle::skip(swappable-args)]
 pub fn has_skip_marker_for_rule(content: &str, span: Span, rule: &str) -> bool {
 	let line = span.start().line;
 	has_skip_marker_for_rule_at_line(content, line, rule)
 }
 
 /// Check if the given line or the line above contains a codestyle::skip marker for a specific rule.
+//#[codestyle::skip(swappable-args)]
 pub fn has_skip_marker_for_rule_at_line(content: &str, line: usize, rule: &str) -> bool {
 	match get_skip_marker_at_line(content, line) {
 		Some(SkipMarker::All) => true,
@@ -41,6 +43,7 @@ pub fn has_skip_marker_for_rule_at_line(content: &str, line: usize, rule: &str) 
 }
 
 /// A `//MARKER` (or `// MARKER`) justification comment on the given line or the one above, as `//LOOP` / `//IGNORED_ERROR`
+//#[codestyle::skip(swappable-args)]
 pub fn has_marker_comment(content: &str, line: usize, marker: &str) -> bool {
 	let lines: Vec<&str> = content.lines().collect();
 	let (tight, spaced) = (format!("//{marker}"), format!("// {marker}"));
@@ -62,6 +65,7 @@ pub struct SkipVisitor<'a, V> {
 }
 impl<'a, V> SkipVisitor<'a, V> {
 	/// Create a SkipVisitor that checks for skip-all markers and rule-specific markers.
+	//#[codestyle::skip(swappable-args)]
 	pub fn for_rule(inner: V, content: &'a str, rule: &'a str) -> Self {
 		Self { inner, content, rule: Some(rule) }
 	}

@@ -96,7 +96,7 @@ impl<'a> Visit<'a> for TokioSpawnVisitor {
 /// A `#[test]` / `#[tokio::test]` / `#[cfg(test)]` attribute on a function — anything marking it
 /// as test-only code. The last segment matching `test` covers `tokio::test`, `rstest::rstest`-style
 /// renames are not handled, but the common runtime attributes are.
-fn is_test_attr(attr: &Attribute) -> bool {
+pub(super) fn is_test_attr(attr: &Attribute) -> bool {
 	if is_cfg_test_attr(attr) {
 		return true;
 	}
@@ -104,7 +104,7 @@ fn is_test_attr(attr: &Attribute) -> bool {
 }
 
 /// A `#[cfg(test)]` attribute.
-fn is_cfg_test_attr(attr: &Attribute) -> bool {
+pub(super) fn is_cfg_test_attr(attr: &Attribute) -> bool {
 	if !attr.path().is_ident("cfg") {
 		return false;
 	}

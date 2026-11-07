@@ -20,6 +20,7 @@ pub fn check_loops(file_info: &FileInfo) -> Vec<Violation> {
 	violations
 }
 
+//#[codestyle::skip(swappable-args)]
 fn collect_loop_issues_from_stmts(stmts: &[Stmt], file_contents: &str, file_path: &str, violations: &mut Vec<Violation>) {
 	for stmt in stmts {
 		match stmt {
@@ -35,6 +36,7 @@ fn collect_loop_issues_from_stmts(stmts: &[Stmt], file_contents: &str, file_path
 	}
 }
 
+//#[codestyle::skip(swappable-args)]
 fn check_expr_for_loops(expr: &Expr, file_contents: &str, file_path: &str, violations: &mut Vec<Violation>) {
 	match expr {
 		Expr::Loop(loop_expr) => {

@@ -140,6 +140,10 @@ struct RustCheckOptionsArgs {
 	/// Forbid unbounded channels without a `//UNBOUNDED` comment [default: true]
 	#[arg(long)]
 	no_unbounded_channels: Option<bool>,
+
+	/// Flag fns with two parameters of the same primitive type [default: true]
+	#[arg(long)]
+	swappable_args: Option<bool>,
 }
 impl RustCheckOptionsArgs {
 	/// Resolve CLI flags into [`RustCheckOptions`].
@@ -198,6 +202,7 @@ impl RustCheckOptionsArgs {
 			too_explicit,
 			split_asserts,
 			no_unbounded_channels,
+			swappable_args,
 		);
 
 		let unknown: Vec<&String> = only.iter().zip(&matched).filter(|(_, m)| !**m).map(|(o, _)| o).collect();

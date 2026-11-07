@@ -98,6 +98,7 @@ impl<'a> AHashVisitor<'a> {
 		}
 	}
 
+	//#[codestyle::skip(swappable-args)]
 	fn push_fix_violation(&mut self, fix: Fix, line: usize, column: usize, std_name: &str, ahash_name: &str) {
 		self.violations.push(Violation {
 			rule: RULE,
@@ -154,6 +155,7 @@ impl<'a> Visit<'a> for AHashVisitor<'_> {
 }
 
 /// Detect a fixable `use std::collections::<std_name>` or group use containing it.
+//#[codestyle::skip(swappable-args)]
 fn detect_use_fix(content: &str, node: &ItemUse, std_name: &str, ahash_import: &str) -> Option<Fix> {
 	// Check for `use std::collections::<std_name>`
 	if is_exact_std_collections(std_name, &node.tree) {
@@ -216,6 +218,7 @@ fn is_exact_std_collections(name: &str, tree: &UseTree) -> bool {
 
 /// If the use tree is `std::collections::{..., <name>, ...}`, returns the byte range of the ident
 /// and the total number of items in the group.
+//#[codestyle::skip(swappable-args)]
 fn find_name_in_group(content: &str, tree: &UseTree, name: &str) -> Option<(usize, usize, usize)> {
 	match tree {
 		UseTree::Path(p) if p.ident == "std" => match p.tree.as_ref() {
@@ -241,6 +244,7 @@ fn find_name_in_group(content: &str, tree: &UseTree, name: &str) -> Option<(usiz
 }
 
 /// Detect a fixable `<std_name>` in an expression path (e.g. `HashMap::new()`).
+//#[codestyle::skip(swappable-args)]
 fn detect_expr_path_fix(content: &str, node: &syn::ExprPath, std_name: &str, ahash_name: &str) -> Option<Fix> {
 	let path = &node.path;
 
@@ -262,6 +266,7 @@ fn detect_expr_path_fix(content: &str, node: &syn::ExprPath, std_name: &str, aha
 }
 
 /// Detect a fixable `<std_name>` type reference (not from ahash).
+//#[codestyle::skip(swappable-args)]
 fn detect_type_path_fix(content: &str, node: &syn::TypePath, std_name: &str, ahash_name: &str) -> Option<Fix> {
 	let path = &node.path;
 

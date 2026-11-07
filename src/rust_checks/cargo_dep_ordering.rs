@@ -35,6 +35,7 @@ enum DepGroup {
 	Workspace = 2,
 }
 
+//#[codestyle::skip(swappable-args)]
 fn check_section(content: &str, section_header: &str, path_str: &str) -> Option<Violation> {
 	let (section_start, section_body_start, section_end) = find_section(content, section_header)?;
 
@@ -90,6 +91,7 @@ fn check_section(content: &str, section_header: &str, path_str: &str) -> Option<
 
 /// Find a TOML section by header. Returns (header_start_byte, body_start_byte, body_end_byte).
 /// body_end_byte is right before the next section header (or EOF).
+//#[codestyle::skip(swappable-args)]
 fn find_section(content: &str, header: &str) -> Option<(usize, usize, usize)> {
 	let header_lower = header.to_lowercase();
 	let mut pos = 0;

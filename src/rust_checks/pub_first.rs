@@ -236,6 +236,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 }
 
 /// Within the const/type sections, pub items come before private ones.
+//#[codestyle::skip(swappable-args)]
 fn check_pub_within_section(items: &[ItemInfo], anchor_ranges: &[Anchor], content: &str, path_str: &str, in_section: fn(&ItemInfo) -> bool, message: &str) -> Option<Violation> {
 	let mut first_private_idx: Option<usize> = None;
 	for (i, item) in items.iter().enumerate() {
@@ -270,6 +271,7 @@ struct KindRule {
 
 /// Check that items of a specific kind (main/trait/struct) appear before lower-priority items
 /// within a visibility category (pub/private), excluding const and type items.
+//#[codestyle::skip(swappable-args)]
 fn check_kind_ordering(items: &[ItemInfo], anchor_ranges: &[Anchor], content: &str, path_str: &str, rule: KindRule) -> Option<Violation> {
 	let mut first_lower_idx: Option<usize> = None;
 	for (i, item) in items.iter().enumerate() {
@@ -431,6 +433,7 @@ fn has_clap_derive(attrs: &[syn::Attribute], trait_name: &str) -> bool {
 ///
 /// Anchor items (mod/use/extern crate) in the gap between from and to are kept before the
 /// reordered code items — the moved item is placed after all anchors.
+//#[codestyle::skip(swappable-args)]
 fn create_move_fix(content: &str, items: &[ItemInfo], anchor_ranges: &[Anchor], from_idx: usize, to_idx: usize) -> Option<Fix> {
 	if from_idx <= to_idx {
 		return None;
@@ -548,6 +551,7 @@ fn find_item_text_start(content: &str, span_start: usize) -> usize {
 /// Convert a line/column position to byte offset in content.
 /// Lines are 1-indexed; columns are 0-indexed UTF-8 char offsets within the line
 /// (proc-macro2 reports columns as char counts, not bytes).
+//#[codestyle::skip(swappable-args)]
 fn span_position_to_byte(content: &str, line: usize, column: usize) -> Option<usize> {
 	let mut current_line = 1;
 	let mut line_start = 0;

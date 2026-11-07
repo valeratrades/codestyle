@@ -165,6 +165,7 @@ fn create_relocation_fix(content: &str, type_def: &TypeDef, impl_block: &ImplBlo
 
 /// Convert a line/column position to byte offset in content.
 /// Lines are 1-indexed, columns are 0-indexed (byte offset within line).
+//#[codestyle::skip(swappable-args)]
 fn span_position_to_byte(content: &str, line: usize, column: usize) -> Option<usize> {
 	let mut current_line = 1;
 	let mut line_start = 0;

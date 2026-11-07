@@ -145,6 +145,7 @@ pub fn has_bare_usage_in_scope(items: &[syn::Item], short_name: &str) -> bool {
 }
 
 /// Remove the item at `[rel_start..rel_end]` from the source, stripping a surrounding comma+space.
+//#[codestyle::skip(swappable-args)]
 pub fn remove_from_group(source: &str, rel_start: usize, rel_end: usize) -> String {
 	// Try to remove `, Name` (trailing comma pattern)
 	if rel_start >= 2 {
@@ -182,6 +183,7 @@ pub fn remove_from_group(source: &str, rel_start: usize, rel_end: usize) -> Stri
 /// with `short_name`.
 ///
 /// Example: `segments = ["std", "sync", "Arc"]`, `short_name = "Arc"` matches `std::sync::Arc<T>`.
+//#[codestyle::skip(swappable-args)]
 pub fn rewrite_full_type_path(content: &str, node: &TypePath, segments: &[&str], short_name: &str) -> Option<Fix> {
 	rewrite_path_segments(content, &node.path, segments, short_name, true)
 }
@@ -256,10 +258,12 @@ pub fn has_bare_usage(file: &syn::File, short_name: &str) -> bool {
 /// with `short_name`.
 ///
 /// Example: `segments = ["std", "sync", "Arc"]` matches `std::sync::Arc::clone(...)`.
+//#[codestyle::skip(swappable-args)]
 pub fn rewrite_full_expr_path(content: &str, node: &ExprPath, segments: &[&str], short_name: &str) -> Option<Fix> {
 	rewrite_path_segments(content, &node.path, segments, short_name, false)
 }
 
+//#[codestyle::skip(swappable-args)]
 fn rewrite_path_segments(content: &str, path: &syn::Path, segments: &[&str], short_name: &str, exact: bool) -> Option<Fix> {
 	if exact {
 		if path.segments.len() != segments.len() {

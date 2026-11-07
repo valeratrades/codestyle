@@ -40,6 +40,7 @@ fn all_opts() -> RustCheckOptions {
 		too_explicit: true,
 		split_asserts: true,
 		no_unbounded_channels: true,
+		swappable_args: true,
 	}
 }
 
