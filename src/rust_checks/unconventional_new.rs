@@ -8,37 +8,34 @@
 use std::{collections::HashSet, path::Path};
 
 use proc_macro2::{Delimiter, TokenStream, TokenTree};
-use syn::{Expr, ExprCall, ExprPath, ImplItem, Item, PathSegment, ReturnType, Type, visit::Visit};
+use syn::{ExprPath, ImplItem, PathSegment, ReturnType, Type, visit::Visit};
 
 use super::{FileInfo, Fix, Violation, path_rewrite::span_to_byte, skip::SkipVisitor};
 
 const RULE: &str = "unconventional-new";
 
-/// Collect all type names that have `fn new(...) -> Result<...>` in inherent impls
-/// across the given set of parsed files. Used to find call-sites project-wide.
+/// Collect all type names that have `fn new(...) -> Result<...>` in inherent impls, at any
+/// nesting depth, across the given set of parsed files. Used to find call-sites project-wide.
 pub fn collect_try_new_types(file_infos: &[FileInfo]) -> HashSet<String> {
-	let mut types = HashSet::default();
-	for info in file_infos {
-		let Some(ref tree) = info.syntax_tree else { continue };
-		for item in &tree.items {
-			let Item::Impl(impl_block) = item else { continue };
-			if impl_block.trait_.is_some() {
-				continue;
+	struct Collector(HashSet<String>);
+	impl<'a> Visit<'a> for Collector {
+		fn visit_item_impl(&mut self, node: &'a syn::ItemImpl) {
+			if node.trait_.is_none()
+				&& let Some(type_name) = impl_type_name(node)
+				&& node.items.iter().any(|item| matches!(item, ImplItem::Fn(func) if func.sig.ident == "new" && returns_result(&func.sig.output)))
+			{
+				self.0.insert(type_name);
 			}
-			let Type::Path(self_ty) = impl_block.self_ty.as_ref() else { continue };
-			let Some(last_seg) = self_ty.path.segments.last() else { continue };
-			let type_name = last_seg.ident.to_string();
-
-			for impl_item in &impl_block.items {
-				let ImplItem::Fn(func) = impl_item else { continue };
-				if func.sig.ident == "new" && returns_result(&func.sig.output) {
-					types.insert(type_name.clone());
-					break;
-				}
-			}
+			syn::visit::visit_item_impl(self, node);
 		}
 	}
-	types
+	let mut collector = Collector(HashSet::default());
+	for info in file_infos {
+		if let Some(ref tree) = info.syntax_tree {
+			collector.visit_file(tree);
+		}
+	}
+	collector.0
 }
 
 pub fn check(path: &Path, content: &str, file: &syn::File, try_new_types: &HashSet<String>) -> Vec<Violation> {
@@ -52,6 +49,8 @@ struct UnconventionalNewVisitor<'a> {
 	path_str: String,
 	content: &'a str,
 	try_new_types: &'a HashSet<String>,
+	/// Type `Self` names in the impl currently being visited
+	self_ty: Option<String>,
 	violations: Vec<Violation>,
 }
 
@@ -61,6 +60,7 @@ impl<'a> UnconventionalNewVisitor<'a> {
 			path_str: path.display().to_string(),
 			content,
 			try_new_types,
+			self_ty: None,
 			violations: Vec::default(),
 		}
 	}
@@ -103,10 +103,7 @@ impl<'a> UnconventionalNewVisitor<'a> {
 			if c1.as_char() != ':' || c2.as_char() != ':' || new != "new" || args.delimiter() != Delimiter::Parenthesis {
 				continue;
 			}
-			let type_name = ty.to_string();
-			if !self.try_new_types.contains(&type_name) {
-				continue;
-			}
+			let Some(type_name) = self.resolve(&ty.to_string()) else { continue };
 			self.push_call_violation(&type_name, new.span());
 		}
 	}
@@ -129,38 +126,40 @@ impl<'a> UnconventionalNewVisitor<'a> {
 		});
 	}
 
-	fn check_call(&mut self, expr: &ExprCall) {
-		let Expr::Path(ExprPath { path, .. }) = expr.func.as_ref() else {
+	/// The type a `<name>::new` path segment names, if its `new` is fallible.
+	fn resolve(&self, name: &str) -> Option<String> {
+		let type_name = match name {
+			"Self" => self.self_ty.clone()?,
+			_ => name.to_string(),
+		};
+		self.try_new_types.contains(&type_name).then_some(type_name)
+	}
+
+	/// Calls and fn references alike: `Foo::new(x)`, `.map(Foo::new)`.
+	fn check_path(&mut self, path: &syn::Path) {
+		let [.., ty, new] = path.segments.iter().collect::<Vec<_>>()[..] else {
 			return;
 		};
-		let Some(last) = path.segments.last() else {
-			return;
-		};
-		if last.ident != "new" {
+		if new.ident != "new" {
 			return;
 		}
-		if path.segments.len() < 2 {
-			return;
-		}
-		let type_name = path.segments[path.segments.len() - 2].ident.to_string();
-		if !self.try_new_types.contains(&type_name) {
-			return;
-		}
-		self.push_call_violation(&type_name, last.ident.span());
+		let Some(type_name) = self.resolve(&ty.ident.to_string()) else { return };
+		self.push_call_violation(&type_name, new.ident.span());
 	}
 }
 
 impl<'a> Visit<'a> for UnconventionalNewVisitor<'a> {
 	fn visit_item_impl(&mut self, node: &'a syn::ItemImpl) {
-		if node.trait_.is_some() {
-			return;
-		}
-		for item in &node.items {
-			if let ImplItem::Fn(func) = item {
-				self.check_impl_fn(func);
+		if node.trait_.is_none() {
+			for item in &node.items {
+				if let ImplItem::Fn(func) = item {
+					self.check_impl_fn(func);
+				}
 			}
 		}
+		let outer = std::mem::replace(&mut self.self_ty, impl_type_name(node));
 		syn::visit::visit_item_impl(self, node);
+		self.self_ty = outer;
 	}
 
 	fn visit_macro(&mut self, node: &'a syn::Macro) {
@@ -168,10 +167,15 @@ impl<'a> Visit<'a> for UnconventionalNewVisitor<'a> {
 		syn::visit::visit_macro(self, node);
 	}
 
-	fn visit_expr_call(&mut self, node: &'a ExprCall) {
-		self.check_call(node);
-		syn::visit::visit_expr_call(self, node);
+	fn visit_expr_path(&mut self, node: &'a ExprPath) {
+		self.check_path(&node.path);
+		syn::visit::visit_expr_path(self, node);
 	}
+}
+
+fn impl_type_name(node: &syn::ItemImpl) -> Option<String> {
+	let Type::Path(self_ty) = node.self_ty.as_ref() else { return None };
+	self_ty.path.segments.last().map(|seg| seg.ident.to_string())
 }
 
 fn returns_result(output: &ReturnType) -> bool {
