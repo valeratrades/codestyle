@@ -144,6 +144,10 @@ struct RustCheckOptionsArgs {
 	/// Flag fns with two parameters of the same primitive type [default: true]
 	#[arg(long)]
 	swappable_args: Option<bool>,
+
+	/// Flag declarations that pull aws-lc-sys into the graph (use ring) [default: true]
+	#[arg(long)]
+	no_aws_lc: Option<bool>,
 }
 impl RustCheckOptionsArgs {
 	/// Resolve CLI flags into [`RustCheckOptions`].
@@ -203,6 +207,7 @@ impl RustCheckOptionsArgs {
 			split_asserts,
 			no_unbounded_channels,
 			swappable_args,
+			no_aws_lc,
 		);
 
 		let unknown: Vec<&String> = only.iter().zip(&matched).filter(|(_, m)| !**m).map(|(o, _)| o).collect();

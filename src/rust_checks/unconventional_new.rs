@@ -22,7 +22,10 @@ pub fn collect_try_new_types(file_infos: &[FileInfo]) -> HashSet<String> {
 		fn visit_item_impl(&mut self, node: &'a syn::ItemImpl) {
 			if node.trait_.is_none()
 				&& let Some(type_name) = impl_type_name(node)
-				&& node.items.iter().any(|item| matches!(item, ImplItem::Fn(func) if func.sig.ident == "new" && returns_result(&func.sig.output)))
+				&& node
+					.items
+					.iter()
+					.any(|item| matches!(item, ImplItem::Fn(func) if func.sig.ident == "new" && returns_result(&func.sig.output)))
 			{
 				self.0.insert(type_name);
 			}

@@ -104,6 +104,7 @@ codestyle --exclude libs/nautilus_trader --exclude vendor rust assert .
 | `--too-explicit` | true | Rewrite inline fully-qualified `std::` paths and add imports |
 | `--split-asserts` | true | `assert!(a && b)` -> `assert!(a); assert!(b);` |
 | `--no-unbounded-channels` | true | Unbounded channels need a `//UNBOUNDED` comment |
+| `--no-aws-lc` | true | Flag declarations that pull `aws-lc-sys` (bundled C) into `Cargo.lock`; names the dep and its ring alternative |
 | `--swappable-args` | true | Fns with two params of the same primitive type (`u64`, `&str`, `bool`, ...) need newtypes or an args struct; trait impls, closures, tests exempt |
 
 #### Format mode
@@ -141,9 +142,11 @@ codestyle rust --only ignored-error audit .
 
 <br>
 
-<sup>
-	This repository follows <a href="https://github.com/valeratrades/.github/tree/master/best_practices">my best practices</a> and <a href="https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/TIGER_STYLE.md">Tiger Style</a> (except "proper capitalization for acronyms": (VsrState, not VSRState) and formatting). For contributing, see <a href="https://github.com/EV-Main/.github/blob/main/code/conventions/git">contribution process</a>. For project's architecture, see <a href="./docs/ARCHITECTURE.md">ARCHITECTURE.md</a>.
-</sup>
+<sup>Links for devs:</sup>
+- <sup><a href="./docs/ARCHITECTURE.md">architecture</a></sup>
+- <sup><a href="https://github.com/EV-Main/.github/blob/main/code/STYLE.md">style</a></sup>
+- <sup><a href="https://github.com/EV-Main/.github/tree/main/code/conventions">conventions</a></sup>
+- <sup><a href="https://github.com/EV-Main/.github/blob/main/code/conventions/git">contributing</a></sup>
 
 #### License
 

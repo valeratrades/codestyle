@@ -12,6 +12,7 @@ mod inline_default;
 mod insta_snapshots;
 mod instrument;
 mod loops;
+mod no_aws_lc;
 mod no_chrono;
 mod no_tokio_spawn;
 mod no_unbounded_channels;

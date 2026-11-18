@@ -41,6 +41,7 @@ fn all_opts() -> RustCheckOptions {
 		split_asserts: true,
 		no_unbounded_channels: true,
 		swappable_args: true,
+		no_aws_lc: false,
 	}
 }
 

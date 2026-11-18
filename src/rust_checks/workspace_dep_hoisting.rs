@@ -1,7 +1,7 @@
 use std::{
 	collections::{HashMap, HashSet},
 	fs,
-	path::{Path, PathBuf},
+	path::Path,
 };
 
 use super::Violation;
@@ -19,7 +19,7 @@ pub fn check(workspace_root: &Path) -> Vec<Violation> {
 		Err(_) => return vec![],
 	};
 
-	let members = resolve_workspace_members(workspace_root, &workspace_content);
+	let members = super::resolve_workspace_members(workspace_root);
 	if members.is_empty() {
 		return vec![];
 	}
@@ -152,55 +152,4 @@ fn extract_dep_name(line: &str) -> Option<String> {
 		return None;
 	}
 	Some(name.to_string())
-}
-
-fn resolve_workspace_members(root: &Path, content: &str) -> Vec<PathBuf> {
-	let mut in_workspace = false;
-	let mut patterns = Vec::default();
-
-	for line in content.lines() {
-		let trimmed = line.trim();
-		if trimmed == "[workspace]" {
-			in_workspace = true;
-		} else if trimmed.starts_with('[') && trimmed != "[workspace]" {
-			in_workspace = false;
-		} else if in_workspace
-			&& trimmed.starts_with("members")
-			&& let Some(start) = line.find('[')
-			&& let Some(end) = line.find(']')
-		{
-			let list = &line[start + 1..end];
-			for member in list.split(',') {
-				let member = member.trim().trim_matches('"').trim_matches('\'');
-				if !member.is_empty() {
-					patterns.push(member.to_string());
-				}
-			}
-		}
-	}
-
-	let mut members = Vec::default();
-	for pattern in patterns {
-		if pattern.contains('*') {
-			let prefix = pattern.trim_end_matches('*');
-			let (parent, name_prefix) = if let Some(slash) = prefix.rfind('/') {
-				(root.join(&prefix[..slash]), &prefix[slash + 1..])
-			} else {
-				(root.to_path_buf(), prefix)
-			};
-			if let Ok(entries) = fs::read_dir(&parent) {
-				for entry in entries.filter_map(Result::ok) {
-					let name = entry.file_name();
-					let name = name.to_string_lossy();
-					if name.starts_with(name_prefix) && entry.path().is_dir() {
-						members.push(entry.path());
-					}
-				}
-			}
-		} else {
-			members.push(root.join(&pattern));
-		}
-	}
-
-	members
 }

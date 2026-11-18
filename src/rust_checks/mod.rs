@@ -8,6 +8,7 @@ pub mod insta_snapshots;
 pub mod instrument;
 pub mod join_split_impls;
 pub mod loops;
+pub mod no_aws_lc;
 pub mod no_chrono;
 pub mod no_tokio_spawn;
 pub mod no_unbounded_channels;
@@ -114,6 +115,9 @@ pub struct RustCheckOptions {
 	/// Flag fns with two parameters of the same primitive type (default: true)
 	#[default = true]
 	pub swappable_args: bool,
+	/// Flag declarations that pull aws-lc-sys into the graph (use ring) (default: true)
+	#[default = true]
+	pub no_aws_lc: bool,
 }
 
 impl RustCheckOptions {
@@ -148,6 +152,7 @@ impl RustCheckOptions {
 			split_asserts: self.split_asserts,
 			no_unbounded_channels: false,
 			swappable_args: false,
+			no_aws_lc: false,
 		}
 	}
 }
@@ -201,6 +206,9 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions, exclude: &[PathBuf
 	}
 	if opts.workspace_dep_hoisting {
 		all_violations.extend(workspace_dep_hoisting::check(target_dir));
+	}
+	if opts.no_aws_lc {
+		all_violations.extend(no_aws_lc::check(&find_workspace_root(target_dir).unwrap_or_else(|| target_dir.to_path_buf())));
 	}
 
 	for src_dir in src_dirs {
@@ -397,6 +405,10 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions, exclude: &[PathBuf
 				}
 			}
 		}
+	}
+
+	if opts.no_aws_lc {
+		unfixable_violations.extend(no_aws_lc::check(&find_workspace_root(target_dir).unwrap_or_else(|| target_dir.to_path_buf())));
 	}
 
 	// Process files iteratively. For most rules, files are independent. For
@@ -891,7 +903,7 @@ fn find_src_dirs(root: &Path) -> Vec<PathBuf> {
 /// Parse workspace members from Cargo.toml, expanding glob patterns.
 /// Returns resolved directory paths for each member.
 /// Returns empty vec if no [workspace] section or no members found.
-fn resolve_workspace_members(root: &Path) -> Vec<PathBuf> {
+pub(super) fn resolve_workspace_members(root: &Path) -> Vec<PathBuf> {
 	let cargo_toml = root.join("Cargo.toml");
 	let content = match fs::read_to_string(&cargo_toml) {
 		Ok(c) => c,
@@ -899,28 +911,36 @@ fn resolve_workspace_members(root: &Path) -> Vec<PathBuf> {
 	};
 
 	let mut in_workspace = false;
-	let mut patterns = Vec::default();
+	let mut list: Option<String> = None;
 
 	for line in content.lines() {
-		let trimmed = line.trim();
-		if trimmed == "[workspace]" {
+		let trimmed = line.split('#').next().expect("split yields at least one item").trim();
+		if let Some(acc) = &mut list {
+			acc.push_str(trimmed);
+			if trimmed.contains(']') {
+				break;
+			}
+		} else if trimmed == "[workspace]" {
 			in_workspace = true;
-		} else if trimmed.starts_with('[') && trimmed != "[workspace]" {
+		} else if trimmed.starts_with('[') {
 			in_workspace = false;
 		} else if in_workspace
 			&& trimmed.starts_with("members")
-			&& let Some(start) = line.find('[')
-			&& let Some(end) = line.find(']')
+			&& let Some(start) = trimmed.find('[')
 		{
-			let list = &line[start + 1..end];
-			for member in list.split(',') {
-				let member = member.trim().trim_matches('"').trim_matches('\'');
-				if !member.is_empty() {
-					patterns.push(member.to_string());
-				}
+			list = Some(trimmed[start + 1..].to_string());
+			if trimmed.contains(']') {
+				break;
 			}
 		}
 	}
+	let list = list.unwrap_or_default(); // no `members` key: not a workspace with members
+	let list = list.split(']').next().expect("split yields at least one item");
+	let patterns: Vec<String> = list
+		.split(',')
+		.map(|m| m.trim().trim_matches('"').trim_matches('\'').to_string())
+		.filter(|m| !m.is_empty())
+		.collect();
 
 	let mut members = Vec::default();
 	for pattern in patterns {
