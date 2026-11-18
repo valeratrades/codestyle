@@ -136,7 +136,7 @@ impl Enabler {
 	/// Fixes verified against the crates' feature tables (reqwest 0.13, sentry 0.48, tonic 0.14, sqlx 0.9, rustls 0.23).
 	fn guidance(&self) -> String {
 		let (krate, feature) = (self.krate.as_str(), self.feature.as_str());
-		const INSTALL: &str = "add `rustls = { version = \"0.23\", default-features = false, features = [\"ring\", \"std\", \"tls12\"] }` and call `rustls::crypto::ring::default_provider().install_default()` at the start of every process (bins, examples, test harnesses) that builds a client: it has no ring feature, and without an installed provider it panics on client build";
+		const INSTALL: &str = "add `rustls = { version = \"0.23\", default-features = false, features = [\"ring\", \"std\", \"tls12\"] }` and call `rustls::crypto::ring::default_provider().install_default()` before every client build (next to each `Client::builder()`/`Client::new()`, so tests and examples are covered too; its `Err` only means one is already installed): it has no ring feature, and without an installed provider it panics on client build";
 		match (krate, feature) {
 			("tonic", "tls-aws-lc") => "use `tls-ring` instead".into(),
 			("sqlx", "tls-rustls-aws-lc-rs") => "use `tls-rustls-ring` instead".into(),
