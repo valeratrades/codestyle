@@ -6,8 +6,8 @@
 ![Build time](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/valeratrades/b48e6f02c61942200e7d1e3eeabf9bcb/raw/codestyle-build.json)
 ![Test time](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/valeratrades/b48e6f02c61942200e7d1e3eeabf9bcb/raw/codestyle-test.json)
 <br>
-[<img alt="ci errors" src="https://img.shields.io/github/actions/workflow/status/valeratrades/codestyle/errors.yml?branch=main&style=for-the-badge&style=flat-square&label=errors&labelColor=420d09" height="20">](https://github.com/valeratrades/codestyle/actions?query=branch%3Amain) <!--NB: Won't find it if repo is private-->
-[<img alt="ci warnings" src="https://img.shields.io/github/actions/workflow/status/valeratrades/codestyle/warnings.yml?branch=main&style=for-the-badge&style=flat-square&label=warnings&labelColor=d16002" height="20">](https://github.com/valeratrades/codestyle/actions?query=branch%3Amain) <!--NB: Won't find it if repo is private-->
+[![errors](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/valeratrades/b48e6f02c61942200e7d1e3eeabf9bcb/raw/codestyle-errors.json)](https://github.com/valeratrades/codestyle/actions/workflows/errors.yml?query=branch%3Amain)
+[![warnings](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/valeratrades/b48e6f02c61942200e7d1e3eeabf9bcb/raw/codestyle-warnings.json)](https://github.com/valeratrades/codestyle/actions/workflows/warnings.yml?query=branch%3Amain)
 
 An opinionated style checker and auto-formatter for Rust, layered on top of `rustfmt` and `clippy`.
 
