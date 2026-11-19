@@ -58,6 +58,7 @@ pub fn check(workspace_root: &Path) -> Vec<Violation> {
 		}
 		violations.push(Violation {
 			rule: RULE,
+			hint: None,
 			file,
 			line,
 			column: 1,

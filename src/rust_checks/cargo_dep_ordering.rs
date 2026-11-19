@@ -79,6 +79,7 @@ fn check_section(content: &str, section_header: &str, path_str: &str) -> Option<
 
 	Some(Violation {
 		rule: RULE,
+		hint: None,
 		file: path_str.to_string(),
 		line,
 		column: 1,

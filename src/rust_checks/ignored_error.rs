@@ -92,13 +92,11 @@ impl<'a> Visit<'a> for IgnoredErrorVisitor<'a> {
 			if !self.is_in_skipped_range(span_start.line) && !has_marker_comment(self.content, span_start.line, "IGNORED_ERROR") {
 				self.violations.push(Violation {
 					rule: RULE,
+					hint: Some("Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option."),
 					file: self.path_str.clone(),
 					line: span_start.line,
 					column: span_start.column,
-					message: format!(
-						"`{method_name}` without `//IGNORED_ERROR` comment\n\
-						HINT: Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option."
-					),
+					message: format!("`{method_name}` without `//IGNORED_ERROR` comment"),
 					fix: None,
 				});
 			}
@@ -116,12 +114,11 @@ impl<'a> Visit<'a> for IgnoredErrorVisitor<'a> {
 			if !self.is_in_skipped_range(span_start.line) && !has_marker_comment(self.content, span_start.line, "IGNORED_ERROR") {
 				self.violations.push(Violation {
 					rule: RULE,
+					hint: Some("could the pattern be allowing to continue with corrupted state? Error out properly or explain why it's part of the intended logic."),
 					file: self.path_str.clone(),
 					line: span_start.line,
 					column: span_start.column,
-					message: "`let _ = ...` without `//IGNORED_ERROR` comment\n\
-						HINT: could the pattern be allowing to continue with corrupted state? Error out properly or explain why it's part of the intended logic."
-						.to_string(),
+					message: "`let _ = ...` without `//IGNORED_ERROR` comment".to_string(),
 					fix: None,
 				});
 			}

@@ -54,6 +54,7 @@ pub fn check(workspace_root: &Path) -> Vec<Violation> {
 			sorted_users.sort();
 			Violation {
 				rule: RULE,
+				hint: None,
 				file: path_str.clone(),
 				line: 1,
 				column: 1,

@@ -41,13 +41,11 @@ impl<'a> Visit<'a> for UnboundedVisitor<'_> {
 			if unbounded && !has_marker_comment(self.content, start.line, "UNBOUNDED") {
 				self.violations.push(Violation {
 					rule: RULE,
+					hint: Some("bound it (`channel(cap)` / `bounded(cap)` / `sync_channel(cap)`), or justify with a `//UNBOUNDED` comment"),
 					file: self.path_str.clone(),
 					line: start.line,
 					column: start.column,
-					message: format!(
-						"`{}` creates an unbounded queue\nHINT: bound it (`channel(cap)` / `bounded(cap)` / `sync_channel(cap)`), or justify with a `//UNBOUNDED` comment",
-						segments.join("::")
-					),
+					message: format!("`{}` creates an unbounded queue", segments.join("::")),
 					fix: None,
 				});
 			}

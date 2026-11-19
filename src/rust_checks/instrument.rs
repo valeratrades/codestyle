@@ -26,6 +26,7 @@ pub fn check_instrument(file_info: &FileInfo) -> Vec<Violation> {
 		let span_start = func.sig.ident.span().start();
 		violations.push(Violation {
 			rule: RULE,
+			hint: None,
 			file: path_str.clone(),
 			line: span_start.line,
 			column: span_start.column,

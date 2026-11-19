@@ -55,14 +55,11 @@ impl SwappableArgsVisitor<'_> {
 		let start = sig.ident.span().start();
 		self.violations.push(Violation {
 			rule: RULE,
+			hint: Some("wrap them in newtypes, or pass an args struct"),
 			file: self.path_str.clone(),
 			line: start.line,
 			column: start.column,
-			message: format!(
-				"`{}` takes interchangeable parameters ({})\nHINT: wrap them in newtypes, or pass an args struct",
-				sig.ident,
-				repeated.join(", ")
-			),
+			message: format!("`{}` takes interchangeable parameters ({})", sig.ident, repeated.join(", ")),
 			fix: None,
 		});
 	}

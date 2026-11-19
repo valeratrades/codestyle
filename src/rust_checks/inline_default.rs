@@ -92,6 +92,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 
 		violations.push(Violation {
 			rule: RULE,
+			hint: None,
 			file: path_str.clone(),
 			line: struct_item.span().start().line,
 			column: struct_item.span().start().column,

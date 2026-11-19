@@ -19,6 +19,7 @@ mod no_unbounded_channels;
 mod prefer_ahash;
 mod prefer_default_over_bare_new;
 mod pub_first;
+mod report;
 mod skip_attribute;
 mod split_asserts;
 mod swappable_args;

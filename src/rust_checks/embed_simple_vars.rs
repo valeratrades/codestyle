@@ -175,6 +175,7 @@ impl<'a> FormatMacroVisitor<'a> {
 			};
 			self.violations.push(Violation {
 				rule: RULE,
+				hint: None,
 				file: self.path_str.clone(),
 				line: arg_span.start().line,
 				column: arg_span.start().column,

@@ -40,6 +40,7 @@ impl TokioSpawnVisitor {
 	fn report_tokio_spawn(&mut self, span: Span, variant: &str) {
 		self.violations.push(Violation {
 			rule: RULE,
+			hint: None,
 			file: self.path_str.clone(),
 			line: span.start().line,
 			column: span.start().column,

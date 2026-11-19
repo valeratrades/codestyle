@@ -174,6 +174,7 @@ impl<'a> UseBailVisitor<'a> {
 
 		self.violations.push(Violation {
 			rule: RULE,
+			hint: None,
 			file: self.path_str.clone(),
 			line: return_expr.span().start().line,
 			column: return_expr.span().start().column,

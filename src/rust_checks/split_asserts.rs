@@ -44,6 +44,7 @@ impl SplitAssertsVisitor<'_> {
 		let start = mac.path.span().start();
 		self.violations.push(Violation {
 			rule: RULE,
+			hint: None,
 			file: self.path_str.clone(),
 			line: start.line,
 			column: start.column,

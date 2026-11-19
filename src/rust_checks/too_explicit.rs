@@ -99,6 +99,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 			if needs_import && !has_import {
 				violations.push(Violation {
 					rule: RULE,
+					hint: None,
 					file: path.display().to_string(),
 					line: 1,
 					column: 0,
@@ -280,6 +281,7 @@ impl<'a> TooExplicitVisitor<'a> {
 		self.violation_scope_bytes.push(self.current_scope_byte());
 		self.violations.push(Violation {
 			rule: RULE,
+			hint: None,
 			file: self.path_str.clone(),
 			line,
 			column,

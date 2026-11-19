@@ -74,6 +74,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 			let fix = create_move_fix(content, &items, anchor_ranges, i, target_idx);
 			return vec![Violation {
 				rule: RULE,
+				hint: None,
 				file: path_str,
 				line: item.start_line,
 				column: 0,
@@ -99,6 +100,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 			let fix = create_move_fix(content, &items, anchor_ranges, i, target_idx);
 			return vec![Violation {
 				rule: RULE,
+				hint: None,
 				file: path_str,
 				line: item.start_line,
 				column: 0,
@@ -129,6 +131,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 			let fix = create_move_fix(content, &items, anchor_ranges, i, target_idx);
 			return vec![Violation {
 				rule: RULE,
+				hint: None,
 				file: path_str,
 				line: item.start_line,
 				column: 0,
@@ -219,6 +222,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 
 			return vec![Violation {
 				rule: RULE,
+				hint: None,
 				file: path_str,
 				line: item.start_line,
 				column: 0,
@@ -251,6 +255,7 @@ fn check_pub_within_section(items: &[ItemInfo], anchor_ranges: &[Anchor], conten
 		{
 			return Some(Violation {
 				rule: RULE,
+				hint: None,
 				file: path_str.to_string(),
 				line: item.start_line,
 				column: 0,
@@ -285,6 +290,7 @@ fn check_kind_ordering(items: &[ItemInfo], anchor_ranges: &[Anchor], content: &s
 				let fix = create_move_fix(content, items, anchor_ranges, i, target_idx);
 				return Some(Violation {
 					rule: RULE,
+					hint: None,
 					file: path_str.to_string(),
 					line: item.start_line,
 					column: 0,

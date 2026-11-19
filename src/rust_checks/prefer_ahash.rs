@@ -53,6 +53,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	if needs_ahashmap_import && !has_ahashmap_import && !violation_inserts_ahashmap {
 		violations.push(Violation {
 			rule: RULE,
+			hint: None,
 			file: path.display().to_string(),
 			line: 1,
 			column: 0,
@@ -68,6 +69,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	if needs_ahashset_import && !has_ahashset_import && !violation_inserts_ahashset {
 		violations.push(Violation {
 			rule: RULE,
+			hint: None,
 			file: path.display().to_string(),
 			line: 1,
 			column: 0,
@@ -102,6 +104,7 @@ impl<'a> AHashVisitor<'a> {
 	fn push_fix_violation(&mut self, fix: Fix, line: usize, column: usize, std_name: &str, ahash_name: &str) {
 		self.violations.push(Violation {
 			rule: RULE,
+			hint: None,
 			file: self.path_str.clone(),
 			line,
 			column,
@@ -120,6 +123,7 @@ impl<'a> Visit<'a> for AHashVisitor<'_> {
 			if let Some(fix) = detect_use_fix(self.content, node, std_name, ahash_replacement) {
 				self.violations.push(Violation {
 					rule: RULE,
+					hint: None,
 					file: self.path_str.clone(),
 					line: node.span().start().line,
 					column: node.span().start().column,

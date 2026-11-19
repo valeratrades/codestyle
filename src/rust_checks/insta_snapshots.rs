@@ -91,6 +91,7 @@ impl<'a> InstaSnapshotVisitor<'a> {
 			let fix = if self.is_format_mode { create_add_inline_snapshot_fix(mac, self.content) } else { None };
 			self.violations.push(Violation {
 				rule: RULE_INLINE,
+				hint: None,
 				file: self.path_str.clone(),
 				line: start_line(mac.span()),
 				column: start_column(mac.span()),
@@ -234,6 +235,7 @@ impl SequentialSnapshotVisitor {
 			let second = result.second.expect("count > 1 implies second exists");
 			self.violations.push(Violation {
 				rule: RULE_SEQUENTIAL,
+				hint: None,
 				file: self.path_str.clone(),
 				line: second.0,
 				column: second.1,

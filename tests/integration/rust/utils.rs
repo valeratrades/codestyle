@@ -47,7 +47,13 @@ pub(crate) fn assert_check_passing(fixture_str: &str, opts: &RustCheckOptions) {
 			.map(|v| {
 				let relative_path = v.file.strip_prefix(temp.root.to_str().unwrap_or("")).unwrap_or(&v.file);
 				let relative_path = relative_path.trim_start_matches('/');
-				format!("[{}] /{relative_path}:{}: {}", v.rule, v.line, v.message)
+				format!(
+					"[{}] /{relative_path}:{}: {}{}",
+					v.rule,
+					v.line,
+					v.message,
+					v.hint.map(|h| format!("\nHINT: {h}")).unwrap_or_default()
+				)
 			})
 			.collect();
 		panic!("expected no violations, but found {}:\n{}", violations.len(), violation_msgs.join("\n"));
@@ -81,7 +87,13 @@ pub(crate) fn test_case(fixture_str: &str, opts: &RustCheckOptions) -> String {
 		.map(|v| {
 			let relative_path = v.file.strip_prefix(temp_assert.root.to_str().unwrap_or("")).unwrap_or(&v.file);
 			let relative_path = relative_path.trim_start_matches('/');
-			format!("[{}] /{relative_path}:{}: {}", v.rule, v.line, v.message)
+			format!(
+				"[{}] /{relative_path}:{}: {}{}",
+				v.rule,
+				v.line,
+				v.message,
+				v.hint.map(|h| format!("\nHINT: {h}")).unwrap_or_default()
+			)
 		})
 		.collect::<Vec<_>>()
 		.join("\n");
@@ -100,7 +112,13 @@ pub(crate) fn test_case(fixture_str: &str, opts: &RustCheckOptions) -> String {
 			.map(|v| {
 				let relative_path = v.file.strip_prefix(temp_format.root.to_str().unwrap_or("")).unwrap_or(&v.file);
 				let relative_path = relative_path.trim_start_matches('/');
-				format!("[{}] /{relative_path}:{}: {}", v.rule, v.line, v.message)
+				format!(
+					"[{}] /{relative_path}:{}: {}{}",
+					v.rule,
+					v.line,
+					v.message,
+					v.hint.map(|h| format!("\nHINT: {h}")).unwrap_or_default()
+				)
 			})
 			.collect();
 		panic!(
@@ -130,7 +148,13 @@ pub(crate) fn test_case_assert_only(fixture_str: &str, opts: &RustCheckOptions) 
 		.map(|v| {
 			let relative_path = v.file.strip_prefix(temp.root.to_str().unwrap_or("")).unwrap_or(&v.file);
 			let relative_path = relative_path.trim_start_matches('/');
-			format!("[{}] /{relative_path}:{}: {}", v.rule, v.line, v.message)
+			format!(
+				"[{}] /{relative_path}:{}: {}{}",
+				v.rule,
+				v.line,
+				v.message,
+				v.hint.map(|h| format!("\nHINT: {h}")).unwrap_or_default()
+			)
 		})
 		.collect::<Vec<_>>()
 		.join("\n")

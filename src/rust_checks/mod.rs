@@ -172,6 +172,7 @@ pub struct Violation {
 	pub line: usize,
 	pub column: usize,
 	pub message: String,
+	pub hint: Option<&'static str>,
 	pub fix: Option<Fix>,
 }
 
@@ -299,10 +300,7 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions, exclude: &[PathBuf
 		println!("codestyle: all checks passed");
 		0
 	} else {
-		eprintln!("codestyle: found {} violation(s):\n", all_violations.len());
-		for v in &all_violations {
-			eprintln!("  [{}] {}:{}:{}: {}", v.rule, v.file, v.line, v.column, v.message);
-		}
+		eprint!("codestyle: found {} violation(s):\n\n{}", all_violations.len(), render_violations(&all_violations, target_dir));
 		1
 	}
 }
@@ -498,10 +496,11 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions, exclude: &[PathBuf
 
 		unfixable_violations.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
 		if !unfixable_violations.is_empty() {
-			eprintln!("codestyle: {} violation(s) need manual fixing:\n", unfixable_violations.len());
-			for v in &unfixable_violations {
-				eprintln!("  [{}] {}:{}:{}: {}", v.rule, v.file, v.line, v.column, v.message);
-			}
+			eprint!(
+				"codestyle: {} violation(s) need manual fixing:\n\n{}",
+				unfixable_violations.len(),
+				render_violations(&unfixable_violations, target_dir)
+			);
 			1
 		} else {
 			0
@@ -549,6 +548,38 @@ pub fn collect_rust_files(target_dir: &Path, exclude: &[PathBuf]) -> Vec<FileInf
 pub fn find_crate_lib_or_main(file_path: &Path) -> Option<PathBuf> {
 	let crate_root = file_path.parent()?.ancestors().find(|dir| dir.join("Cargo.toml").exists())?;
 	["lib.rs", "main.rs"].into_iter().map(|f| crate_root.join("src").join(f)).find(|p| p.exists())
+}
+
+fn render_violations(violations: &[Violation], target_dir: &Path) -> String {
+	let members = resolve_workspace_members(target_dir);
+	let mut groups: BTreeMap<(&str, Option<&str>), BTreeMap<String, Vec<&Violation>>> = BTreeMap::default();
+	for v in violations {
+		let crate_label = match members.iter().filter(|m| Path::new(&v.file).starts_with(m)).max_by_key(|m| m.components().count()) {
+			Some(member) => format!("{}/", member.strip_prefix(target_dir).expect("members are resolved under target_dir").display()),
+			None => "./".to_string(), // workspace-root files (its own Cargo.toml) belong to no member
+		};
+		groups.entry((v.rule, v.hint)).or_default().entry(crate_label).or_default().push(v);
+	}
+
+	let mut out = String::new();
+	for ((rule, hint), crates) in groups {
+		out.push_str(&format!("- [{rule}]\n"));
+		if let Some(hint) = hint {
+			out.push_str(&format!("\tHINT: {hint}\n"));
+		}
+		for (crate_label, vs) in crates {
+			let indent = if members.is_empty() {
+				"\t"
+			} else {
+				out.push_str(&format!("\t- {crate_label}\n"));
+				"\t\t"
+			};
+			for v in vs {
+				out.push_str(&format!("{indent}- {}:{}:{}: {}\n", v.file, v.line, v.column, v.message));
+			}
+		}
+	}
+	out
 }
 
 /// Render one rule's occurrences into a markdown worktable: a rule-specific header followed by a
