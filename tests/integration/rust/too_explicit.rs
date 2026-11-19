@@ -310,3 +310,33 @@ fn short_name_bound_to_a_different_item_is_not_used() {
 		&opts(),
 	);
 }
+
+#[test]
+fn inner_docs_stay_first_and_both_imports_added() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		//! Docs.
+		fn main() {
+			for e in walkdir(std::path::Path::new("x")) {}
+		}
+		fn walkdir(dir: &std::path::Path) -> Vec<std::path::PathBuf> { vec![] }
+		"#,
+		&opts(),
+	), @r#"
+	# Assert mode
+	[too-explicit] /main.rs:3: use `Path` instead of `std::path::Path`
+	[too-explicit] /main.rs:5: use `Path` instead of `std::path::Path`
+	[too-explicit] /main.rs:5: use `PathBuf` instead of `std::path::PathBuf`
+	[too-explicit] /main.rs:1: missing `use std::path::PathBuf;` import
+	[too-explicit] /main.rs:1: missing `use std::path::Path;` import
+
+	# Format mode
+	//! Docs.
+	use std::path::Path;
+	use std::path::PathBuf;
+	fn main() {
+		for e in walkdir(Path::new("x")) {}
+	}
+	fn walkdir(dir: &Path) -> Vec<PathBuf> { vec![] }
+	"#);
+}

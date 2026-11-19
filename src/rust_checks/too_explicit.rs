@@ -67,7 +67,10 @@ const REWRITES: &[Rewrite] = &[
 ];
 
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
-	let file_scope_byte = path_rewrite::first_use_line_start(content);
+	let Some(file_scope) = path_rewrite::scope_insert_for_items(content, &file.items) else {
+		return Vec::new(); // no items, nothing to rewrite
+	};
+	let file_scope_byte = file_scope.byte;
 	let scopes = enumerate_scopes(content, file, file_scope_byte);
 
 	let blocked: HashSet<(usize, &'static str)> = scopes
@@ -75,7 +78,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		.flat_map(|scope| REWRITES.iter().filter(|r| short_name_taken(scope.items, r)).map(|r| (scope.insert_byte, r.short_name)))
 		.collect();
 
-	let visitor = TooExplicitVisitor::new(path, content, blocked.clone());
+	let visitor = TooExplicitVisitor::new(path, content, file_scope_byte, blocked.clone());
 	let mut skip_visitor = SkipVisitor::for_rule(visitor, content, RULE);
 	skip_visitor.visit_file(file);
 	let mut violations = skip_visitor.inner.violations;
@@ -260,7 +263,7 @@ struct TooExplicitVisitor<'a> {
 }
 
 impl<'a> TooExplicitVisitor<'a> {
-	fn new(path: &Path, content: &'a str, blocked: HashSet<(usize, &'static str)>) -> Self {
+	fn new(path: &Path, content: &'a str, file_scope_byte: usize, blocked: HashSet<(usize, &'static str)>) -> Self {
 		Self {
 			blocked,
 			path_str: path.display().to_string(),
@@ -268,7 +271,7 @@ impl<'a> TooExplicitVisitor<'a> {
 			violations: Vec::default(),
 			violation_scope_bytes: Vec::default(),
 			scope_stack: Vec::default(),
-			file_scope_byte: path_rewrite::first_use_line_start(content),
+			file_scope_byte,
 		}
 	}
 
