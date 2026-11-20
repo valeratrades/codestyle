@@ -31,6 +31,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	// them when reordering. These conventionally live at the top of the file.
 	// `macro_rules!` definitions (also those escaping an inline `#[macro_use] mod`) are textually scoped, so they
 	// are anchors only for items that invoke them: see `create_move_fix`.
+	let local_macros: HashSet<String> = file.items.iter().flat_map(exported_macro_names).collect();
 	let anchors: Vec<Anchor> = file
 		.items
 		.iter()
@@ -40,6 +41,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 				Item::Mod(m) if m.content.is_none() => None,
 				Item::Mod(m) if has_macro_use(&m.attrs) => Some(exported_macro_names(item)),
 				Item::Macro(m) if m.ident.is_some() => Some(exported_macro_names(item)),
+				Item::Use(u) if use_leaves(&u.tree).iter().any(|n| local_macros.contains(n)) => Some(use_leaves(&u.tree)), // a re-export of a local `macro_rules!` is as textually scoped as the definition
 				Item::Use(_) | Item::ExternCrate(_) => None,
 				_ => return None,
 			};
@@ -323,6 +325,16 @@ fn exported_macro_names(item: &Item) -> Vec<String> {
 	}
 }
 
+fn use_leaves(tree: &syn::UseTree) -> Vec<String> {
+	match tree {
+		syn::UseTree::Path(p) => use_leaves(&p.tree),
+		syn::UseTree::Name(n) => vec![n.ident.to_string()],
+		syn::UseTree::Rename(r) => vec![r.ident.to_string()],
+		syn::UseTree::Glob(_) => vec![],
+		syn::UseTree::Group(g) => g.items.iter().flat_map(use_leaves).collect(),
+	}
+}
+
 /// Represents an item with its visibility and position info
 struct ItemInfo {
 	is_pub: bool,
@@ -527,8 +539,7 @@ fn create_move_fix(content: &str, items: &[ItemInfo], anchor_ranges: &[Anchor], 
 	})
 }
 
-/// Find the start of an item's text, including preceding doc comments and attributes.
-/// We look backwards from the span start to find consecutive comment/attribute lines.
+/// Find the start of an item's text, including the comment and attribute lines directly above it.
 fn find_item_text_start(content: &str, span_start: usize) -> usize {
 	let line_start = find_line_start(content, span_start);
 
@@ -541,9 +552,7 @@ fn find_item_text_start(content: &str, span_start: usize) -> usize {
 		let prev_line_start = find_line_start(content, prev_line_end.saturating_sub(1));
 		let prev_line = content[prev_line_start..prev_line_end].trim_start();
 
-		// Check if previous line is a doc comment (///) or attribute (#[)
-		// Note: //! is a module doc comment and should NOT be included
-		if prev_line.starts_with("///") || prev_line.starts_with("#[") {
+		if prev_line.starts_with("#[") || (prev_line.starts_with("//") && !prev_line.starts_with("//!")) {
 			current_start = prev_line_start;
 		} else {
 			// Stop if we hit a non-doc-comment, non-attribute line

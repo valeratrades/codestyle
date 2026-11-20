@@ -1479,3 +1479,115 @@ fn pub_fn_not_using_macro_does_not_drag_it_along() {
 	}
 	"#);
 }
+
+#[test]
+fn macro_reexport_travels_with_its_definition() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		struct Row;
+
+		macro_rules! columns {
+			() => {
+				"a, b"
+			};
+		}
+		pub(crate) use columns;
+
+		pub fn get() -> &'static str {
+			columns!()
+		}
+		"#,
+		&opts(),
+	), @r#"
+	# Assert mode
+	[pub-first] /main.rs:10: public item should come before private items
+
+	# Format mode
+	macro_rules! columns {
+		() => {
+			"a, b"
+		};
+	}
+	pub(crate) use columns;
+
+	pub fn get() -> &'static str {
+		columns!()
+	}
+
+	struct Row;
+	"#);
+}
+
+#[test]
+fn macro_reexport_is_not_hoisted_above_its_definition() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		struct Row;
+
+		macro_rules! columns {
+			() => {
+				"a, b"
+			};
+		}
+		pub(crate) use columns;
+
+		pub fn get() {}
+		"#,
+		&opts(),
+	), @r#"
+	# Assert mode
+	[pub-first] /main.rs:10: public item should come before private items
+
+	# Format mode
+	pub fn get() {}
+
+	struct Row;
+
+	macro_rules! columns {
+		() => {
+			"a, b"
+		};
+	}
+	pub(crate) use columns;
+	"#);
+}
+
+#[test]
+fn line_comment_above_item_travels_with_it() {
+	insta::assert_snapshot!(test_case(
+		r#"
+		struct Row;
+
+		// Macros, not consts, so every query stays a literal.
+		macro_rules! columns {
+			() => {
+				"a, b"
+			};
+		}
+
+		// Why this is public.
+		pub fn get() -> &'static str {
+			columns!()
+		}
+		"#,
+		&opts(),
+	), @r#"
+	# Assert mode
+	[pub-first] /main.rs:11: public item should come before private items
+
+	# Format mode
+	// Macros, not consts, so every query stays a literal.
+	macro_rules! columns {
+		() => {
+			"a, b"
+		};
+	}
+
+	// Why this is public.
+	pub fn get() -> &'static str {
+		columns!()
+	}
+
+	struct Row;
+	"#);
+}
