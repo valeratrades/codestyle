@@ -6,6 +6,7 @@
 mod audit;
 mod cargo_dep_ordering;
 mod embed_simple_vars;
+mod generated_marker;
 mod ignored_error;
 mod impl_blocks;
 mod inline_default;

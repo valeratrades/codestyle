@@ -1026,6 +1026,9 @@ fn collect_cargo_tomls(root: &Path) -> Vec<PathBuf> {
 
 fn parse_rust_file(path: PathBuf) -> Option<FileInfo> {
 	let contents = fs::read_to_string(&path).ok()?;
+	if contents.lines().take(5).any(|l| l.contains("@generated")) {
+		return None; // rustfmt's convention: generated files are not ours to restyle
+	}
 	let syntax_tree = match parse_file(&contents) {
 		Ok(tree) => tree,
 		Err(_) => return None,
