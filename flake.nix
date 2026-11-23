@@ -18,10 +18,11 @@
         rs = v_flakes.rs {
           inherit pkgs rust;
         };
+        oldestSupportedVersion = "nightly-2026-06-29";
         github = v_flakes.github {
           inherit pkgs pname rs;
           enable = true;
-          lastSupportedVersion = "nightly-2026-01-03";
+          inherit oldestSupportedVersion;
           jobs = {
             default = true;
             warnings.install = { packages = [ "mold" ]; };
@@ -33,7 +34,7 @@
         readme = v_flakes.readme-fw {
           inherit pkgs pname;
           defaults = true;
-          lastSupportedVersion = "nightly-1.93";
+          inherit oldestSupportedVersion;
           rootDir = ./.;
           badges = [ "msrv" "crates_io" "docs_rs" "loc" "ci" ];
         };
