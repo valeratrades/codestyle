@@ -33,7 +33,9 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		// These are different and should NOT be merged
 		let generics = &impl_block.generics;
 		let self_ty = &impl_block.self_ty;
-		let impl_signature = quote::quote!(#generics #self_ty).to_string();
+		// a `#[cfg]` (or any other attribute) applies to the whole block, so blocks under different ones are different
+		let attrs = impl_block.attrs.iter().filter(|a| !a.path().is_ident("doc"));
+		let impl_signature = quote::quote!(#(#attrs)* #generics #self_ty).to_string();
 
 		let start_line = impl_block.span().start().line;
 		let start_byte = span_position_to_byte(content, start_line, impl_block.span().start().column);

@@ -72,6 +72,24 @@ fn impl_blocks_for_different_types_not_joined() {
 }
 
 #[test]
+fn impl_blocks_under_different_cfgs_not_joined() {
+	// joining would put the cfg'd items under the other block's (lack of) cfg
+	assert_check_passing(
+		r#"
+		struct Foo;
+		impl Foo {
+			fn one() {}
+		}
+		#[cfg(feature = "hydrate")]
+		impl Foo {
+			fn two() {}
+		}
+		"#,
+		&opts(),
+	);
+}
+
+#[test]
 fn impl_blocks_with_different_generic_params_not_joined() {
 	// impl<R: LocalReader> LocalIssueSource<R> and impl LocalIssueSource<FsReader>
 	// are different impl blocks and should NOT be joined
