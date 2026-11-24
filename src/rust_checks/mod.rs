@@ -8,7 +8,7 @@ pub mod insta_snapshots;
 pub mod instrument;
 pub mod join_split_impls;
 pub mod loops;
-pub mod no_aws_lc;
+pub mod no_c_tls;
 pub mod no_chrono;
 pub mod no_tokio_spawn;
 pub mod no_unbounded_channels;
@@ -118,6 +118,9 @@ pub struct RustCheckOptions {
 	/// Flag declarations that pull aws-lc-sys into the graph (use ring) (default: true)
 	#[default = true]
 	pub no_aws_lc: bool,
+	/// Flag declarations that pull OpenSSL (via native-tls) into the graph (use rustls with ring) (default: true)
+	#[default = true]
+	pub no_openssl: bool,
 }
 
 impl RustCheckOptions {
@@ -153,6 +156,7 @@ impl RustCheckOptions {
 			no_unbounded_channels: false,
 			swappable_args: false,
 			no_aws_lc: false,
+			no_openssl: false,
 		}
 	}
 }
@@ -211,7 +215,10 @@ pub fn run_assert(target_dir: &Path, opts: &RustCheckOptions, exclude: &[PathBuf
 		all_violations.extend(workspace_dep_hoisting::check(target_dir));
 	}
 	if opts.no_aws_lc {
-		all_violations.extend(no_aws_lc::check(&find_workspace_root(target_dir).unwrap_or_else(|| target_dir.to_path_buf())));
+		all_violations.extend(no_c_tls::aws_lc(&find_workspace_root(target_dir).unwrap_or_else(|| target_dir.to_path_buf())));
+	}
+	if opts.no_openssl {
+		all_violations.extend(no_c_tls::openssl(&find_workspace_root(target_dir).unwrap_or_else(|| target_dir.to_path_buf())));
 	}
 
 	for src_dir in src_dirs {
@@ -408,7 +415,10 @@ pub fn run_format(target_dir: &Path, opts: &RustCheckOptions, exclude: &[PathBuf
 	}
 
 	if opts.no_aws_lc {
-		unfixable_violations.extend(no_aws_lc::check(&find_workspace_root(target_dir).unwrap_or_else(|| target_dir.to_path_buf())));
+		unfixable_violations.extend(no_c_tls::aws_lc(&find_workspace_root(target_dir).unwrap_or_else(|| target_dir.to_path_buf())));
+	}
+	if opts.no_openssl {
+		unfixable_violations.extend(no_c_tls::openssl(&find_workspace_root(target_dir).unwrap_or_else(|| target_dir.to_path_buf())));
 	}
 
 	// Process files iteratively. For most rules, files are independent. For

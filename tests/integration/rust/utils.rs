@@ -31,6 +31,7 @@ pub(crate) fn opts_for(check: &str) -> RustCheckOptions {
 		no_unbounded_channels: check == "no_unbounded_channels",
 		swappable_args: check == "swappable_args",
 		no_aws_lc: check == "no_aws_lc",
+		no_openssl: check == "no_openssl",
 	}
 }
 

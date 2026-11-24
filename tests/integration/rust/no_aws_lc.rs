@@ -1,6 +1,6 @@
 use std::process::Command;
 
-use codestyle::rust_checks::no_aws_lc;
+use codestyle::rust_checks::no_c_tls;
 use v_fixtures::Fixture;
 
 use crate::utils::render_violation;
@@ -56,7 +56,7 @@ fn check(fixture_str: &str) -> String {
 	let temp = Fixture::parse(&format!("{}\n{vendor}", fixture_str.trim_end())).write_to_tempdir();
 	let status = Command::new("cargo").args(["generate-lockfile", "--offline"]).current_dir(&temp.root).status().unwrap();
 	assert!(status.success());
-	no_aws_lc::check(&temp.root).iter().map(|v| render_violation(v, &temp.root)).collect::<Vec<_>>().join("\n")
+	no_c_tls::aws_lc(&temp.root).iter().map(|v| render_violation(v, &temp.root)).collect::<Vec<_>>().join("\n")
 }
 
 #[test]

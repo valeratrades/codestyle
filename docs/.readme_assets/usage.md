@@ -58,6 +58,7 @@ codestyle --exclude libs/nautilus_trader --exclude vendor rust assert .
 | `--split-asserts` | true | `assert!(a && b)` -> `assert!(a); assert!(b);` |
 | `--no-unbounded-channels` | true | Unbounded channels need a `//UNBOUNDED` comment |
 | `--no-aws-lc` | true | Flag declarations that pull `aws-lc-sys` (bundled C) into `Cargo.lock`; names the dep and its ring alternative |
+| `--no-openssl` | true | Flag declarations that pull OpenSSL (via `native-tls`) into `Cargo.lock`; names the dep and its rustls alternative |
 | `--swappable-args` | true | Fns with two params of the same primitive type (`u64`, `&str`, `bool`, ...) need newtypes or an args struct; trait impls, closures, tests, and fns called by argument name (`#[component]`, `#[island]`, `#[builder]`, ...) exempt |
 
 ### Format mode

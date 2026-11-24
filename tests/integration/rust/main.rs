@@ -15,6 +15,7 @@ mod instrument;
 mod loops;
 mod no_aws_lc;
 mod no_chrono;
+mod no_openssl;
 mod no_tokio_spawn;
 mod no_unbounded_channels;
 mod prefer_ahash;

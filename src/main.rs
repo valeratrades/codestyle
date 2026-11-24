@@ -148,6 +148,10 @@ struct RustCheckOptionsArgs {
 	/// Flag declarations that pull aws-lc-sys into the graph (use ring) [default: true]
 	#[arg(long)]
 	no_aws_lc: Option<bool>,
+
+	/// Flag declarations that pull OpenSSL (via native-tls) into the graph (use rustls with ring) [default: true]
+	#[arg(long)]
+	no_openssl: Option<bool>,
 }
 impl RustCheckOptionsArgs {
 	/// Resolve CLI flags into [`RustCheckOptions`].
@@ -208,6 +212,7 @@ impl RustCheckOptionsArgs {
 			no_unbounded_channels,
 			swappable_args,
 			no_aws_lc,
+			no_openssl,
 		);
 
 		let unknown: Vec<&String> = only.iter().zip(&matched).filter(|(_, m)| !**m).map(|(o, _)| o).collect();
