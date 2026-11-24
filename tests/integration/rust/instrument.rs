@@ -67,7 +67,10 @@ fn async_function_without_instrument() {
 		}
 		"#,
 		&opts(),
-	), @"[instrument] /main.rs:1: No #[instrument] on async fn `async_no_instrument`");
+	), @"
+	[instrument] /main.rs:1: `async_no_instrument`
+	HINT: no #[instrument] on async fn
+	");
 }
 
 #[test]
@@ -82,7 +85,9 @@ fn multiple_async_functions_without_instrument() {
 		"#,
 		&opts(),
 	), @"
-	[instrument] /main.rs:2: No #[instrument] on async fn `async_one`
-	[instrument] /main.rs:3: No #[instrument] on async fn `async_two`
+	[instrument] /main.rs:2: `async_one`
+	HINT: no #[instrument] on async fn
+	[instrument] /main.rs:3: `async_two`
+	HINT: no #[instrument] on async fn
 	");
 }

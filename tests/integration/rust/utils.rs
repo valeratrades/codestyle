@@ -42,20 +42,7 @@ pub(crate) fn assert_check_passing(fixture_str: &str, opts: &RustCheckOptions) {
 	let violations = collect_violations(&temp.root, opts, false);
 
 	if !violations.is_empty() {
-		let violation_msgs: Vec<String> = violations
-			.iter()
-			.map(|v| {
-				let relative_path = v.file.strip_prefix(temp.root.to_str().unwrap_or("")).unwrap_or(&v.file);
-				let relative_path = relative_path.trim_start_matches('/');
-				format!(
-					"[{}] /{relative_path}:{}: {}{}",
-					v.rule,
-					v.line,
-					v.message,
-					v.hint.map(|h| format!("\nHINT: {h}")).unwrap_or_default()
-				)
-			})
-			.collect();
+		let violation_msgs: Vec<String> = violations.iter().map(|v| render_violation(v, &temp.root)).collect();
 		panic!("expected no violations, but found {}:\n{}", violations.len(), violation_msgs.join("\n"));
 	}
 }
@@ -82,21 +69,7 @@ pub(crate) fn test_case(fixture_str: &str, opts: &RustCheckOptions) -> String {
 
 	assert!(!violations.is_empty(), "test_case called but no violations found - use assert_check_passing instead");
 
-	let assert_out = violations
-		.iter()
-		.map(|v| {
-			let relative_path = v.file.strip_prefix(temp_assert.root.to_str().unwrap_or("")).unwrap_or(&v.file);
-			let relative_path = relative_path.trim_start_matches('/');
-			format!(
-				"[{}] /{relative_path}:{}: {}{}",
-				v.rule,
-				v.line,
-				v.message,
-				v.hint.map(|h| format!("\nHINT: {h}")).unwrap_or_default()
-			)
-		})
-		.collect::<Vec<_>>()
-		.join("\n");
+	let assert_out = violations.iter().map(|v| render_violation(v, &temp_assert.root)).collect::<Vec<_>>().join("\n");
 
 	// Format mode: apply fixes
 	let temp_format = fixture.write_to_tempdir();
@@ -107,20 +80,7 @@ pub(crate) fn test_case(fixture_str: &str, opts: &RustCheckOptions) -> String {
 	// Verify formatted output passes the check
 	let format_violations = collect_violations(&temp_format.root, opts, false);
 	if !format_violations.is_empty() {
-		let violation_msgs: Vec<String> = format_violations
-			.iter()
-			.map(|v| {
-				let relative_path = v.file.strip_prefix(temp_format.root.to_str().unwrap_or("")).unwrap_or(&v.file);
-				let relative_path = relative_path.trim_start_matches('/');
-				format!(
-					"[{}] /{relative_path}:{}: {}{}",
-					v.rule,
-					v.line,
-					v.message,
-					v.hint.map(|h| format!("\nHINT: {h}")).unwrap_or_default()
-				)
-			})
-			.collect();
+		let violation_msgs: Vec<String> = format_violations.iter().map(|v| render_violation(v, &temp_format.root)).collect();
 		panic!(
 			"formatted output still has {} violation(s):\n{}\n\nFormatted output:\n{format_out}",
 			format_violations.len(),
@@ -143,21 +103,13 @@ pub(crate) fn test_case_assert_only(fixture_str: &str, opts: &RustCheckOptions) 
 
 	assert!(!violations.is_empty(), "test_case_assert_only called but no violations found - use assert_check_passing instead");
 
-	violations
-		.iter()
-		.map(|v| {
-			let relative_path = v.file.strip_prefix(temp.root.to_str().unwrap_or("")).unwrap_or(&v.file);
-			let relative_path = relative_path.trim_start_matches('/');
-			format!(
-				"[{}] /{relative_path}:{}: {}{}",
-				v.rule,
-				v.line,
-				v.message,
-				v.hint.map(|h| format!("\nHINT: {h}")).unwrap_or_default()
-			)
-		})
-		.collect::<Vec<_>>()
-		.join("\n")
+	violations.iter().map(|v| render_violation(v, &temp.root)).collect::<Vec<_>>().join("\n")
+}
+
+pub(crate) fn render_violation(v: &Violation, root: &Path) -> String {
+	let relative_path = v.file.strip_prefix(root.to_str().expect("tempdir path is utf-8")).expect("violations are collected under root");
+	let detail = v.detail.as_ref().map(|d| format!(": {d}")).unwrap_or_default();
+	format!("[{}] {relative_path}:{}{detail}\nHINT: {}", v.rule, v.line, v.hint)
 }
 
 fn collect_violations(root: &Path, opts: &RustCheckOptions, is_format_mode: bool) -> Vec<Violation> {

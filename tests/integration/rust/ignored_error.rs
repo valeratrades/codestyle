@@ -140,8 +140,8 @@ fn unwrap_or_without_comment() {
 		"#,
 		&opts(),
 	), @"
-	[ignored-error] /main.rs:3: `unwrap_or` without `//IGNORED_ERROR` comment
-	HINT: Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
+	[ignored-error] /main.rs:3: `unwrap_or`
+	HINT: `unwrap_or*` without `//IGNORED_ERROR` comment. Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
 	");
 }
 
@@ -156,8 +156,8 @@ fn unwrap_or_default_without_comment() {
 		"#,
 		&opts(),
 	), @"
-	[ignored-error] /main.rs:3: `unwrap_or_default` without `//IGNORED_ERROR` comment
-	HINT: Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
+	[ignored-error] /main.rs:3: `unwrap_or_default`
+	HINT: `unwrap_or*` without `//IGNORED_ERROR` comment. Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
 	");
 }
 
@@ -172,8 +172,8 @@ fn unwrap_or_else_without_comment() {
 		"#,
 		&opts(),
 	), @"
-	[ignored-error] /main.rs:3: `unwrap_or_else` without `//IGNORED_ERROR` comment
-	HINT: Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
+	[ignored-error] /main.rs:3: `unwrap_or_else`
+	HINT: `unwrap_or*` without `//IGNORED_ERROR` comment. Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
 	");
 }
 
@@ -190,8 +190,8 @@ fn nested_unwrap_or_without_comment() {
 		"#,
 		&opts(),
 	), @"
-	[ignored-error] /main.rs:4: `unwrap_or` without `//IGNORED_ERROR` comment
-	HINT: Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
+	[ignored-error] /main.rs:4: `unwrap_or`
+	HINT: `unwrap_or*` without `//IGNORED_ERROR` comment. Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
 	");
 }
 
@@ -208,8 +208,8 @@ fn unwrap_or_in_closure() {
 		"#,
 		&opts(),
 	), @"
-	[ignored-error] /main.rs:4: `unwrap_or` without `//IGNORED_ERROR` comment
-	HINT: Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
+	[ignored-error] /main.rs:4: `unwrap_or`
+	HINT: `unwrap_or*` without `//IGNORED_ERROR` comment. Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
 	");
 }
 
@@ -224,10 +224,10 @@ fn chained_unwrap_or_without_comment() {
 		"#,
 		&opts(),
 	), @"
-	[ignored-error] /main.rs:3: `unwrap_or` without `//IGNORED_ERROR` comment
-	HINT: Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
-	[ignored-error] /main.rs:3: `unwrap_or` without `//IGNORED_ERROR` comment
-	HINT: Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
+	[ignored-error] /main.rs:3: `unwrap_or`
+	HINT: `unwrap_or*` without `//IGNORED_ERROR` comment. Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
+	[ignored-error] /main.rs:3: `unwrap_or`
+	HINT: `unwrap_or*` without `//IGNORED_ERROR` comment. Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
 	");
 }
 
@@ -244,8 +244,8 @@ fn let_underscore_without_comment() {
 		"#,
 		&opts(),
 	), @"
-	[ignored-error] /main.rs:2: `let _ = ...` without `//IGNORED_ERROR` comment
-	HINT: could the pattern be allowing to continue with corrupted state? Error out properly or explain why it's part of the intended logic.
+	[ignored-error] /main.rs:2
+	HINT: `let _ = ...` without `//IGNORED_ERROR` comment: could the pattern be allowing to continue with corrupted state? Error out properly or explain why it's part of the intended logic.
 	");
 }
 
@@ -262,8 +262,8 @@ fn nested_let_underscore_without_comment() {
 		"#,
 		&opts(),
 	), @"
-	[ignored-error] /main.rs:3: `let _ = ...` without `//IGNORED_ERROR` comment
-	HINT: could the pattern be allowing to continue with corrupted state? Error out properly or explain why it's part of the intended logic.
+	[ignored-error] /main.rs:3
+	HINT: `let _ = ...` without `//IGNORED_ERROR` comment: could the pattern be allowing to continue with corrupted state? Error out properly or explain why it's part of the intended logic.
 	");
 }
 
@@ -280,7 +280,7 @@ fn let_underscore_in_closure() {
 		"#,
 		&opts(),
 	), @"
-	[ignored-error] /main.rs:3: `let _ = ...` without `//IGNORED_ERROR` comment
-	HINT: could the pattern be allowing to continue with corrupted state? Error out properly or explain why it's part of the intended logic.
+	[ignored-error] /main.rs:3
+	HINT: `let _ = ...` without `//IGNORED_ERROR` comment: could the pattern be allowing to continue with corrupted state? Error out properly or explain why it's part of the intended logic.
 	");
 }

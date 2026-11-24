@@ -53,11 +53,11 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	if needs_ahashmap_import && !has_ahashmap_import && !violation_inserts_ahashmap {
 		violations.push(Violation {
 			rule: RULE,
-			hint: None,
+			hint: "missing `use ahash::AHashMap` import",
 			file: path.display().to_string(),
 			line: 1,
 			column: 0,
-			message: "missing `use ahash::AHashMap` import".to_string(),
+			detail: None,
 			fix: Some(Fix {
 				start_byte: after_first_use,
 				end_byte: after_first_use,
@@ -69,11 +69,11 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	if needs_ahashset_import && !has_ahashset_import && !violation_inserts_ahashset {
 		violations.push(Violation {
 			rule: RULE,
-			hint: None,
+			hint: "missing `use ahash::AHashSet` import",
 			file: path.display().to_string(),
 			line: 1,
 			column: 0,
-			message: "missing `use ahash::AHashSet` import".to_string(),
+			detail: None,
 			fix: Some(Fix {
 				start_byte: after_first_use,
 				end_byte: after_first_use,
@@ -104,11 +104,11 @@ impl<'a> AHashVisitor<'a> {
 	fn push_fix_violation(&mut self, fix: Fix, line: usize, column: usize, std_name: &str, ahash_name: &str) {
 		self.violations.push(Violation {
 			rule: RULE,
-			hint: None,
+			hint: "use `ahash` collections instead of `std` ones",
 			file: self.path_str.clone(),
 			line,
 			column,
-			message: format!("use `{ahash_name}` instead of `{std_name}`"),
+			detail: Some(format!("`{ahash_name}` instead of `{std_name}`")),
 			fix: Some(fix),
 		});
 	}
@@ -116,18 +116,18 @@ impl<'a> AHashVisitor<'a> {
 
 impl<'a> Visit<'a> for AHashVisitor<'_> {
 	fn visit_item_use(&mut self, node: &'a ItemUse) {
-		for (std_name, ahash_replacement, message) in [
+		for (std_name, ahash_replacement, hint) in [
 			("HashMap", "use ahash::AHashMap;\n", "use `ahash::AHashMap` instead of `std::collections::HashMap`"),
 			("HashSet", "use ahash::AHashSet;\n", "use `ahash::AHashSet` instead of `std::collections::HashSet`"),
 		] {
 			if let Some(fix) = detect_use_fix(self.content, node, std_name, ahash_replacement) {
 				self.violations.push(Violation {
 					rule: RULE,
-					hint: None,
+					hint,
 					file: self.path_str.clone(),
 					line: node.span().start().line,
 					column: node.span().start().column,
-					message: message.to_string(),
+					detail: None,
 					fix: Some(fix),
 				});
 				return;

@@ -82,7 +82,8 @@ fn struct_with_blank_lines_before_impl() {
 		&opts(),
 	), @"
 	# Assert mode
-	[impl-follows-type] /main.rs:6: `impl Foo` should follow type definition (line 3), but has 2 blank line(s)
+	[impl-follows-type] /main.rs:6: `impl Foo` is 2 blank line(s) after the definition (line 3)
+	HINT: `impl` should follow type definition
 
 	# Format mode
 	struct Foo {
@@ -111,7 +112,8 @@ fn enum_with_blank_lines_before_impl() {
 		&opts(),
 	), @"
 	# Assert mode
-	[impl-follows-type] /main.rs:7: `impl Bar` should follow type definition (line 4), but has 2 blank line(s)
+	[impl-follows-type] /main.rs:7: `impl Bar` is 2 blank line(s) after the definition (line 4)
+	HINT: `impl` should follow type definition
 
 	# Format mode
 	enum Bar {
@@ -141,7 +143,8 @@ fn impl_with_code_in_between() {
 		&opts(),
 	), @"
 	# Assert mode
-	[impl-follows-type] /main.rs:7: `impl Foo` should follow type definition (line 3), but has 3 blank line(s)
+	[impl-follows-type] /main.rs:7: `impl Foo` is 3 blank line(s) after the definition (line 3)
+	HINT: `impl` should follow type definition
 
 	# Format mode
 	struct Foo {
@@ -174,7 +177,8 @@ fn multiple_impl_blocks_with_code_in_between() {
 		&opts(),
 	), @"
 	# Assert mode
-	[impl-follows-type] /main.rs:5: `impl Foo` should follow type definition (line 1), but has 3 blank line(s)
+	[impl-follows-type] /main.rs:5: `impl Foo` is 3 blank line(s) after the definition (line 1)
+	HINT: `impl` should follow type definition
 
 	# Format mode
 	struct Foo;
@@ -217,8 +221,10 @@ fn nested_type_between_struct_and_impl_with_own_impl_below() {
 		&opts(),
 	), @"
 	# Assert mode
-	[impl-follows-type] /main.rs:9: `impl Outer` should follow type definition (line 3), but has 5 blank line(s)
-	[impl-follows-type] /main.rs:18: `impl Inner` should follow type definition (line 7), but has 10 blank line(s)
+	[impl-follows-type] /main.rs:9: `impl Outer` is 5 blank line(s) after the definition (line 3)
+	HINT: `impl` should follow type definition
+	[impl-follows-type] /main.rs:18: `impl Inner` is 10 blank line(s) after the definition (line 7)
+	HINT: `impl` should follow type definition
 
 	# Format mode
 	struct Outer {
@@ -268,8 +274,10 @@ fn interleaved_types_and_impls() {
 		&opts(),
 	), @"
 	# Assert mode
-	[impl-follows-type] /main.rs:10: `impl Foo` should follow type definition (line 3), but has 6 blank line(s)
-	[impl-follows-type] /main.rs:16: `impl Bar` should follow type definition (line 8), but has 7 blank line(s)
+	[impl-follows-type] /main.rs:10: `impl Foo` is 6 blank line(s) after the definition (line 3)
+	HINT: `impl` should follow type definition
+	[impl-follows-type] /main.rs:16: `impl Bar` is 7 blank line(s) after the definition (line 8)
+	HINT: `impl` should follow type definition
 
 	# Format mode
 	struct Foo {

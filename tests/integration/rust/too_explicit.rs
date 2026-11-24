@@ -24,8 +24,11 @@ fn multiline_use_with_existing_import_no_duplicate() {
 	), @r#"
 	# Assert mode
 	[too-explicit] /main.rs:6: use `Path` instead of `std::path::Path`
+	HINT: import the name instead of spelling out its path
 	[too-explicit] /main.rs:6: use `PathBuf` instead of `std::path::PathBuf`
+	HINT: import the name instead of spelling out its path
 	[too-explicit] /main.rs:7: use `PathBuf` instead of `std::path::PathBuf`
+	HINT: import the name instead of spelling out its path
 
 	# Format mode
 	use std::{
@@ -92,8 +95,11 @@ fn inline_arc_type_and_expr() {
 	), @"
 	# Assert mode
 	[too-explicit] /main.rs:1: use `Arc` instead of `std::sync::Arc`
+	HINT: import the name instead of spelling out its path
 	[too-explicit] /main.rs:2: use `Arc` instead of `std::sync::Arc`
-	[too-explicit] /main.rs:1: missing `use std::sync::Arc;` import
+	HINT: import the name instead of spelling out its path
+	[too-explicit] /main.rs:1: `use std::sync::Arc;`
+	HINT: missing import
 
 	# Format mode
 	use std::sync::Arc;
@@ -115,8 +121,11 @@ fn inline_mutex() {
 	), @"
 	# Assert mode
 	[too-explicit] /main.rs:1: use `Mutex` instead of `std::sync::Mutex`
+	HINT: import the name instead of spelling out its path
 	[too-explicit] /main.rs:2: use `Mutex` instead of `std::sync::Mutex`
-	[too-explicit] /main.rs:1: missing `use std::sync::Mutex;` import
+	HINT: import the name instead of spelling out its path
+	[too-explicit] /main.rs:1: `use std::sync::Mutex;`
+	HINT: missing import
 
 	# Format mode
 	use std::sync::Mutex;
@@ -138,8 +147,11 @@ fn inline_pathbuf() {
 	), @r#"
 	# Assert mode
 	[too-explicit] /main.rs:1: use `PathBuf` instead of `std::path::PathBuf`
+	HINT: import the name instead of spelling out its path
 	[too-explicit] /main.rs:2: use `PathBuf` instead of `std::path::PathBuf`
-	[too-explicit] /main.rs:1: missing `use std::path::PathBuf;` import
+	HINT: import the name instead of spelling out its path
+	[too-explicit] /main.rs:1: `use std::path::PathBuf;`
+	HINT: missing import
 
 	# Format mode
 	use std::path::PathBuf;
@@ -161,8 +173,11 @@ fn inline_btreemap() {
 	), @"
 	# Assert mode
 	[too-explicit] /main.rs:1: use `BTreeMap` instead of `std::collections::BTreeMap`
+	HINT: import the name instead of spelling out its path
 	[too-explicit] /main.rs:2: use `BTreeMap` instead of `std::collections::BTreeMap`
-	[too-explicit] /main.rs:1: missing `use std::collections::BTreeMap;` import
+	HINT: import the name instead of spelling out its path
+	[too-explicit] /main.rs:1: `use std::collections::BTreeMap;`
+	HINT: missing import
 
 	# Format mode
 	use std::collections::BTreeMap;
@@ -184,7 +199,9 @@ fn nested_arc_in_vec() {
 	), @"
 	# Assert mode
 	[too-explicit] /main.rs:1: use `Arc` instead of `std::sync::Arc`
-	[too-explicit] /main.rs:1: missing `use std::sync::Arc;` import
+	HINT: import the name instead of spelling out its path
+	[too-explicit] /main.rs:1: `use std::sync::Arc;`
+	HINT: missing import
 
 	# Format mode
 	use std::sync::Arc;
@@ -222,11 +239,14 @@ fn inline_mod_rewrite_inserts_import_in_mod() {
 		}
 		"#,
 		&opts(),
-	), @r#"
+	), @"
 	# Assert mode
 	[too-explicit] /main.rs:2: use `Arc` instead of `std::sync::Arc`
+	HINT: import the name instead of spelling out its path
 	[too-explicit] /main.rs:3: use `Arc` instead of `std::sync::Arc`
-	[too-explicit] /main.rs:1: missing `use std::sync::Arc;` import
+	HINT: import the name instead of spelling out its path
+	[too-explicit] /main.rs:1: `use std::sync::Arc;`
+	HINT: missing import
 
 	# Format mode
 	mod foo {
@@ -235,7 +255,7 @@ fn inline_mod_rewrite_inserts_import_in_mod() {
 			Arc::new(42)
 		}
 	}
-	"#);
+	");
 }
 
 // Arc imported inside an inline mod must not trigger a spurious top-level import.
@@ -267,11 +287,17 @@ fn multiple_types_in_one_file() {
 	), @r#"
 	# Assert mode
 	[too-explicit] /main.rs:1: use `Arc` instead of `std::sync::Arc`
+	HINT: import the name instead of spelling out its path
 	[too-explicit] /main.rs:1: use `PathBuf` instead of `std::path::PathBuf`
+	HINT: import the name instead of spelling out its path
 	[too-explicit] /main.rs:2: use `Arc` instead of `std::sync::Arc`
+	HINT: import the name instead of spelling out its path
 	[too-explicit] /main.rs:3: use `PathBuf` instead of `std::path::PathBuf`
-	[too-explicit] /main.rs:1: missing `use std::sync::Arc;` import
-	[too-explicit] /main.rs:1: missing `use std::path::PathBuf;` import
+	HINT: import the name instead of spelling out its path
+	[too-explicit] /main.rs:1: `use std::sync::Arc;`
+	HINT: missing import
+	[too-explicit] /main.rs:1: `use std::path::PathBuf;`
+	HINT: missing import
 
 	# Format mode
 	use std::path::PathBuf;
@@ -325,10 +351,15 @@ fn inner_docs_stay_first_and_both_imports_added() {
 	), @r#"
 	# Assert mode
 	[too-explicit] /main.rs:3: use `Path` instead of `std::path::Path`
+	HINT: import the name instead of spelling out its path
 	[too-explicit] /main.rs:5: use `Path` instead of `std::path::Path`
+	HINT: import the name instead of spelling out its path
 	[too-explicit] /main.rs:5: use `PathBuf` instead of `std::path::PathBuf`
-	[too-explicit] /main.rs:1: missing `use std::path::PathBuf;` import
-	[too-explicit] /main.rs:1: missing `use std::path::Path;` import
+	HINT: import the name instead of spelling out its path
+	[too-explicit] /main.rs:1: `use std::path::PathBuf;`
+	HINT: missing import
+	[too-explicit] /main.rs:1: `use std::path::Path;`
+	HINT: missing import
 
 	# Format mode
 	//! Docs.

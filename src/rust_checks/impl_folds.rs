@@ -70,21 +70,21 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 		// Generate the fix
 		let fix = generate_fix(content, start_byte, end_byte, brace_open_offset, has_open_marker, has_close_marker);
 
-		let message = if !has_open_marker && !has_close_marker {
-			"impl block missing vim fold markers".to_string()
+		let hint = if !has_open_marker && !has_close_marker {
+			"impl block missing vim fold markers"
 		} else if !has_open_marker {
-			"impl block missing opening vim fold marker /*{{{1*/".to_string()
+			"impl block missing opening vim fold marker /*{{{1*/"
 		} else {
-			"impl block missing closing vim fold marker //,}}}1".to_string()
+			"impl block missing closing vim fold marker //,}}}1"
 		};
 
 		violations.push(Violation {
 			rule: RULE,
-			hint: None,
+			hint,
 			file: path_str.clone(),
 			line: start_line,
 			column: start_col,
-			message,
+			detail: None,
 			fix: Some(fix),
 		});
 	}

@@ -71,7 +71,10 @@ codestyle --exclude libs/nautilus_trader --exclude vendor rust assert .
 codestyle rust format .
 # codestyle: fixed 3 violation(s)
 # codestyle: 1 violation(s) need manual fixing:
-#   [loops] src/main.rs:42:5: Endless loop without //LOOP comment
+#
+# - [loop-comment]
+#   HINT: endless loop without `//LOOP` comment; try to rewrite the loop with `while let` or justify why a bound can't be enforced
+#   - src/main.rs:42:5
 ```
 
 ### Audit mode

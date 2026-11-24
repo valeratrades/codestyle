@@ -89,7 +89,10 @@ fn pub_new_no_args() {
 		}
 		"#,
 		&opts(),
-	), @"[prefer-default-over-bare-new] /main.rs:3: argument-less `pub fn new()` found; implement `Default` instead — callers should use `Type::default()`");
+	), @"
+	[prefer-default-over-bare-new] /main.rs:3
+	HINT: argument-less `pub fn new()` found; implement `Default` instead — callers should use `Type::default()`
+	");
 }
 
 #[test]
@@ -107,8 +110,10 @@ fn multiple_types_with_argless_new() {
 		"#,
 		&opts(),
 	), @"
-	[prefer-default-over-bare-new] /main.rs:4: argument-less `pub fn new()` found; implement `Default` instead — callers should use `Type::default()`
-	[prefer-default-over-bare-new] /main.rs:7: argument-less `pub fn new()` found; implement `Default` instead — callers should use `Type::default()`
+	[prefer-default-over-bare-new] /main.rs:4
+	HINT: argument-less `pub fn new()` found; implement `Default` instead — callers should use `Type::default()`
+	[prefer-default-over-bare-new] /main.rs:7
+	HINT: argument-less `pub fn new()` found; implement `Default` instead — callers should use `Type::default()`
 	");
 }
 
@@ -125,7 +130,8 @@ fn vec_new_call() {
 		&opts(),
 	), @"
 	# Assert mode
-	[prefer-default-over-bare-new] /main.rs:2: `Type::new()` — use `Type::default()` instead
+	[prefer-default-over-bare-new] /main.rs:2
+	HINT: `Type::new()` — use `Type::default()` instead
 
 	# Format mode
 	fn foo() {
@@ -145,7 +151,8 @@ fn string_new_call() {
 		&opts(),
 	), @"
 	# Assert mode
-	[prefer-default-over-bare-new] /main.rs:2: `Type::new()` — use `Type::default()` instead
+	[prefer-default-over-bare-new] /main.rs:2
+	HINT: `Type::new()` — use `Type::default()` instead
 
 	# Format mode
 	fn foo() {
@@ -166,8 +173,10 @@ fn multiple_callsites() {
 		&opts(),
 	), @"
 	# Assert mode
-	[prefer-default-over-bare-new] /main.rs:2: `Type::new()` — use `Type::default()` instead
-	[prefer-default-over-bare-new] /main.rs:3: `Type::new()` — use `Type::default()` instead
+	[prefer-default-over-bare-new] /main.rs:2
+	HINT: `Type::new()` — use `Type::default()` instead
+	[prefer-default-over-bare-new] /main.rs:3
+	HINT: `Type::new()` — use `Type::default()` instead
 
 	# Format mode
 	fn foo() {

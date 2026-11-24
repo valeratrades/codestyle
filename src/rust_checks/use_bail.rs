@@ -174,11 +174,11 @@ impl<'a> UseBailVisitor<'a> {
 
 		self.violations.push(Violation {
 			rule: RULE,
-			hint: None,
+			hint: "use `bail!(...)` instead",
 			file: self.path_str.clone(),
 			line: return_expr.span().start().line,
 			column: return_expr.span().start().column,
-			message: format!("use `bail!(...)` instead of `return Err({macro_name}!(...))`"),
+			detail: Some(format!("`return Err({macro_name}!(...))`")),
 			fix,
 		});
 	}

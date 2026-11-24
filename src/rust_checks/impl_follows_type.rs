@@ -91,11 +91,11 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 
 			violations.push(Violation {
 				rule: RULE,
-				hint: None,
+				hint: "`impl` should follow type definition",
 				file: path_str.clone(),
 				line: impl_block.start_line,
 				column: impl_block.item.span().start().column,
-				message: format!("`impl {type_name}` should follow type definition (line {}), but has {gap} blank line(s)", type_def.end_line),
+				detail: Some(format!("`impl {type_name}` is {gap} blank line(s) after the definition (line {})", type_def.end_line)),
 				fix,
 			});
 		}

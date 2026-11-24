@@ -54,21 +54,17 @@ pub fn check(workspace_root: &Path) -> Vec<Violation> {
 			sorted_users.sort();
 			Violation {
 				rule: RULE,
-				hint: None,
+				hint: "dependency used by several members must be declared in [workspace.dependencies]",
 				file: path_str.clone(),
 				line: 1,
 				column: 1,
-				message: format!(
-					"dependency `{dep}` is used by {} members ({}) but not declared in [workspace.dependencies]",
-					sorted_users.len(),
-					sorted_users.join(", ")
-				),
+				detail: Some(format!("`{dep}` is used by {} members ({})", sorted_users.len(), sorted_users.join(", "))),
 				fix: None,
 			}
 		})
 		.collect();
 
-	violations.sort_by(|a, b| a.message.cmp(&b.message));
+	violations.sort_by(|a, b| a.detail.cmp(&b.detail));
 	violations
 }
 

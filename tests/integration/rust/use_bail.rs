@@ -64,7 +64,8 @@ fn return_err_eyre_simple() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[use-bail] /main.rs:4: use `bail!(...)` instead of `return Err(eyre!(...))`
+	[use-bail] /main.rs:4: `return Err(eyre!(...))`
+	HINT: use `bail!(...)` instead
 
 	# Format mode
 	use eyre::eyre;
@@ -89,7 +90,8 @@ fn return_err_eyre_with_color_eyre_import() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[use-bail] /main.rs:4: use `bail!(...)` instead of `return Err(eyre!(...))`
+	[use-bail] /main.rs:4: `return Err(eyre!(...))`
+	HINT: use `bail!(...)` instead
 
 	# Format mode
 	use color_eyre::eyre::{Result, eyre};
@@ -120,8 +122,10 @@ fn multiple_return_err_eyre_in_function() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[use-bail] /main.rs:5: use `bail!(...)` instead of `return Err(eyre!(...))`
-	[use-bail] /main.rs:8: use `bail!(...)` instead of `return Err(eyre!(...))`
+	[use-bail] /main.rs:5: `return Err(eyre!(...))`
+	HINT: use `bail!(...)` instead
+	[use-bail] /main.rs:8: `return Err(eyre!(...))`
+	HINT: use `bail!(...)` instead
 
 	# Format mode
 	use eyre::eyre;
@@ -152,7 +156,8 @@ fn return_err_with_format_args() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[use-bail] /main.rs:4: use `bail!(...)` instead of `return Err(eyre!(...))`
+	[use-bail] /main.rs:4: `return Err(eyre!(...))`
+	HINT: use `bail!(...)` instead
 
 	# Format mode
 	use eyre::eyre;
@@ -177,7 +182,8 @@ fn return_err_with_multibyte_chars_in_message() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[use-bail] /main.rs:4: use `bail!(...)` instead of `return Err(eyre!(...))`
+	[use-bail] /main.rs:4: `return Err(eyre!(...))`
+	HINT: use `bail!(...)` instead
 
 	# Format mode
 	use eyre::eyre;
@@ -202,7 +208,8 @@ fn bail_import_not_added_when_present() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[use-bail] /main.rs:4: use `bail!(...)` instead of `return Err(eyre!(...))`
+	[use-bail] /main.rs:4: `return Err(eyre!(...))`
+	HINT: use `bail!(...)` instead
 
 	# Format mode
 	use eyre::{eyre, bail};

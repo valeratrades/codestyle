@@ -91,11 +91,11 @@ impl<'a> InstaSnapshotVisitor<'a> {
 			let fix = if self.is_format_mode { create_add_inline_snapshot_fix(mac, self.content) } else { None };
 			self.violations.push(Violation {
 				rule: RULE_INLINE,
-				hint: None,
+				hint: "must use inline snapshot with `@r\"\"` or `@\"\"`",
 				file: self.path_str.clone(),
 				line: start_line(mac.span()),
 				column: start_column(mac.span()),
-				message: format!("`{macro_name}!` must use inline snapshot with `@r\"\"` or `@\"\"`"),
+				detail: Some(format!("`{macro_name}!`")),
 				fix,
 			});
 		}
@@ -235,15 +235,11 @@ impl SequentialSnapshotVisitor {
 			let second = result.second.expect("count > 1 implies second exists");
 			self.violations.push(Violation {
 				rule: RULE_SEQUENTIAL,
-				hint: None,
+				hint: "multiple snapshot assertions in one test; join tested strings together or split into separate tests",
 				file: self.path_str.clone(),
 				line: second.0,
 				column: second.1,
-				message: format!(
-					"multiple snapshot assertions in one test (first at line {}); \
-					join tested strings together or split into separate tests",
-					first.0,
-				),
+				detail: Some(format!("first at line {}", first.0)),
 				fix: None,
 			});
 		}

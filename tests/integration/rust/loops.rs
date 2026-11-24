@@ -62,8 +62,8 @@ fn loop_without_comment() {
 		"#,
 		&opts(),
 	), @"
-	[loop-comment] /main.rs:2: Endless loop without `//LOOP` comment
-	HINT: try to rewrite the loop with `while let` or justify why a bound can't be enforced
+	[loop-comment] /main.rs:2
+	HINT: endless loop without `//LOOP` comment; try to rewrite the loop with `while let` or justify why a bound can't be enforced
 	");
 }
 
@@ -81,8 +81,8 @@ fn nested_loop_without_comment() {
 		"#,
 		&opts(),
 	), @"
-	[loop-comment] /main.rs:3: Endless loop without `//LOOP` comment
-	HINT: try to rewrite the loop with `while let` or justify why a bound can't be enforced
+	[loop-comment] /main.rs:3
+	HINT: endless loop without `//LOOP` comment; try to rewrite the loop with `while let` or justify why a bound can't be enforced
 	");
 }
 
@@ -100,8 +100,8 @@ fn loop_inside_closure() {
 		"#,
 		&opts(),
 	), @"
-	[loop-comment] /main.rs:3: Endless loop without `//LOOP` comment
-	HINT: try to rewrite the loop with `while let` or justify why a bound can't be enforced
+	[loop-comment] /main.rs:3
+	HINT: endless loop without `//LOOP` comment; try to rewrite the loop with `while let` or justify why a bound can't be enforced
 	");
 }
 
@@ -119,7 +119,7 @@ fn loop_inside_async_block() {
 		"#,
 		&opts(),
 	), @"
-	[loop-comment] /main.rs:3: Endless loop without `//LOOP` comment
-	HINT: try to rewrite the loop with `while let` or justify why a bound can't be enforced
+	[loop-comment] /main.rs:3
+	HINT: endless loop without `//LOOP` comment; try to rewrite the loop with `while let` or justify why a bound can't be enforced
 	");
 }

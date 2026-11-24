@@ -58,11 +58,11 @@ pub fn check(workspace_root: &Path) -> Vec<Violation> {
 		}
 		violations.push(Violation {
 			rule: RULE,
-			hint: None,
+			hint: e.guidance(),
 			file,
 			line,
 			column: 1,
-			message: format!("{whose} enables `{}/{}`, which builds aws-lc-sys (bundled C); {}", e.krate, e.feature, e.guidance()),
+			detail: Some(format!("{whose} enables `{}/{}`", e.krate, e.feature)),
 			fix: None,
 		});
 	}
@@ -135,17 +135,16 @@ impl Enabler {
 	}
 
 	/// Fixes verified against the crates' feature tables (reqwest 0.13, sentry 0.48, tonic 0.14, sqlx 0.9, rustls 0.23).
-	fn guidance(&self) -> String {
+	fn guidance(&self) -> &'static str {
 		let (krate, feature) = (self.krate.as_str(), self.feature.as_str());
-		const INSTALL: &str = "add `rustls = { version = \"0.23\", default-features = false, features = [\"ring\", \"std\", \"tls12\"] }` and call `rustls::crypto::ring::default_provider().install_default()` before every client build (next to each `Client::builder()`/`Client::new()`, so tests and examples are covered too; its `Err` only means one is already installed): it has no ring feature, and without an installed provider it panics on client build";
 		match (krate, feature) {
-			("tonic", "tls-aws-lc") => "use `tls-ring` instead".into(),
-			("sqlx", "tls-rustls-aws-lc-rs") => "use `tls-rustls-ring` instead".into(),
-			("reqwest", "rustls" | "default-tls" | "default") => format!("set `default-features = false` and use `rustls-no-provider` instead of `rustls`; {INSTALL}"),
-			("sentry", "rustls" | "default") => format!("set `default-features = false` and use `rustls-no-provider` instead of `rustls`; {INSTALL}"),
+			("tonic", "tls-aws-lc") => "builds aws-lc-sys (bundled C); use `tls-ring` instead",
+			("sqlx", "tls-rustls-aws-lc-rs") => "builds aws-lc-sys (bundled C); use `tls-rustls-ring` instead",
+			("reqwest", "rustls" | "default-tls" | "default") | ("sentry", "rustls" | "default") =>
+				"builds aws-lc-sys (bundled C); set `default-features = false` and use `rustls-no-provider` instead of `rustls`; add `rustls = { version = \"0.23\", default-features = false, features = [\"ring\", \"std\", \"tls12\"] }` and call `rustls::crypto::ring::default_provider().install_default()` before every client build (next to each `Client::builder()`/`Client::new()`, so tests and examples are covered too; its `Err` only means one is already installed): it has no ring feature, and without an installed provider it panics on client build",
 			("rustls" | "tokio-rustls" | "hyper-rustls" | "rustls-webpki", _) =>
-				"set `default-features = false`, keep the defaults you need, and add `ring` (`rustls-webpki`: `ring`); keep exactly one provider enabled, or `ClientConfig::builder()` panics on ambiguity".into(),
-			_ => format!("switch `{krate}` to its ring variant (see `cargo tree -e features -i aws-lc-rs`)"),
+				"builds aws-lc-sys (bundled C); set `default-features = false`, keep the defaults you need, and add `ring` (`rustls-webpki`: `ring`); keep exactly one provider enabled, or `ClientConfig::builder()` panics on ambiguity",
+			_ => "builds aws-lc-sys (bundled C); switch to the crate's ring variant (see `cargo tree -e features -i aws-lc-rs`)",
 		}
 	}
 }

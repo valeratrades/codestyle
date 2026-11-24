@@ -102,11 +102,11 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 			if needs_import && !has_import {
 				violations.push(Violation {
 					rule: RULE,
-					hint: None,
+					hint: "missing import",
 					file: path.display().to_string(),
 					line: 1,
 					column: 0,
-					message: format!("missing `{}` import", rewrite.use_import.trim()),
+					detail: Some(format!("`{}`", rewrite.use_import.trim())),
 					fix: Some(Fix {
 						start_byte: scope.insert_byte,
 						end_byte: scope.insert_byte,
@@ -284,11 +284,11 @@ impl<'a> TooExplicitVisitor<'a> {
 		self.violation_scope_bytes.push(self.current_scope_byte());
 		self.violations.push(Violation {
 			rule: RULE,
-			hint: None,
+			hint: "import the name instead of spelling out its path",
 			file: self.path_str.clone(),
 			line,
 			column,
-			message: format!("use `{}` instead of `{}`", rewrite.short_name, rewrite.segments.join("::")),
+			detail: Some(format!("use `{}` instead of `{}`", rewrite.short_name, rewrite.segments.join("::"))),
 			fix: Some(fix),
 		});
 	}

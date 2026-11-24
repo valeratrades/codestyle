@@ -5,7 +5,7 @@ use v_fixtures::Fixture;
 fn report(fixture_str: &str) -> String {
 	let temp = Fixture::parse(fixture_str).write_to_tempdir();
 	let out = Command::new(env!("CARGO_BIN_EXE_codestyle"))
-		.args(["rust", "--only", "swappable-args", "--only", "loops", "assert", "."])
+		.args(["rust", "--only", "swappable-args", "--only", "loops", "--only", "insta-inline-snapshot", "assert", "."])
 		.current_dir(&temp.root)
 		.output()
 		.expect("binary is built by cargo for integration tests");
@@ -48,16 +48,16 @@ fn workspace_groups_by_rule_then_crate() {
 	codestyle: found 4 violation(s):
 
 	- [loop-comment]
-		HINT: try to rewrite the loop with `while let` or justify why a bound can't be enforced
+		HINT: endless loop without `//LOOP` comment; try to rewrite the loop with `while let` or justify why a bound can't be enforced
 		- a/
-			- ./a/src/lib.rs:2:1: Endless loop without `//LOOP` comment
+			- ./a/src/lib.rs:2:1
 		- b/
-			- ./b/src/lib.rs:2:1: Endless loop without `//LOOP` comment
-			- ./b/src/lib.rs:5:1: Endless loop without `//LOOP` comment
+			- ./b/src/lib.rs:2:1
+			- ./b/src/lib.rs:5:1
 	- [swappable-args]
-		HINT: wrap them in newtypes, or pass an args struct
+		HINT: fn takes interchangeable parameters; wrap them in newtypes, or pass an args struct
 		- a/
-			- ./a/src/lib.rs:4:3: `pair` takes interchangeable parameters (2 x `&str`)
+			- ./a/src/lib.rs:4:3: `pair` (2 x `&str`)
 	");
 }
 
@@ -79,10 +79,38 @@ fn single_crate_drops_crate_level() {
 	codestyle: found 2 violation(s):
 
 	- [loop-comment]
-		HINT: try to rewrite the loop with `while let` or justify why a bound can't be enforced
-		- ./src/lib.rs:2:1: Endless loop without `//LOOP` comment
+		HINT: endless loop without `//LOOP` comment; try to rewrite the loop with `while let` or justify why a bound can't be enforced
+		- ./src/lib.rs:2:1
 	- [swappable-args]
-		HINT: wrap them in newtypes, or pass an args struct
-		- ./src/lib.rs:4:3: `pair` takes interchangeable parameters (2 x `&str`)
+		HINT: fn takes interchangeable parameters; wrap them in newtypes, or pass an args struct
+		- ./src/lib.rs:4:3: `pair` (2 x `&str`)
+	");
+}
+
+#[test]
+fn general_hint_is_printed_once_above_its_locations() {
+	insta::assert_snapshot!(report(
+		r#"
+		//- /Cargo.toml
+		[package]
+		name = "solo"
+
+		//- /src/lib.rs
+		fn one() {
+			insta::assert_snapshot!(a, @"");
+			insta::assert_snapshot!(b, @"");
+		}
+		fn two() {
+			insta::assert_snapshot!(a, @"");
+			insta::assert_snapshot!(b, @"");
+		}
+	"#,
+	), @"
+	codestyle: found 2 violation(s):
+
+	- [insta-sequential-snapshots]
+		HINT: multiple snapshot assertions in one test; join tested strings together or split into separate tests
+		- ./src/lib.rs:3:1: first at line 2
+		- ./src/lib.rs:7:1: first at line 6
 	");
 }

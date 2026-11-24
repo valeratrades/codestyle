@@ -16,7 +16,8 @@ fn simple_impl_without_fold_markers() {
 		&opts(),
 	), @"
 	# Assert mode
-	[impl-folds] /main.rs:2: impl block missing vim fold markers
+	[impl-folds] /main.rs:2
+	HINT: impl block missing vim fold markers
 
 	# Format mode
 	struct Foo;
@@ -39,7 +40,8 @@ fn impl_missing_closing_fold_marker() {
 		&opts(),
 	), @"
 	# Assert mode
-	[impl-folds] /main.rs:2: impl block missing closing vim fold marker //,}}}1
+	[impl-folds] /main.rs:2
+	HINT: impl block missing closing vim fold marker //,}}}1
 
 	# Format mode
 	struct Foo;
@@ -63,7 +65,8 @@ fn impl_missing_opening_fold_marker() {
 		&opts(),
 	), @"
 	# Assert mode
-	[impl-folds] /main.rs:2: impl block missing opening vim fold marker /*{{{1*/
+	[impl-folds] /main.rs:2
+	HINT: impl block missing opening vim fold marker /*{{{1*/
 
 	# Format mode
 	struct Foo;
@@ -86,7 +89,8 @@ fn generic_impl_without_fold_markers() {
 		&opts(),
 	), @"
 	# Assert mode
-	[impl-folds] /main.rs:2: impl block missing vim fold markers
+	[impl-folds] /main.rs:2
+	HINT: impl block missing vim fold markers
 
 	# Format mode
 	struct Container<T>(T);
@@ -112,7 +116,8 @@ fn impl_with_where_clause_without_fold_markers() {
 		&opts(),
 	), @"
 	# Assert mode
-	[impl-folds] /main.rs:2: impl block missing vim fold markers
+	[impl-folds] /main.rs:2
+	HINT: impl block missing vim fold markers
 
 	# Format mode
 	struct Wrapper<T>(T);
@@ -144,8 +149,10 @@ fn multiple_impls_without_fold_markers() {
 		&opts(),
 	), @"
 	# Assert mode
-	[impl-folds] /main.rs:4: impl block missing vim fold markers
-	[impl-folds] /main.rs:8: impl block missing vim fold markers
+	[impl-folds] /main.rs:4
+	HINT: impl block missing vim fold markers
+	[impl-folds] /main.rs:8
+	HINT: impl block missing vim fold markers
 
 	# Format mode
 	struct Foo;
@@ -206,7 +213,8 @@ fn impl_from_example_in_spec() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[impl-folds] /main.rs:7: impl block missing vim fold markers
+	[impl-folds] /main.rs:7
+	HINT: impl block missing vim fold markers
 
 	# Format mode
 	#[derive(Clone, Debug)]

@@ -100,7 +100,8 @@ fn pub_new_returns_result() {
 		&opts(),
 	), @"
 	# Assert mode
-	[unconventional-new] /main.rs:3: `fn new` returns `Result` — rename to `try_new` to signal fallibility
+	[unconventional-new] /main.rs:3
+	HINT: `fn new` returns `Result` — rename to `try_new` to signal fallibility
 
 	# Format mode
 	struct Foo;
@@ -126,7 +127,8 @@ fn private_new_returns_result() {
 		&opts(),
 	), @"
 	# Assert mode
-	[unconventional-new] /main.rs:3: `fn new` returns `Result` — rename to `try_new` to signal fallibility
+	[unconventional-new] /main.rs:3
+	HINT: `fn new` returns `Result` — rename to `try_new` to signal fallibility
 
 	# Format mode
 	struct Foo;
@@ -152,7 +154,8 @@ fn new_with_args_returns_result() {
 		&opts(),
 	), @"
 	# Assert mode
-	[unconventional-new] /main.rs:3: `fn new` returns `Result` — rename to `try_new` to signal fallibility
+	[unconventional-new] /main.rs:3
+	HINT: `fn new` returns `Result` — rename to `try_new` to signal fallibility
 
 	# Format mode
 	struct Foo { x: i32 }
@@ -185,8 +188,10 @@ fn try_new_callsite_renamed_cross_file() {
 		&opts(),
 	), @"
 	# Assert mode
-	[unconventional-new] /lib.rs:3: `fn new` returns `Result` — rename to `try_new` to signal fallibility
-	[unconventional-new] /main.rs:2: `Foo::new` was renamed to `try_new`
+	[unconventional-new] /lib.rs:3
+	HINT: `fn new` returns `Result` — rename to `try_new` to signal fallibility
+	[unconventional-new] /main.rs:2: `Foo::new`
+	HINT: `new` was renamed to `try_new`
 
 	# Format mode
 	//- /lib.rs
@@ -222,11 +227,16 @@ fn call_sites_inside_macro_invocations_are_renamed() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[unconventional-new] /main.rs:3: `fn new` returns `Result` — rename to `try_new` to signal fallibility
-	[unconventional-new] /main.rs:8: `Foo::new` was renamed to `try_new`
-	[unconventional-new] /main.rs:9: `Foo::new` was renamed to `try_new`
-	[unconventional-new] /main.rs:9: `Foo::new` was renamed to `try_new`
-	[unconventional-new] /main.rs:10: `Foo::new` was renamed to `try_new`
+	[unconventional-new] /main.rs:3
+	HINT: `fn new` returns `Result` — rename to `try_new` to signal fallibility
+	[unconventional-new] /main.rs:8: `Foo::new`
+	HINT: `new` was renamed to `try_new`
+	[unconventional-new] /main.rs:9: `Foo::new`
+	HINT: `new` was renamed to `try_new`
+	[unconventional-new] /main.rs:9: `Foo::new`
+	HINT: `new` was renamed to `try_new`
+	[unconventional-new] /main.rs:10: `Foo::new`
+	HINT: `new` was renamed to `try_new`
 
 	# Format mode
 	struct Foo;
@@ -270,9 +280,12 @@ fn self_new_call_sites_are_renamed() {
 		&opts(),
 	), @"
 	# Assert mode
-	[unconventional-new] /main.rs:3: `fn new` returns `Result` — rename to `try_new` to signal fallibility
-	[unconventional-new] /main.rs:7: `Foo::new` was renamed to `try_new`
-	[unconventional-new] /main.rs:8: `Foo::new` was renamed to `try_new`
+	[unconventional-new] /main.rs:3
+	HINT: `fn new` returns `Result` — rename to `try_new` to signal fallibility
+	[unconventional-new] /main.rs:7: `Foo::new`
+	HINT: `new` was renamed to `try_new`
+	[unconventional-new] /main.rs:8: `Foo::new`
+	HINT: `new` was renamed to `try_new`
 
 	# Format mode
 	struct Foo(i32);
@@ -321,9 +334,12 @@ fn call_sites_inside_trait_impls_are_renamed() {
 		&opts(),
 	), @"
 	# Assert mode
-	[unconventional-new] /main.rs:3: `fn new` returns `Result` — rename to `try_new` to signal fallibility
-	[unconventional-new] /main.rs:9: `Foo::new` was renamed to `try_new`
-	[unconventional-new] /main.rs:14: `Foo::new` was renamed to `try_new`
+	[unconventional-new] /main.rs:3
+	HINT: `fn new` returns `Result` — rename to `try_new` to signal fallibility
+	[unconventional-new] /main.rs:9: `Foo::new`
+	HINT: `new` was renamed to `try_new`
+	[unconventional-new] /main.rs:14: `Foo::new`
+	HINT: `new` was renamed to `try_new`
 
 	# Format mode
 	struct Foo;
@@ -362,8 +378,10 @@ fn new_passed_as_a_path_is_renamed() {
 		&opts(),
 	), @"
 	# Assert mode
-	[unconventional-new] /main.rs:3: `fn new` returns `Result` — rename to `try_new` to signal fallibility
-	[unconventional-new] /main.rs:8: `Foo::new` was renamed to `try_new`
+	[unconventional-new] /main.rs:3
+	HINT: `fn new` returns `Result` — rename to `try_new` to signal fallibility
+	[unconventional-new] /main.rs:8: `Foo::new`
+	HINT: `new` was renamed to `try_new`
 
 	# Format mode
 	struct Foo;
@@ -397,8 +415,10 @@ fn new_defined_in_inline_module_renames_its_call_sites() {
 		&opts(),
 	), @"
 	# Assert mode
-	[unconventional-new] /main.rs:4: `fn new` returns `Result` — rename to `try_new` to signal fallibility
-	[unconventional-new] /main.rs:10: `Foo::new` was renamed to `try_new`
+	[unconventional-new] /main.rs:4
+	HINT: `fn new` returns `Result` — rename to `try_new` to signal fallibility
+	[unconventional-new] /main.rs:10: `Foo::new`
+	HINT: `new` was renamed to `try_new`
 
 	# Format mode
 	mod inner {

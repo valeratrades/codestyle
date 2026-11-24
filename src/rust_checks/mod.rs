@@ -171,8 +171,10 @@ pub struct Violation {
 	pub file: String,
 	pub line: usize,
 	pub column: usize,
-	pub message: String,
-	pub hint: Option<&'static str>,
+	/// general to all occurrences: printed once for the whole group
+	pub hint: &'static str,
+	/// specific to this occurrence
+	pub detail: Option<String>,
 	pub fix: Option<Fix>,
 }
 
@@ -552,7 +554,7 @@ pub fn find_crate_lib_or_main(file_path: &Path) -> Option<PathBuf> {
 
 fn render_violations(violations: &[Violation], target_dir: &Path) -> String {
 	let members = resolve_workspace_members(target_dir);
-	let mut groups: BTreeMap<(&str, Option<&str>), BTreeMap<String, Vec<&Violation>>> = BTreeMap::default();
+	let mut groups: BTreeMap<(&str, &str), BTreeMap<String, Vec<&Violation>>> = BTreeMap::default();
 	for v in violations {
 		let crate_label = match members.iter().filter(|m| Path::new(&v.file).starts_with(m)).max_by_key(|m| m.components().count()) {
 			Some(member) => format!("{}/", member.strip_prefix(target_dir).expect("members are resolved under target_dir").display()),
@@ -563,10 +565,7 @@ fn render_violations(violations: &[Violation], target_dir: &Path) -> String {
 
 	let mut out = String::new();
 	for ((rule, hint), crates) in groups {
-		out.push_str(&format!("- [{rule}]\n"));
-		if let Some(hint) = hint {
-			out.push_str(&format!("\tHINT: {hint}\n"));
-		}
+		out.push_str(&format!("- [{rule}]\n\tHINT: {hint}\n"));
 		for (crate_label, vs) in crates {
 			let indent = if members.is_empty() {
 				"\t"
@@ -575,7 +574,8 @@ fn render_violations(violations: &[Violation], target_dir: &Path) -> String {
 				"\t\t"
 			};
 			for v in vs {
-				out.push_str(&format!("{indent}- {}:{}:{}: {}\n", v.file, v.line, v.column, v.message));
+				let detail = v.detail.as_ref().map(|d| format!(": {d}")).unwrap_or_default();
+				out.push_str(&format!("{indent}- {}:{}:{}{detail}\n", v.file, v.line, v.column));
 			}
 		}
 	}

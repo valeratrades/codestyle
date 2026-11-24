@@ -104,7 +104,8 @@ fn snapshot_without_inline() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[insta-inline-snapshot] /main.rs:3: `assert_snapshot!` must use inline snapshot with `@r""` or `@""`
+	[insta-inline-snapshot] /main.rs:3: `assert_snapshot!`
+	HINT: must use inline snapshot with `@r""` or `@""`
 
 	# Format mode
 	fn test() {
@@ -126,7 +127,8 @@ fn assert_debug_snapshot_without_inline() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[insta-inline-snapshot] /main.rs:3: `assert_debug_snapshot!` must use inline snapshot with `@r""` or `@""`
+	[insta-inline-snapshot] /main.rs:3: `assert_debug_snapshot!`
+	HINT: must use inline snapshot with `@r""` or `@""`
 
 	# Format mode
 	fn test() {
@@ -148,7 +150,8 @@ fn assert_json_snapshot_without_inline() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[insta-inline-snapshot] /main.rs:3: `assert_json_snapshot!` must use inline snapshot with `@r""` or `@""`
+	[insta-inline-snapshot] /main.rs:3: `assert_json_snapshot!`
+	HINT: must use inline snapshot with `@r""` or `@""`
 
 	# Format mode
 	fn test() {
@@ -175,7 +178,8 @@ fn snapshot_in_tests_directory() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[insta-inline-snapshot] /tests/test.rs:2: `assert_snapshot!` must use inline snapshot with `@r""` or `@""`
+	[insta-inline-snapshot] /tests/test.rs:2: `assert_snapshot!`
+	HINT: must use inline snapshot with `@r""` or `@""`
 
 	# Format mode
 	//- /Cargo.toml
@@ -209,7 +213,8 @@ fn integration_test_file_with_rstest() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[insta-inline-snapshot] /tests/integration/a.rs:4: `assert_snapshot!` must use inline snapshot with `@r""` or `@""`
+	[insta-inline-snapshot] /tests/integration/a.rs:4: `assert_snapshot!`
+	HINT: must use inline snapshot with `@r""` or `@""`
 
 	# Format mode
 	//- /Cargo.toml
@@ -250,7 +255,8 @@ fn format_deletes_snap_files() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[insta-inline-snapshot] /tests/test.rs:2: `assert_snapshot!` must use inline snapshot with `@r""` or `@""`
+	[insta-inline-snapshot] /tests/test.rs:2: `assert_snapshot!`
+	HINT: must use inline snapshot with `@r""` or `@""`
 
 	# Format mode
 	//- /Cargo.toml
@@ -292,7 +298,8 @@ fn format_deletes_pending_snap_files() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[insta-inline-snapshot] /tests/test.rs:2: `assert_snapshot!` must use inline snapshot with `@r""` or `@""`
+	[insta-inline-snapshot] /tests/test.rs:2: `assert_snapshot!`
+	HINT: must use inline snapshot with `@r""` or `@""`
 
 	# Format mode
 	//- /Cargo.toml
@@ -322,7 +329,10 @@ fn sequential_snapshots_two_in_function() {
 		}
 		"#,
 		&opts(),
-	), @"[insta-sequential-snapshots] /main.rs:3: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests");
+	), @"
+	[insta-sequential-snapshots] /main.rs:3: first at line 2
+	HINT: multiple snapshot assertions in one test; join tested strings together or split into separate tests
+	");
 }
 
 #[test]
@@ -335,7 +345,10 @@ fn sequential_snapshots_different_variants() {
 		}
 		"#,
 		&opts(),
-	), @"[insta-sequential-snapshots] /main.rs:3: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests");
+	), @"
+	[insta-sequential-snapshots] /main.rs:3: first at line 2
+	HINT: multiple snapshot assertions in one test; join tested strings together or split into separate tests
+	");
 }
 
 #[test]
@@ -349,7 +362,10 @@ fn sequential_snapshots_three_in_function() {
 		}
 		"#,
 		&opts(),
-	), @"[insta-sequential-snapshots] /main.rs:3: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests");
+	), @"
+	[insta-sequential-snapshots] /main.rs:3: first at line 2
+	HINT: multiple snapshot assertions in one test; join tested strings together or split into separate tests
+	");
 }
 
 #[test]
@@ -363,7 +379,10 @@ fn sequential_snapshots_separated_by_statement() {
 		}
 		"#,
 		&opts(),
-	), @"[insta-sequential-snapshots] /main.rs:4: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests");
+	), @"
+	[insta-sequential-snapshots] /main.rs:4: first at line 2
+	HINT: multiple snapshot assertions in one test; join tested strings together or split into separate tests
+	");
 }
 
 // === Passing: snapshots in different if/else branches ===
@@ -413,9 +432,12 @@ fn multiple_violations_inline_and_sequential() {
 		"#,
 		&opts(),
 	), @r#"
-	[insta-inline-snapshot] /main.rs:2: `assert_snapshot!` must use inline snapshot with `@r""` or `@""`
-	[insta-inline-snapshot] /main.rs:4: `assert_debug_snapshot!` must use inline snapshot with `@r""` or `@""`
-	[insta-sequential-snapshots] /main.rs:3: multiple snapshot assertions in one test (first at line 2); join tested strings together or split into separate tests
+	[insta-inline-snapshot] /main.rs:2: `assert_snapshot!`
+	HINT: must use inline snapshot with `@r""` or `@""`
+	[insta-inline-snapshot] /main.rs:4: `assert_debug_snapshot!`
+	HINT: must use inline snapshot with `@r""` or `@""`
+	[insta-sequential-snapshots] /main.rs:3: first at line 2
+	HINT: multiple snapshot assertions in one test; join tested strings together or split into separate tests
 	"#);
 }
 

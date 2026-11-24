@@ -205,8 +205,8 @@ fn skip_does_not_affect_sibling_items() {
 		"#,
 		&opts_for("ignored_error"),
 	), @"
-	[ignored-error] /main.rs:9: `unwrap_or` without `//IGNORED_ERROR` comment
-	HINT: Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
+	[ignored-error] /main.rs:9: `unwrap_or`
+	HINT: `unwrap_or*` without `//IGNORED_ERROR` comment. Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
 	");
 }
 
@@ -272,8 +272,8 @@ fn without_skip_violations_are_detected() {
 		"#,
 		&opts_for("ignored_error"),
 	), @"
-	[ignored-error] /main.rs:3: `unwrap_or` without `//IGNORED_ERROR` comment
-	HINT: Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
+	[ignored-error] /main.rs:3: `unwrap_or`
+	HINT: `unwrap_or*` without `//IGNORED_ERROR` comment. Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
 	");
 }
 
@@ -307,8 +307,8 @@ fn skip_specific_rule_does_not_affect_other_rules() {
 		"#,
 		&opts_for("ignored_error"),
 	), @"
-	[ignored-error] /main.rs:4: `unwrap_or` without `//IGNORED_ERROR` comment
-	HINT: Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
+	[ignored-error] /main.rs:4: `unwrap_or`
+	HINT: `unwrap_or*` without `//IGNORED_ERROR` comment. Error out properly or explain why it's part of the intended logic and simply erroring out / panicking is not an option.
 	");
 }
 

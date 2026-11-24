@@ -33,7 +33,7 @@ impl ChronoVisitor {
 		}
 	}
 
-	fn report_chrono_usage(&mut self, span: Span, context: &str) {
+	fn report_chrono_usage(&mut self, span: Span, context: Option<&str>) {
 		let key = (span.start().line, span.start().column);
 		if self.seen_spans.contains(&key) {
 			return;
@@ -42,11 +42,11 @@ impl ChronoVisitor {
 
 		self.violations.push(Violation {
 			rule: RULE,
-			hint: None,
+			hint: "usage of `chrono` crate is disallowed; use `jiff` crate instead",
 			file: self.path_str.clone(),
 			line: span.start().line,
 			column: span.start().column,
-			message: format!("Usage of `chrono` crate is disallowed{context}. Use `jiff` crate instead."),
+			detail: context.map(str::to_string),
 			fix: None, // No auto-fix - requires manual migration
 		});
 	}
@@ -57,17 +57,17 @@ impl ChronoVisitor {
 				let ident = path.ident.to_string();
 				let new_prefix = if prefix.is_empty() { ident.clone() } else { format!("{prefix}::{ident}") };
 				if ident == "chrono" {
-					self.report_chrono_usage(path.ident.span(), " in use statement");
+					self.report_chrono_usage(path.ident.span(), Some("in use statement"));
 				}
 				self.check_use_tree(&path.tree, &new_prefix);
 			}
 			UseTree::Name(name) =>
 				if name.ident == "chrono" {
-					self.report_chrono_usage(name.ident.span(), " in use statement");
+					self.report_chrono_usage(name.ident.span(), Some("in use statement"));
 				},
 			UseTree::Rename(rename) =>
 				if rename.ident == "chrono" {
-					self.report_chrono_usage(rename.ident.span(), " in use statement");
+					self.report_chrono_usage(rename.ident.span(), Some("in use statement"));
 				},
 			UseTree::Glob(_) => {}
 			UseTree::Group(group) =>
@@ -81,7 +81,7 @@ impl ChronoVisitor {
 		if let Some(first_segment) = path.segments.first()
 			&& first_segment.ident == "chrono"
 		{
-			self.report_chrono_usage(first_segment.ident.span(), "");
+			self.report_chrono_usage(first_segment.ident.span(), None);
 		}
 	}
 }

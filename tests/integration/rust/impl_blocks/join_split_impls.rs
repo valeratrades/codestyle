@@ -155,7 +155,8 @@ fn two_consecutive_impl_blocks() {
 		&opts(),
 	), @"
 	# Assert mode
-	[join-split-impls] /main.rs:5: split `impl Foo` blocks should be joined into one
+	[join-split-impls] /main.rs:5: `impl Foo`
+	HINT: split `impl` blocks should be joined into one
 
 	# Format mode
 	struct Foo;
@@ -184,7 +185,8 @@ fn impl_blocks_with_code_in_between() {
 		&opts(),
 	), @"
 	# Assert mode
-	[join-split-impls] /main.rs:8: split `impl Foo` blocks should be joined into one
+	[join-split-impls] /main.rs:8: `impl Foo`
+	HINT: split `impl` blocks should be joined into one
 
 	# Format mode
 	struct Foo;
@@ -215,7 +217,8 @@ fn three_impl_blocks() {
 		&opts(),
 	), @"
 	# Assert mode
-	[join-split-impls] /main.rs:5: split `impl Foo` blocks should be joined into one
+	[join-split-impls] /main.rs:5: `impl Foo`
+	HINT: split `impl` blocks should be joined into one
 
 	# Format mode
 	struct Foo;
@@ -245,7 +248,8 @@ fn join_preserves_existing_fold_markers() {
 		&opts(),
 	), @"
 	# Assert mode
-	[join-split-impls] /main.rs:6: split `impl Foo` blocks should be joined into one
+	[join-split-impls] /main.rs:6: `impl Foo`
+	HINT: split `impl` blocks should be joined into one
 
 	# Format mode
 	struct Foo;
@@ -282,7 +286,8 @@ fn join_with_multibyte_char_in_second_doc_comment() {
 		&opts(),
 	), @"
 	# Assert mode
-	[join-split-impls] /main.rs:8: split `impl Foo` blocks should be joined into one
+	[join-split-impls] /main.rs:8: `impl Foo`
+	HINT: split `impl` blocks should be joined into one
 
 	# Format mode
 	struct Foo;
@@ -317,23 +322,24 @@ fn join_preserves_nested_indentation() {
 		}
 		"#,
 		&opts(),
-	), @"
+	), @r#"
 	# Assert mode
-	[join-split-impls] /main.rs:9: split `impl Foo` blocks should be joined into one
+	[join-split-impls] /main.rs:9: `impl Foo`
+	HINT: split `impl` blocks should be joined into one
 
 	# Format mode
 	struct Foo;
 	impl Foo {
 		fn one() {
 			if true {
-				println!(\"nested\");
+				println!("nested");
 			}
 		}
 		fn two() {
 			for i in 0..10 {
-				println!(\"{i}\");
+				println!("{i}");
 			}
 		}
 	}
-	");
+	"#);
 }

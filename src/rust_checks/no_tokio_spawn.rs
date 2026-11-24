@@ -11,7 +11,6 @@ use syn::{Attribute, Expr, ExprCall, ExprPath, ItemFn, ItemMod, Meta, spanned::S
 use super::{Violation, skip::SkipVisitor};
 
 const RULE: &str = "no-tokio-spawn";
-const GO_STATEMENT_HARMFUL_URL: &str = "https://vorpus.org/blog/notes-on-structured-concurrency-or-go-statement-considered-harmful/";
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let visitor = TokioSpawnVisitor::new(path);
 	let mut skip_visitor = SkipVisitor::for_rule(visitor, content, RULE);
@@ -40,14 +39,11 @@ impl TokioSpawnVisitor {
 	fn report_tokio_spawn(&mut self, span: Span, variant: &str) {
 		self.violations.push(Violation {
 			rule: RULE,
-			hint: None,
+			hint: "unstructured concurrency makes code harder to reason about. See: https://vorpus.org/blog/notes-on-structured-concurrency-or-go-statement-considered-harmful/",
 			file: self.path_str.clone(),
 			line: span.start().line,
 			column: span.start().column,
-			message: format!(
-				"Usage of `{variant}` is disallowed. Unstructured concurrency makes code harder to reason about. \
-				 See: {GO_STATEMENT_HARMFUL_URL}"
-			),
+			detail: Some(format!("`{variant}`")),
 			fix: None, // No auto-fix - requires architectural changes
 		});
 	}

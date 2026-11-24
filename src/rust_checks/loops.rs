@@ -44,11 +44,11 @@ fn check_expr_for_loops(expr: &Expr, file_contents: &str, file_path: &str, viola
 			if !has_marker_comment(file_contents, span_start.line, "LOOP") {
 				violations.push(Violation {
 					rule: RULE,
-					hint: Some("try to rewrite the loop with `while let` or justify why a bound can't be enforced"),
+					hint: "endless loop without `//LOOP` comment; try to rewrite the loop with `while let` or justify why a bound can't be enforced",
 					file: file_path.to_string(),
 					line: span_start.line,
 					column: span_start.column,
-					message: "Endless loop without `//LOOP` comment".to_string(),
+					detail: None,
 					fix: None,
 				});
 			}

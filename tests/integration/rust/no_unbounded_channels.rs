@@ -52,11 +52,11 @@ fn unbounded_constructors() {
 		"#,
 		&opts(),
 	), @"
-	[no-unbounded-channels] /main.rs:5: `tokio::sync::mpsc::unbounded_channel` creates an unbounded queue
-	HINT: bound it (`channel(cap)` / `bounded(cap)` / `sync_channel(cap)`), or justify with a `//UNBOUNDED` comment
-	[no-unbounded-channels] /main.rs:6: `unbounded` creates an unbounded queue
-	HINT: bound it (`channel(cap)` / `bounded(cap)` / `sync_channel(cap)`), or justify with a `//UNBOUNDED` comment
-	[no-unbounded-channels] /main.rs:7: `mpsc::channel` creates an unbounded queue
-	HINT: bound it (`channel(cap)` / `bounded(cap)` / `sync_channel(cap)`), or justify with a `//UNBOUNDED` comment
+	[no-unbounded-channels] /main.rs:5: `tokio::sync::mpsc::unbounded_channel`
+	HINT: creates an unbounded queue; bound it (`channel(cap)` / `bounded(cap)` / `sync_channel(cap)`), or justify with a `//UNBOUNDED` comment
+	[no-unbounded-channels] /main.rs:6: `unbounded`
+	HINT: creates an unbounded queue; bound it (`channel(cap)` / `bounded(cap)` / `sync_channel(cap)`), or justify with a `//UNBOUNDED` comment
+	[no-unbounded-channels] /main.rs:7: `mpsc::channel`
+	HINT: creates an unbounded queue; bound it (`channel(cap)` / `bounded(cap)` / `sync_channel(cap)`), or justify with a `//UNBOUNDED` comment
 	");
 }

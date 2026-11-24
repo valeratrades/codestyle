@@ -175,14 +175,11 @@ impl<'a> FormatMacroVisitor<'a> {
 			};
 			self.violations.push(Violation {
 				rule: RULE,
-				hint: None,
+				hint: "variables should be embedded in the format string",
 				file: self.path_str.clone(),
 				line: arg_span.start().line,
 				column: arg_span.start().column,
-				message: format!(
-					"variable `{arg_str}` should be embedded in format string: use `{{{arg_str}{}}}` instead of `{spec_display}, {arg_str}`",
-					placeholder.specifier
-				),
+				detail: Some(format!("use `{{{arg_str}{}}}` instead of `{spec_display}, {arg_str}`", placeholder.specifier)),
 				fix: fix.clone(),
 			});
 		}

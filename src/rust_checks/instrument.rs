@@ -26,11 +26,11 @@ pub fn check_instrument(file_info: &FileInfo) -> Vec<Violation> {
 		let span_start = func.sig.ident.span().start();
 		violations.push(Violation {
 			rule: RULE,
-			hint: None,
+			hint: "no #[instrument] on async fn",
 			file: path_str.clone(),
 			line: span_start.line,
 			column: span_start.column,
-			message: format!("No #[instrument] on async fn `{}`", func.sig.ident),
+			detail: Some(format!("`{}`", func.sig.ident)),
 			fix: None,
 		});
 	}

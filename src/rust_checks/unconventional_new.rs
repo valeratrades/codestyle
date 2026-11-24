@@ -85,11 +85,11 @@ impl<'a> UnconventionalNewVisitor<'a> {
 		});
 		self.violations.push(Violation {
 			rule: RULE,
-			hint: None,
+			hint: "`fn new` returns `Result` — rename to `try_new` to signal fallibility",
 			file: self.path_str.clone(),
 			line: span.start().line,
 			column: span.start().column,
-			message: "`fn new` returns `Result` — rename to `try_new` to signal fallibility".to_string(),
+			detail: None,
 			fix,
 		});
 	}
@@ -122,11 +122,11 @@ impl<'a> UnconventionalNewVisitor<'a> {
 		});
 		self.violations.push(Violation {
 			rule: RULE,
-			hint: None,
+			hint: "`new` was renamed to `try_new`",
 			file: self.path_str.clone(),
 			line: span.start().line,
 			column: span.start().column,
-			message: format!("`{type_name}::new` was renamed to `try_new`"),
+			detail: Some(format!("`{type_name}::new`")),
 			fix,
 		});
 	}

@@ -55,11 +55,11 @@ impl<'a> TestFnPrefixVisitor<'a> {
 
 		self.violations.push(Violation {
 			rule: RULE,
-			hint: None,
+			hint: "test function has redundant `test_` prefix",
 			file: self.path_str.clone(),
 			line: span.start().line,
 			column: span.start().column,
-			message: format!("test function `{fn_name}` has redundant `test_` prefix"),
+			detail: Some(format!("`{fn_name}`")),
 			fix,
 		});
 	}

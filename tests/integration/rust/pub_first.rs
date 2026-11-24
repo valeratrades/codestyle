@@ -103,7 +103,8 @@ fn private_before_pub_struct() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:2: public item should come before private items
+	[pub-first] /main.rs:2
+	HINT: public item should come before private items
 
 	# Format mode
 	pub struct Public;
@@ -121,7 +122,8 @@ fn private_fn_before_pub_fn() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:2: public item should come before private items
+	[pub-first] /main.rs:2
+	HINT: public item should come before private items
 
 	# Format mode
 	pub fn public() {}
@@ -141,7 +143,8 @@ fn mixed_items_need_reordering() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:2: public item should come before private items
+	[pub-first] /main.rs:2
+	HINT: public item should come before private items
 
 	# Format mode
 	pub struct Foo;
@@ -161,7 +164,8 @@ fn main_not_first_in_pub_category() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:2: `main` function should be at the top of its visibility category (after clap types)
+	[pub-first] /main.rs:2
+	HINT: `main` function should be at the top of its visibility category (after clap types)
 
 	# Format mode
 	pub fn main() {}
@@ -180,7 +184,8 @@ fn main_not_first_in_private_category() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:3: `main` function should be at the top of its visibility category (after clap types)
+	[pub-first] /main.rs:3
+	HINT: `main` function should be at the top of its visibility category (after clap types)
 
 	# Format mode
 	pub fn public() {}
@@ -203,7 +208,8 @@ fn complex_reordering() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:2: public item should come before private items
+	[pub-first] /main.rs:2
+	HINT: public item should come before private items
 
 	# Format mode
 	pub fn main() {}
@@ -228,7 +234,8 @@ fn parser_struct_above_main() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:2: Parser struct should be at the top of its visibility category
+	[pub-first] /main.rs:2
+	HINT: Parser struct should be at the top of its visibility category
 
 	# Format mode
 	#[derive(Parser)]
@@ -273,7 +280,8 @@ fn subcommand_between_parser_and_main() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:4: Subcommand enum should come after Parser
+	[pub-first] /main.rs:4
+	HINT: Subcommand enum should come after Parser
 
 	# Format mode
 	#[derive(Parser)]
@@ -311,7 +319,8 @@ fn subcommand_with_clap_path() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:4: Subcommand enum should come after Parser
+	[pub-first] /main.rs:4
+	HINT: Subcommand enum should come after Parser
 
 	# Format mode
 	#[derive(clap::Parser)]
@@ -337,7 +346,8 @@ fn args_between_subcommand_and_main() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:6: Args struct should come after Subcommand
+	[pub-first] /main.rs:6
+	HINT: Args struct should come after Subcommand
 
 	# Format mode
 	#[derive(Parser)]
@@ -383,7 +393,8 @@ fn full_clap_ordering() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:7: Parser struct should be at the top of its visibility category
+	[pub-first] /main.rs:7
+	HINT: Parser struct should be at the top of its visibility category
 
 	# Format mode
 	#[derive(Parser)]
@@ -411,7 +422,8 @@ fn clap_ordering_without_main() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:4: Parser struct should be at the top of its visibility category
+	[pub-first] /main.rs:4
+	HINT: Parser struct should be at the top of its visibility category
 
 	# Format mode
 	#[derive(Parser)]
@@ -455,7 +467,8 @@ fn impl_blocks_preserved_during_reorder() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:3: public item should come before private items
+	[pub-first] /main.rs:3
+	HINT: public item should come before private items
 
 	# Format mode
 	pub struct Foo;
@@ -484,7 +497,8 @@ fn doc_comments_preserved_during_reorder() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:4: public item should come before private items
+	[pub-first] /main.rs:4
+	HINT: public item should come before private items
 
 	# Format mode
 	/// Public struct
@@ -509,7 +523,8 @@ fn attributes_preserved_during_reorder() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:4: public item should come before private items
+	[pub-first] /main.rs:4
+	HINT: public item should come before private items
 
 	# Format mode
 	#[derive(Debug)]
@@ -536,7 +551,8 @@ fn blank_lines_preserved_during_reorder() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:5: public item should come before private items
+	[pub-first] /main.rs:5
+	HINT: public item should come before private items
 
 	# Format mode
 	pub fn public1() {}
@@ -569,7 +585,8 @@ fn trait_impl_preserved_during_reorder() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:3: public item should come before private items
+	[pub-first] /main.rs:3
+	HINT: public item should come before private items
 
 	# Format mode
 	pub struct Foo;
@@ -600,7 +617,8 @@ fn use_statements_at_top_preserved() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:5: public item should come before private items
+	[pub-first] /main.rs:5
+	HINT: public item should come before private items
 
 	# Format mode
 	use std::io;
@@ -625,7 +643,8 @@ fn static_preserved_during_reorder() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[pub-first] /main.rs:5: public item should come before private items
+	[pub-first] /main.rs:5
+	HINT: public item should come before private items
 
 	# Format mode
 	pub fn public() {}
@@ -682,7 +701,8 @@ fn private_const_before_pub_const_needs_reordering() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:2: public `const` should come before private ones
+	[pub-first] /main.rs:2
+	HINT: public `const` should come before private ones
 
 	# Format mode
 	pub const VERSION: u32 = 1;
@@ -701,7 +721,8 @@ fn private_type_before_pub_type_needs_reordering() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:3: public `type` should come before private ones
+	[pub-first] /main.rs:3
+	HINT: public `type` should come before private ones
 
 	# Format mode
 	const A: u32 = 1;
@@ -718,14 +739,15 @@ fn const_after_type_needs_reordering() {
 		pub const VERSION: &str = "1.0";
 		"#,
 		&opts(),
-	), @"
+	), @r#"
 	# Assert mode
-	[pub-first] /main.rs:2: `const` should come before all other items
+	[pub-first] /main.rs:2
+	HINT: `const` should come before all other items
 
 	# Format mode
-	pub const VERSION: &str = \"1.0\";
+	pub const VERSION: &str = "1.0";
 	pub type MyInt = i32;
-	");
+	"#);
 }
 
 #[test]
@@ -738,7 +760,8 @@ fn const_after_fn_needs_reordering() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:2: `const` should come before all other items
+	[pub-first] /main.rs:2
+	HINT: `const` should come before all other items
 
 	# Format mode
 	const VERSION: u32 = 1;
@@ -756,7 +779,8 @@ fn type_after_fn_needs_reordering() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:2: `type` should come before all other items (after const)
+	[pub-first] /main.rs:2
+	HINT: `type` should come before all other items (after const)
 
 	# Format mode
 	type MyInt = i32;
@@ -774,7 +798,8 @@ fn type_after_struct_needs_reordering() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:2: `type` should come before all other items (after const)
+	[pub-first] /main.rs:2
+	HINT: `type` should come before all other items (after const)
 
 	# Format mode
 	pub type MyInt = i32;
@@ -793,7 +818,8 @@ fn private_const_after_pub_fn_needs_reordering() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:2: `const` should come before all other items
+	[pub-first] /main.rs:2
+	HINT: `const` should come before all other items
 
 	# Format mode
 	const INTERNAL: u32 = 42;
@@ -812,7 +838,8 @@ fn private_type_after_pub_fn_needs_reordering() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:2: `type` should come before all other items (after const)
+	[pub-first] /main.rs:2
+	HINT: `type` should come before all other items (after const)
 
 	# Format mode
 	type InternalInt = i64;
@@ -830,7 +857,8 @@ fn pub_trait_not_first_in_pub_category() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:2: `trait` should be at the top of its visibility category (after main)
+	[pub-first] /main.rs:2
+	HINT: `trait` should be at the top of its visibility category (after main)
 
 	# Format mode
 	pub trait MyTrait {}
@@ -849,7 +877,8 @@ fn private_trait_not_first_in_private_category() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:3: `trait` should be at the top of its visibility category (after main)
+	[pub-first] /main.rs:3
+	HINT: `trait` should be at the top of its visibility category (after main)
 
 	# Format mode
 	pub fn public() {}
@@ -878,7 +907,8 @@ fn full_ordering_combined() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[pub-first] /main.rs:5: `const` should come before all other items
+	[pub-first] /main.rs:5
+	HINT: `const` should come before all other items
 
 	# Format mode
 	pub const VERSION: &str = "1.0";
@@ -912,7 +942,8 @@ fn main_not_moved_above_mod_and_use() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:8: `main` function should be at the top of its visibility category (after clap types)
+	[pub-first] /main.rs:8
+	HINT: `main` function should be at the top of its visibility category (after clap types)
 
 	# Format mode
 	mod foo;
@@ -945,7 +976,8 @@ fn clap_parser_not_moved_above_mod_and_use() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:7: Parser struct should be at the top of its visibility category
+	[pub-first] /main.rs:7
+	HINT: Parser struct should be at the top of its visibility category
 
 	# Format mode
 	mod foo;
@@ -976,7 +1008,8 @@ fn pub_item_not_moved_above_mod_and_use() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:6: public item should come before private items
+	[pub-first] /main.rs:6
+	HINT: public item should come before private items
 
 	# Format mode
 	mod foo;
@@ -1003,7 +1036,8 @@ fn const_not_moved_above_mod() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:6: `const` should come before all other items
+	[pub-first] /main.rs:6
+	HINT: `const` should come before all other items
 
 	# Format mode
 	mod foo;
@@ -1031,7 +1065,8 @@ fn mod_between_clap_items_not_scrambled() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:6: Subcommand enum should come after Parser
+	[pub-first] /main.rs:6
+	HINT: Subcommand enum should come after Parser
 
 	# Format mode
 	mod foo;
@@ -1069,7 +1104,8 @@ fn code_items_above_trailing_mod_and_use() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[pub-first] /main.rs:4: item should come after mod/use declarations
+	[pub-first] /main.rs:4
+	HINT: item should come after mod/use declarations
 
 	# Format mode
 	const PATH: &str = "foo/";
@@ -1150,7 +1186,8 @@ fn private_before_pub_not_moved_past_test_module() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:5: public item should come before private items
+	[pub-first] /main.rs:5
+	HINT: public item should come before private items
 
 	# Format mode
 	use std::fmt;
@@ -1181,7 +1218,8 @@ fn multibyte_doc_comment_before_item() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:4: public item should come before private items
+	[pub-first] /main.rs:4
+	HINT: public item should come before private items
 
 	# Format mode
 	/// ─── public ───
@@ -1244,7 +1282,8 @@ fn type_alias_not_referencing_local_type_still_moves_to_top() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:2: `type` should come before all other items (after const)
+	[pub-first] /main.rs:2
+	HINT: `type` should come before all other items (after const)
 
 	# Format mode
 	type MyInt = i32;
@@ -1282,7 +1321,8 @@ fn type_alias_referencing_local_type_respects_pub_ordering() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:6: public item should come before private items
+	[pub-first] /main.rs:6
+	HINT: public item should come before private items
 
 	# Format mode
 	pub fn run() {}
@@ -1318,7 +1358,8 @@ fn moved_items_keep_one_blank_line_between_items() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:9: public item should come before private items
+	[pub-first] /main.rs:9
+	HINT: public item should come before private items
 
 	# Format mode
 	pub enum Aim {}
@@ -1355,7 +1396,8 @@ fn item_moved_below_anchors_leaves_no_double_blank_line() {
 		&opts(),
 	), @"
 	# Assert mode
-	[pub-first] /main.rs:3: item should come after mod/use declarations
+	[pub-first] /main.rs:3
+	HINT: item should come after mod/use declarations
 
 	# Format mode
 	use std::io;
@@ -1389,7 +1431,8 @@ fn pub_fn_using_macro_is_not_hoisted_above_its_definition() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[pub-first] /main.rs:9: public item should come before private items
+	[pub-first] /main.rs:9
+	HINT: public item should come before private items
 
 	# Format mode
 	macro_rules! columns {
@@ -1428,7 +1471,8 @@ fn pub_fn_using_macro_from_macro_use_mod_is_not_hoisted_above_it() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[pub-first] /main.rs:12: public item should come before private items
+	[pub-first] /main.rs:12
+	HINT: public item should come before private items
 
 	# Format mode
 	#[macro_use]
@@ -1465,7 +1509,8 @@ fn pub_fn_not_using_macro_does_not_drag_it_along() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[pub-first] /main.rs:9: public item should come before private items
+	[pub-first] /main.rs:9
+	HINT: public item should come before private items
 
 	# Format mode
 	pub fn get() {}
@@ -1500,7 +1545,8 @@ fn macro_reexport_travels_with_its_definition() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[pub-first] /main.rs:10: public item should come before private items
+	[pub-first] /main.rs:10
+	HINT: public item should come before private items
 
 	# Format mode
 	macro_rules! columns {
@@ -1536,7 +1582,8 @@ fn macro_reexport_is_not_hoisted_above_its_definition() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[pub-first] /main.rs:10: public item should come before private items
+	[pub-first] /main.rs:10
+	HINT: public item should come before private items
 
 	# Format mode
 	pub fn get() {}
@@ -1573,7 +1620,8 @@ fn line_comment_above_item_travels_with_it() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[pub-first] /main.rs:11: public item should come before private items
+	[pub-first] /main.rs:11
+	HINT: public item should come before private items
 
 	# Format mode
 	// Macros, not consts, so every query stays a literal.

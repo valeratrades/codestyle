@@ -76,11 +76,11 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 			let fix = create_move_fix(content, &items, anchor_ranges, i, target_idx);
 			return vec![Violation {
 				rule: RULE,
-				hint: None,
+				hint: "`const` should come before all other items",
 				file: path_str,
 				line: item.start_line,
 				column: 0,
-				message: "`const` should come before all other items".to_string(),
+				detail: None,
 				fix,
 			}];
 		}
@@ -102,11 +102,11 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 			let fix = create_move_fix(content, &items, anchor_ranges, i, target_idx);
 			return vec![Violation {
 				rule: RULE,
-				hint: None,
+				hint: "`type` should come before all other items (after const)",
 				file: path_str,
 				line: item.start_line,
 				column: 0,
-				message: "`type` should come before all other items (after const)".to_string(),
+				detail: None,
 				fix,
 			}];
 		}
@@ -133,11 +133,11 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 			let fix = create_move_fix(content, &items, anchor_ranges, i, target_idx);
 			return vec![Violation {
 				rule: RULE,
-				hint: None,
+				hint: "public item should come before private items",
 				file: path_str,
 				line: item.start_line,
 				column: 0,
-				message: "public item should come before private items".to_string(),
+				detail: None,
 				fix,
 			}];
 		}
@@ -155,31 +155,31 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 				is_pub,
 				is_target: |item: &ItemInfo| item.is_parser,
 				is_higher_priority: |_: &ItemInfo| false,
-				message: "Parser struct should be at the top of its visibility category",
+				hint: "Parser struct should be at the top of its visibility category",
 			},
 			KindRule {
 				is_pub,
 				is_target: |item: &ItemInfo| item.is_subcommand,
 				is_higher_priority: |item: &ItemInfo| item.is_parser,
-				message: "Subcommand enum should come after Parser",
+				hint: "Subcommand enum should come after Parser",
 			},
 			KindRule {
 				is_pub,
 				is_target: |item: &ItemInfo| item.is_args,
 				is_higher_priority: |item: &ItemInfo| item.is_parser || item.is_subcommand,
-				message: "Args struct should come after Subcommand",
+				hint: "Args struct should come after Subcommand",
 			},
 			KindRule {
 				is_pub,
 				is_target: |item: &ItemInfo| item.is_main_fn,
 				is_higher_priority: |item: &ItemInfo| is_clap(item),
-				message: "`main` function should be at the top of its visibility category (after clap types)",
+				hint: "`main` function should be at the top of its visibility category (after clap types)",
 			},
 			KindRule {
 				is_pub,
 				is_target: |item: &ItemInfo| item.is_trait,
 				is_higher_priority: |item: &ItemInfo| is_clap(item) || item.is_main_fn,
-				message: "`trait` should be at the top of its visibility category (after main)",
+				hint: "`trait` should be at the top of its visibility category (after main)",
 			},
 		]
 	});
@@ -224,11 +224,11 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 
 			return vec![Violation {
 				rule: RULE,
-				hint: None,
+				hint: "item should come after mod/use declarations",
 				file: path_str,
 				line: item.start_line,
 				column: 0,
-				message: "item should come after mod/use declarations".to_string(),
+				detail: None,
 				fix: Some(Fix {
 					start_byte: item.text_start,
 					end_byte: insert_pos,
@@ -243,7 +243,7 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 
 /// Within the const/type sections, pub items come before private ones.
 //#[codestyle::skip(swappable-args)]
-fn check_pub_within_section(items: &[ItemInfo], anchor_ranges: &[Anchor], content: &str, path_str: &str, in_section: fn(&ItemInfo) -> bool, message: &str) -> Option<Violation> {
+fn check_pub_within_section(items: &[ItemInfo], anchor_ranges: &[Anchor], content: &str, path_str: &str, in_section: fn(&ItemInfo) -> bool, hint: &'static str) -> Option<Violation> {
 	let mut first_private_idx: Option<usize> = None;
 	for (i, item) in items.iter().enumerate() {
 		if !in_section(item) {
@@ -257,11 +257,11 @@ fn check_pub_within_section(items: &[ItemInfo], anchor_ranges: &[Anchor], conten
 		{
 			return Some(Violation {
 				rule: RULE,
-				hint: None,
+				hint,
 				file: path_str.to_string(),
 				line: item.start_line,
 				column: 0,
-				message: message.to_string(),
+				detail: None,
 				fix: create_move_fix(content, items, anchor_ranges, i, target_idx),
 			});
 		}
@@ -273,7 +273,7 @@ struct KindRule {
 	is_pub: bool,
 	is_target: fn(&ItemInfo) -> bool,
 	is_higher_priority: fn(&ItemInfo) -> bool,
-	message: &'static str,
+	hint: &'static str,
 }
 
 /// Check that items of a specific kind (main/trait/struct) appear before lower-priority items
@@ -292,11 +292,11 @@ fn check_kind_ordering(items: &[ItemInfo], anchor_ranges: &[Anchor], content: &s
 				let fix = create_move_fix(content, items, anchor_ranges, i, target_idx);
 				return Some(Violation {
 					rule: RULE,
-					hint: None,
+					hint: rule.hint,
 					file: path_str.to_string(),
 					line: item.start_line,
 					column: 0,
-					message: rule.message.to_string(),
+					detail: None,
 					fix,
 				});
 			}

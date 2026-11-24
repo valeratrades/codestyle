@@ -40,7 +40,8 @@ fn test_fn_with_test_prefix() {
 		&opts(),
 	), @"
 	# Assert mode
-	[test-fn-prefix] /main.rs:2: test function `test_something` has redundant `test_` prefix
+	[test-fn-prefix] /main.rs:2: `test_something`
+	HINT: test function has redundant `test_` prefix
 
 	# Format mode
 	#[test]
@@ -58,7 +59,8 @@ fn rstest_fn_with_test_prefix() {
 		&opts(),
 	), @"
 	# Assert mode
-	[test-fn-prefix] /main.rs:2: test function `test_foo_bar` has redundant `test_` prefix
+	[test-fn-prefix] /main.rs:2: `test_foo_bar`
+	HINT: test function has redundant `test_` prefix
 
 	# Format mode
 	#[rstest]
@@ -82,8 +84,10 @@ fn multiple_test_fns_with_prefix() {
 		&opts(),
 	), @"
 	# Assert mode
-	[test-fn-prefix] /main.rs:2: test function `test_first` has redundant `test_` prefix
-	[test-fn-prefix] /main.rs:5: test function `test_second` has redundant `test_` prefix
+	[test-fn-prefix] /main.rs:2: `test_first`
+	HINT: test function has redundant `test_` prefix
+	[test-fn-prefix] /main.rs:5: `test_second`
+	HINT: test function has redundant `test_` prefix
 
 	# Format mode
 	#[test]
@@ -107,7 +111,8 @@ fn tokio_test_with_prefix() {
 		&opts(),
 	), @"
 	# Assert mode
-	[test-fn-prefix] /main.rs:2: test function `test_async_thing` has redundant `test_` prefix
+	[test-fn-prefix] /main.rs:2: `test_async_thing`
+	HINT: test function has redundant `test_` prefix
 
 	# Format mode
 	#[tokio::test]

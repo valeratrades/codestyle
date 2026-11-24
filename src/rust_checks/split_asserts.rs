@@ -44,11 +44,11 @@ impl SplitAssertsVisitor<'_> {
 		let start = mac.path.span().start();
 		self.violations.push(Violation {
 			rule: RULE,
-			hint: None,
+			hint: "assert over `&&`: split into one per condition, so a failure points at the exact one",
 			file: self.path_str.clone(),
 			line: start.line,
 			column: start.column,
-			message: format!("`{name}!` over `&&`: split into one `{name}!` per condition, so a failure points at the exact one"),
+			detail: Some(format!("`{name}!`")),
 			fix: fix_end.and_then(|end| self.split_fix(mac, cond, &conjuncts, end)),
 		});
 	}

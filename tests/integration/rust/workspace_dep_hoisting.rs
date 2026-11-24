@@ -1,18 +1,13 @@
 use codestyle::rust_checks::workspace_dep_hoisting;
 use v_fixtures::Fixture;
 
+use crate::utils::render_violation;
+
 fn check_fixture(fixture_str: &str) -> Vec<String> {
 	let fixture = Fixture::parse(fixture_str);
 	let temp = fixture.write_to_tempdir();
 	let violations = workspace_dep_hoisting::check(&temp.root);
-	violations
-		.iter()
-		.map(|v| {
-			let relative_path = v.file.strip_prefix(temp.root.to_str().unwrap_or("")).unwrap_or(&v.file);
-			let relative_path = relative_path.trim_start_matches('/');
-			format!("[{}] /{relative_path}:{}: {}", v.rule, v.line, v.message)
-		})
-		.collect()
+	violations.iter().map(|v| render_violation(v, &temp.root)).collect()
 }
 
 // === Passing cases ===
@@ -139,7 +134,10 @@ fn shared_dep_not_hoisted_is_flagged() {
 		tokio = "1"
 	"#,
 	);
-	insta::assert_snapshot!(violations.join("\n"), @"[workspace-dep-hoisting] /Cargo.toml:1: dependency `tokio` is used by 2 members (crate-a, crate-b) but not declared in [workspace.dependencies]");
+	insta::assert_snapshot!(violations.join("\n"), @"
+	[workspace-dep-hoisting] /Cargo.toml:1: `tokio` is used by 2 members (crate-a, crate-b)
+	HINT: dependency used by several members must be declared in [workspace.dependencies]
+	");
 }
 
 #[test]
@@ -167,9 +165,11 @@ fn multiple_shared_deps_all_flagged() {
 		tokio = "1"
 	"#,
 	);
-	insta::assert_snapshot!(violations.join("\n"), @r"
-	[workspace-dep-hoisting] /Cargo.toml:1: dependency `serde` is used by 2 members (crate-a, crate-b) but not declared in [workspace.dependencies]
-	[workspace-dep-hoisting] /Cargo.toml:1: dependency `tokio` is used by 2 members (crate-a, crate-b) but not declared in [workspace.dependencies]
+	insta::assert_snapshot!(violations.join("\n"), @"
+	[workspace-dep-hoisting] /Cargo.toml:1: `serde` is used by 2 members (crate-a, crate-b)
+	HINT: dependency used by several members must be declared in [workspace.dependencies]
+	[workspace-dep-hoisting] /Cargo.toml:1: `tokio` is used by 2 members (crate-a, crate-b)
+	HINT: dependency used by several members must be declared in [workspace.dependencies]
 	");
 }
 
@@ -201,7 +201,10 @@ fn partial_hoisting_only_flags_missing() {
 		tokio = "1"
 	"#,
 	);
-	insta::assert_snapshot!(violations.join("\n"), @"[workspace-dep-hoisting] /Cargo.toml:1: dependency `tokio` is used by 2 members (crate-a, crate-b) but not declared in [workspace.dependencies]");
+	insta::assert_snapshot!(violations.join("\n"), @"
+	[workspace-dep-hoisting] /Cargo.toml:1: `tokio` is used by 2 members (crate-a, crate-b)
+	HINT: dependency used by several members must be declared in [workspace.dependencies]
+	");
 }
 
 #[test]
@@ -227,7 +230,10 @@ fn dev_dependencies_also_checked() {
 		insta = "1"
 	"#,
 	);
-	insta::assert_snapshot!(violations.join("\n"), @"[workspace-dep-hoisting] /Cargo.toml:1: dependency `insta` is used by 2 members (crate-a, crate-b) but not declared in [workspace.dependencies]");
+	insta::assert_snapshot!(violations.join("\n"), @"
+	[workspace-dep-hoisting] /Cargo.toml:1: `insta` is used by 2 members (crate-a, crate-b)
+	HINT: dependency used by several members must be declared in [workspace.dependencies]
+	");
 }
 
 #[test]
@@ -260,5 +266,8 @@ fn three_member_shared_dep_shows_all() {
 		tokio = "1"
 	"#,
 	);
-	insta::assert_snapshot!(violations.join("\n"), @"[workspace-dep-hoisting] /Cargo.toml:1: dependency `tokio` is used by 3 members (crate-a, crate-b, crate-c) but not declared in [workspace.dependencies]");
+	insta::assert_snapshot!(violations.join("\n"), @"
+	[workspace-dep-hoisting] /Cargo.toml:1: `tokio` is used by 3 members (crate-a, crate-b, crate-c)
+	HINT: dependency used by several members must be declared in [workspace.dependencies]
+	");
 }

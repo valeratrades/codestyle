@@ -92,11 +92,11 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 
 		violations.push(Violation {
 			rule: RULE,
-			hint: None,
+			hint: "`impl Default` can be inlined as field defaults (RFC 3681)",
 			file: path_str.clone(),
 			line: struct_item.span().start().line,
 			column: struct_item.span().start().column,
-			message: format!("`impl Default for {}` can be inlined as field defaults (RFC 3681)", struct_item.ident),
+			detail: Some(format!("`{}`", struct_item.ident)),
 			fix,
 		});
 	}

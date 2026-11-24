@@ -49,11 +49,16 @@ fn order_join_before_follows() {
 		&all_impl_opts(),
 	), @"
 	# Assert mode
-	[join-split-impls] /main.rs:13: split `impl Foo` blocks should be joined into one
-	[impl-folds] /main.rs:7: impl block missing vim fold markers
-	[impl-folds] /main.rs:13: impl block missing vim fold markers
-	[impl-follows-type] /main.rs:7: `impl Foo` should follow type definition (line 3), but has 3 blank line(s)
-	[impl-follows-type] /main.rs:13: `impl Foo` should follow type definition (line 9), but has 3 blank line(s)
+	[join-split-impls] /main.rs:13: `impl Foo`
+	HINT: split `impl` blocks should be joined into one
+	[impl-folds] /main.rs:7
+	HINT: impl block missing vim fold markers
+	[impl-folds] /main.rs:13
+	HINT: impl block missing vim fold markers
+	[impl-follows-type] /main.rs:7: `impl Foo` is 3 blank line(s) after the definition (line 3)
+	HINT: `impl` should follow type definition
+	[impl-follows-type] /main.rs:13: `impl Foo` is 3 blank line(s) after the definition (line 9)
+	HINT: `impl` should follow type definition
 
 	# Format mode
 	fn unrelated_start() {}
@@ -96,8 +101,10 @@ fn order_follows_before_folds() {
 		&all_impl_opts(),
 	), @"
 	# Assert mode
-	[impl-folds] /main.rs:8: impl block missing vim fold markers
-	[impl-follows-type] /main.rs:8: `impl Bar` should follow type definition (line 3), but has 4 blank line(s)
+	[impl-folds] /main.rs:8
+	HINT: impl block missing vim fold markers
+	[impl-follows-type] /main.rs:8: `impl Bar` is 4 blank line(s) after the definition (line 3)
+	HINT: `impl` should follow type definition
 
 	# Format mode
 	struct Bar {

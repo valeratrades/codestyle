@@ -79,11 +79,11 @@ fn check_section(content: &str, section_header: &str, path_str: &str) -> Option<
 
 	Some(Violation {
 		rule: RULE,
-		hint: None,
+		hint: "dependencies are not properly grouped/ordered",
 		file: path_str.to_string(),
 		line,
 		column: 1,
-		message: format!("Dependencies in {section_header} are not properly grouped/ordered"),
+		detail: Some(section_header.to_string()),
 		fix: Some(Fix {
 			start_byte: section_body_start,
 			end_byte: deps_end,

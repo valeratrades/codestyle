@@ -82,15 +82,15 @@ fn repeated_primitives() {
 		"#,
 		&opts(),
 	), @"
-	[swappable-args] /main.rs:1: `free` takes interchangeable parameters (2 x `u64`)
-	HINT: wrap them in newtypes, or pass an args struct
-	[swappable-args] /main.rs:2: `refs` takes interchangeable parameters (2 x `&str`, 2 x `bool`)
-	HINT: wrap them in newtypes, or pass an args struct
-	[swappable-args] /main.rs:3: `mixed` takes interchangeable parameters (2 x `&mut u8`)
-	HINT: wrap them in newtypes, or pass an args struct
-	[swappable-args] /main.rs:6: `method` takes interchangeable parameters (2 x `f64`)
-	HINT: wrap them in newtypes, or pass an args struct
-	[swappable-args] /main.rs:9: `decl` takes interchangeable parameters (2 x `char`)
-	HINT: wrap them in newtypes, or pass an args struct
+	[swappable-args] /main.rs:1: `free` (2 x `u64`)
+	HINT: fn takes interchangeable parameters; wrap them in newtypes, or pass an args struct
+	[swappable-args] /main.rs:2: `refs` (2 x `&str`, 2 x `bool`)
+	HINT: fn takes interchangeable parameters; wrap them in newtypes, or pass an args struct
+	[swappable-args] /main.rs:3: `mixed` (2 x `&mut u8`)
+	HINT: fn takes interchangeable parameters; wrap them in newtypes, or pass an args struct
+	[swappable-args] /main.rs:6: `method` (2 x `f64`)
+	HINT: fn takes interchangeable parameters; wrap them in newtypes, or pass an args struct
+	[swappable-args] /main.rs:9: `decl` (2 x `char`)
+	HINT: fn takes interchangeable parameters; wrap them in newtypes, or pass an args struct
 	");
 }

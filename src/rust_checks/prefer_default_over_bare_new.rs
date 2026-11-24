@@ -113,11 +113,11 @@ impl<'a> PreferDefaultVisitor<'a> {
 		let span = func.sig.ident.span();
 		self.violations.push(Violation {
 			rule: RULE,
-			hint: None,
+			hint: "argument-less `pub fn new()` found; implement `Default` instead — callers should use `Type::default()`",
 			file: self.path_str.clone(),
 			line: span.start().line,
 			column: span.start().column,
-			message: "argument-less `pub fn new()` found; implement `Default` instead — callers should use `Type::default()`".to_string(),
+			detail: None,
 			fix: None,
 		});
 	}
@@ -152,11 +152,11 @@ impl<'a> PreferDefaultVisitor<'a> {
 		});
 		self.violations.push(Violation {
 			rule: RULE,
-			hint: None,
+			hint: "`Type::new()` — use `Type::default()` instead",
 			file: self.path_str.clone(),
 			line: span.start().line,
 			column: span.start().column,
-			message: "`Type::new()` — use `Type::default()` instead".to_string(),
+			detail: None,
 			fix,
 		});
 	}

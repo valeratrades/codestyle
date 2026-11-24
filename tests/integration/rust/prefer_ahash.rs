@@ -96,9 +96,12 @@ fn simple_use_hashset() {
 		&opts(),
 	), @"
 	# Assert mode
-	[prefer-ahash] /main.rs:1: use `ahash::AHashSet` instead of `std::collections::HashSet`
-	[prefer-ahash] /main.rs:4: use `AHashSet` instead of `HashSet`
-	[prefer-ahash] /main.rs:4: use `AHashSet` instead of `HashSet`
+	[prefer-ahash] /main.rs:1
+	HINT: use `ahash::AHashSet` instead of `std::collections::HashSet`
+	[prefer-ahash] /main.rs:4: `AHashSet` instead of `HashSet`
+	HINT: use `ahash` collections instead of `std` ones
+	[prefer-ahash] /main.rs:4: `AHashSet` instead of `HashSet`
+	HINT: use `ahash` collections instead of `std` ones
 
 	# Format mode
 	use ahash::AHashSet;
@@ -122,9 +125,12 @@ fn group_use_hashset() {
 		&opts(),
 	), @"
 	# Assert mode
-	[prefer-ahash] /main.rs:1: use `ahash::AHashSet` instead of `std::collections::HashSet`
-	[prefer-ahash] /main.rs:4: use `AHashSet` instead of `HashSet`
-	[prefer-ahash] /main.rs:4: use `AHashSet` instead of `HashSet`
+	[prefer-ahash] /main.rs:1
+	HINT: use `ahash::AHashSet` instead of `std::collections::HashSet`
+	[prefer-ahash] /main.rs:4: `AHashSet` instead of `HashSet`
+	HINT: use `ahash` collections instead of `std` ones
+	[prefer-ahash] /main.rs:4: `AHashSet` instead of `HashSet`
+	HINT: use `ahash` collections instead of `std` ones
 
 	# Format mode
 	use std::collections::{BTreeSet};
@@ -147,9 +153,12 @@ fn fully_qualified_hashset() {
 		&opts(),
 	), @"
 	# Assert mode
-	[prefer-ahash] /main.rs:1: use `AHashSet` instead of `HashSet`
-	[prefer-ahash] /main.rs:2: use `AHashSet` instead of `HashSet`
-	[prefer-ahash] /main.rs:1: missing `use ahash::AHashSet` import
+	[prefer-ahash] /main.rs:1: `AHashSet` instead of `HashSet`
+	HINT: use `ahash` collections instead of `std` ones
+	[prefer-ahash] /main.rs:2: `AHashSet` instead of `HashSet`
+	HINT: use `ahash` collections instead of `std` ones
+	[prefer-ahash] /main.rs:1
+	HINT: missing `use ahash::AHashSet` import
 
 	# Format mode
 	use ahash::AHashSet;
@@ -173,12 +182,18 @@ fn both_hashmap_and_hashset() {
 		&opts(),
 	), @"
 	# Assert mode
-	[prefer-ahash] /main.rs:1: use `ahash::AHashMap` instead of `std::collections::HashMap`
-	[prefer-ahash] /main.rs:4: use `AHashMap` instead of `HashMap`
-	[prefer-ahash] /main.rs:4: use `AHashMap` instead of `HashMap`
-	[prefer-ahash] /main.rs:5: use `AHashSet` instead of `HashSet`
-	[prefer-ahash] /main.rs:5: use `AHashSet` instead of `HashSet`
-	[prefer-ahash] /main.rs:1: missing `use ahash::AHashSet` import
+	[prefer-ahash] /main.rs:1
+	HINT: use `ahash::AHashMap` instead of `std::collections::HashMap`
+	[prefer-ahash] /main.rs:4: `AHashMap` instead of `HashMap`
+	HINT: use `ahash` collections instead of `std` ones
+	[prefer-ahash] /main.rs:4: `AHashMap` instead of `HashMap`
+	HINT: use `ahash` collections instead of `std` ones
+	[prefer-ahash] /main.rs:5: `AHashSet` instead of `HashSet`
+	HINT: use `ahash` collections instead of `std` ones
+	[prefer-ahash] /main.rs:5: `AHashSet` instead of `HashSet`
+	HINT: use `ahash` collections instead of `std` ones
+	[prefer-ahash] /main.rs:1
+	HINT: missing `use ahash::AHashSet` import
 
 	# Format mode
 	use ahash::AHashSet;
@@ -204,9 +219,12 @@ fn simple_use_hashmap() {
 		&opts(),
 	), @"
 	# Assert mode
-	[prefer-ahash] /main.rs:1: use `ahash::AHashMap` instead of `std::collections::HashMap`
-	[prefer-ahash] /main.rs:4: use `AHashMap` instead of `HashMap`
-	[prefer-ahash] /main.rs:4: use `AHashMap` instead of `HashMap`
+	[prefer-ahash] /main.rs:1
+	HINT: use `ahash::AHashMap` instead of `std::collections::HashMap`
+	[prefer-ahash] /main.rs:4: `AHashMap` instead of `HashMap`
+	HINT: use `ahash` collections instead of `std` ones
+	[prefer-ahash] /main.rs:4: `AHashMap` instead of `HashMap`
+	HINT: use `ahash` collections instead of `std` ones
 
 	# Format mode
 	use ahash::AHashMap;
@@ -230,9 +248,12 @@ fn group_use_hashmap() {
 		&opts(),
 	), @"
 	# Assert mode
-	[prefer-ahash] /main.rs:1: use `ahash::AHashMap` instead of `std::collections::HashMap`
-	[prefer-ahash] /main.rs:4: use `AHashMap` instead of `HashMap`
-	[prefer-ahash] /main.rs:4: use `AHashMap` instead of `HashMap`
+	[prefer-ahash] /main.rs:1
+	HINT: use `ahash::AHashMap` instead of `std::collections::HashMap`
+	[prefer-ahash] /main.rs:4: `AHashMap` instead of `HashMap`
+	HINT: use `ahash` collections instead of `std` ones
+	[prefer-ahash] /main.rs:4: `AHashMap` instead of `HashMap`
+	HINT: use `ahash` collections instead of `std` ones
 
 	# Format mode
 	use std::collections::{BTreeMap};
@@ -255,9 +276,12 @@ fn fully_qualified_type_path() {
 		&opts(),
 	), @"
 	# Assert mode
-	[prefer-ahash] /main.rs:1: use `AHashMap` instead of `HashMap`
-	[prefer-ahash] /main.rs:2: use `AHashMap` instead of `HashMap`
-	[prefer-ahash] /main.rs:1: missing `use ahash::AHashMap` import
+	[prefer-ahash] /main.rs:1: `AHashMap` instead of `HashMap`
+	HINT: use `ahash` collections instead of `std` ones
+	[prefer-ahash] /main.rs:2: `AHashMap` instead of `HashMap`
+	HINT: use `ahash` collections instead of `std` ones
+	[prefer-ahash] /main.rs:1
+	HINT: missing `use ahash::AHashMap` import
 
 	# Format mode
 	use ahash::AHashMap;

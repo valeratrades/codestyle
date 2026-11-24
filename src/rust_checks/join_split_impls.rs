@@ -141,11 +141,11 @@ pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 
 		violations.push(Violation {
 			rule: RULE,
-			hint: None,
+			hint: "split `impl` blocks should be joined into one",
 			file: path_str.clone(),
 			line: impl_blocks[1].start_line,
 			column: 0,
-			message: format!("split `impl {impl_signature}` blocks should be joined into one"),
+			detail: Some(format!("`impl {impl_signature}`")),
 			fix,
 		});
 	}

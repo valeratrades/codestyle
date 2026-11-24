@@ -45,10 +45,15 @@ fn chrono_use_statements_and_paths() {
 		"#,
 		&opts(),
 	), @"
-	[no-chrono] /main.rs:1: Usage of `chrono` crate is disallowed in use statement. Use `jiff` crate instead.
-	[no-chrono] /main.rs:2: Usage of `chrono` crate is disallowed in use statement. Use `jiff` crate instead.
-	[no-chrono] /main.rs:4: Usage of `chrono` crate is disallowed. Use `jiff` crate instead.
-	[no-chrono] /main.rs:4: Usage of `chrono` crate is disallowed. Use `jiff` crate instead.
-	[no-chrono] /main.rs:9: Usage of `chrono` crate is disallowed. Use `jiff` crate instead.
+	[no-chrono] /main.rs:1: in use statement
+	HINT: usage of `chrono` crate is disallowed; use `jiff` crate instead
+	[no-chrono] /main.rs:2: in use statement
+	HINT: usage of `chrono` crate is disallowed; use `jiff` crate instead
+	[no-chrono] /main.rs:4
+	HINT: usage of `chrono` crate is disallowed; use `jiff` crate instead
+	[no-chrono] /main.rs:4
+	HINT: usage of `chrono` crate is disallowed; use `jiff` crate instead
+	[no-chrono] /main.rs:9
+	HINT: usage of `chrono` crate is disallowed; use `jiff` crate instead
 	");
 }

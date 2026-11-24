@@ -88,7 +88,8 @@ fn simple_var_in_println() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[embed-simple-vars] /main.rs:3: variable `name` should be embedded in format string: use `{name}` instead of `{}, name`
+	[embed-simple-vars] /main.rs:3: use `{name}` instead of `{}, name`
+	HINT: variables should be embedded in the format string
 
 	# Format mode
 	fn test() {
@@ -111,8 +112,10 @@ fn multiple_simple_vars() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[embed-simple-vars] /main.rs:4: variable `a` should be embedded in format string: use `{a}` instead of `{}, a`
-	[embed-simple-vars] /main.rs:4: variable `b` should be embedded in format string: use `{b}` instead of `{}, b`
+	[embed-simple-vars] /main.rs:4: use `{a}` instead of `{}, a`
+	HINT: variables should be embedded in the format string
+	[embed-simple-vars] /main.rs:4: use `{b}` instead of `{}, b`
+	HINT: variables should be embedded in the format string
 
 	# Format mode
 	fn test() {
@@ -135,7 +138,8 @@ fn format_macro() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[embed-simple-vars] /main.rs:3: variable `x` should be embedded in format string: use `{x}` instead of `{}, x`
+	[embed-simple-vars] /main.rs:3: use `{x}` instead of `{}, x`
+	HINT: variables should be embedded in the format string
 
 	# Format mode
 	fn test() {
@@ -159,7 +163,8 @@ fn write_macro() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[embed-simple-vars] /main.rs:5: variable `x` should be embedded in format string: use `{x}` instead of `{}, x`
+	[embed-simple-vars] /main.rs:5: use `{x}` instead of `{}, x`
+	HINT: variables should be embedded in the format string
 
 	# Format mode
 	use std::io::Write;
@@ -188,8 +193,10 @@ fn multi_line_format_macro() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[embed-simple-vars] /main.rs:6: variable `name` should be embedded in format string: use `{name}` instead of `{}, name`
-	[embed-simple-vars] /main.rs:7: variable `count` should be embedded in format string: use `{count}` instead of `{}, count`
+	[embed-simple-vars] /main.rs:6: use `{name}` instead of `{}, name`
+	HINT: variables should be embedded in the format string
+	[embed-simple-vars] /main.rs:7: use `{count}` instead of `{}, count`
+	HINT: variables should be embedded in the format string
 
 	# Format mode
 	fn test() {
@@ -214,7 +221,8 @@ fn mixed_simple_and_complex_args() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[embed-simple-vars] /main.rs:3: variable `tf` should be embedded in format string: use `{tf}` instead of `{}, tf`
+	[embed-simple-vars] /main.rs:3: use `{tf}` instead of `{}, tf`
+	HINT: variables should be embedded in the format string
 
 	# Format mode
 	fn test() {
@@ -237,8 +245,10 @@ fn multiple_simple_vars_mixed_with_complex() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[embed-simple-vars] /main.rs:4: variable `issue_number` should be embedded in format string: use `{issue_number}` instead of `{}, issue_number`
-	[embed-simple-vars] /main.rs:4: variable `sanitized` should be embedded in format string: use `{sanitized}` instead of `{}, sanitized`
+	[embed-simple-vars] /main.rs:4: use `{issue_number}` instead of `{}, issue_number`
+	HINT: variables should be embedded in the format string
+	[embed-simple-vars] /main.rs:4: use `{sanitized}` instead of `{}, sanitized`
+	HINT: variables should be embedded in the format string
 
 	# Format mode
 	fn test() {
@@ -261,7 +271,8 @@ fn field_access_not_doubled_in_format() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[embed-simple-vars] /main.rs:3: variable `workspace_id` should be embedded in format string: use `{workspace_id}` instead of `{}, workspace_id`
+	[embed-simple-vars] /main.rs:3: use `{workspace_id}` instead of `{}, workspace_id`
+	HINT: variables should be embedded in the format string
 
 	# Format mode
 	fn test() {
@@ -285,9 +296,12 @@ fn assert_macros() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[embed-simple-vars] /main.rs:3: variable `expected` should be embedded in format string: use `{expected}` instead of `{}, expected`
-	[embed-simple-vars] /main.rs:4: variable `expected` should be embedded in format string: use `{expected}` instead of `{}, expected`
-	[embed-simple-vars] /main.rs:5: variable `expected` should be embedded in format string: use `{expected}` instead of `{}, expected`
+	[embed-simple-vars] /main.rs:3: use `{expected}` instead of `{}, expected`
+	HINT: variables should be embedded in the format string
+	[embed-simple-vars] /main.rs:4: use `{expected}` instead of `{}, expected`
+	HINT: variables should be embedded in the format string
+	[embed-simple-vars] /main.rs:5: use `{expected}` instead of `{}, expected`
+	HINT: variables should be embedded in the format string
 
 	# Format mode
 	fn test() {
@@ -313,9 +327,12 @@ fn todo_unimplemented_unreachable_macros() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[embed-simple-vars] /main.rs:3: variable `feature` should be embedded in format string: use `{feature}` instead of `{}, feature`
-	[embed-simple-vars] /main.rs:4: variable `feature` should be embedded in format string: use `{feature}` instead of `{}, feature`
-	[embed-simple-vars] /main.rs:5: variable `feature` should be embedded in format string: use `{feature}` instead of `{}, feature`
+	[embed-simple-vars] /main.rs:3: use `{feature}` instead of `{}, feature`
+	HINT: variables should be embedded in the format string
+	[embed-simple-vars] /main.rs:4: use `{feature}` instead of `{}, feature`
+	HINT: variables should be embedded in the format string
+	[embed-simple-vars] /main.rs:5: use `{feature}` instead of `{}, feature`
+	HINT: variables should be embedded in the format string
 
 	# Format mode
 	fn test() {
@@ -340,8 +357,10 @@ fn bail_and_eyre_macros() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[embed-simple-vars] /main.rs:3: variable `reason` should be embedded in format string: use `{reason}` instead of `{}, reason`
-	[embed-simple-vars] /main.rs:4: variable `reason` should be embedded in format string: use `{reason}` instead of `{}, reason`
+	[embed-simple-vars] /main.rs:3: use `{reason}` instead of `{}, reason`
+	HINT: variables should be embedded in the format string
+	[embed-simple-vars] /main.rs:4: use `{reason}` instead of `{}, reason`
+	HINT: variables should be embedded in the format string
 
 	# Format mode
 	fn test() -> Result<()> {
@@ -365,8 +384,10 @@ fn anyhow_and_ensure_macros() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[embed-simple-vars] /main.rs:3: variable `value` should be embedded in format string: use `{value}` instead of `{}, value`
-	[embed-simple-vars] /main.rs:4: variable `value` should be embedded in format string: use `{value}` instead of `{}, value`
+	[embed-simple-vars] /main.rs:3: use `{value}` instead of `{}, value`
+	HINT: variables should be embedded in the format string
+	[embed-simple-vars] /main.rs:4: use `{value}` instead of `{}, value`
+	HINT: variables should be embedded in the format string
 
 	# Format mode
 	fn test() -> Result<()> {
@@ -389,7 +410,8 @@ fn debug_format_specifier() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[embed-simple-vars] /main.rs:3: variable `value` should be embedded in format string: use `{value:?}` instead of `{:?}, value`
+	[embed-simple-vars] /main.rs:3: use `{value:?}` instead of `{:?}, value`
+	HINT: variables should be embedded in the format string
 
 	# Format mode
 	fn test() {
@@ -413,9 +435,12 @@ fn debug_format_with_multiple_specifiers() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[embed-simple-vars] /main.rs:3: variable `value` should be embedded in format string: use `{value:?}` instead of `{:?}, value`
-	[embed-simple-vars] /main.rs:4: variable `pandoc_to_typst` should be embedded in format string: use `{pandoc_to_typst:?}` instead of `{:?}, pandoc_to_typst`
-	[embed-simple-vars] /main.rs:5: variable `precision` should be embedded in format string: use `{precision:.0}` instead of `{:.0}, precision`
+	[embed-simple-vars] /main.rs:3: use `{value:?}` instead of `{:?}, value`
+	HINT: variables should be embedded in the format string
+	[embed-simple-vars] /main.rs:4: use `{pandoc_to_typst:?}` instead of `{:?}, pandoc_to_typst`
+	HINT: variables should be embedded in the format string
+	[embed-simple-vars] /main.rs:5: use `{precision:.0}` instead of `{:.0}, precision`
+	HINT: variables should be embedded in the format string
 
 	# Format mode
 	fn test() {
@@ -440,8 +465,10 @@ fn debug_format_mixed_with_display() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[embed-simple-vars] /main.rs:4: variable `name` should be embedded in format string: use `{name}` instead of `{}, name`
-	[embed-simple-vars] /main.rs:4: variable `data` should be embedded in format string: use `{data:?}` instead of `{:?}, data`
+	[embed-simple-vars] /main.rs:4: use `{name}` instead of `{}, name`
+	HINT: variables should be embedded in the format string
+	[embed-simple-vars] /main.rs:4: use `{data:?}` instead of `{:?}, data`
+	HINT: variables should be embedded in the format string
 
 	# Format mode
 	fn test() {
@@ -464,7 +491,8 @@ fn debug_format_pretty_print() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[embed-simple-vars] /main.rs:3: variable `value` should be embedded in format string: use `{value:#?}` instead of `{:#?}, value`
+	[embed-simple-vars] /main.rs:3: use `{value:#?}` instead of `{:#?}, value`
+	HINT: variables should be embedded in the format string
 
 	# Format mode
 	fn test() {

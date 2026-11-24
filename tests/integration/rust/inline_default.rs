@@ -281,7 +281,8 @@ fn feature_not_duplicated_when_already_in_lib_rs() {
 		&opts(),
 	), @r#"
 	# Assert mode
-	[inline-default] /src/yak.rs:1: `impl Default for Yak` can be inlined as field defaults (RFC 3681)
+	[inline-default] /src/yak.rs:1: `Yak`
+	HINT: `impl Default` can be inlined as field defaults (RFC 3681)
 
 	# Format mode
 	//- /Cargo.toml
@@ -327,7 +328,8 @@ fn non_adjacent_impl_between_struct_and_default() {
 		&opts(),
 	), @"
 	# Assert mode
-	[inline-default] /main.rs:1: `impl Default for Rating` can be inlined as field defaults (RFC 3681)
+	[inline-default] /main.rs:1: `Rating`
+	HINT: `impl Default` can be inlined as field defaults (RFC 3681)
 
 	# Format mode
 	#[derive(Default)]
@@ -360,7 +362,8 @@ fn existing_derive_gets_default_injected() {
 		&opts(),
 	), @"
 	# Assert mode
-	[inline-default] /main.rs:1: `impl Default for Yak` can be inlined as field defaults (RFC 3681)
+	[inline-default] /main.rs:1: `Yak`
+	HINT: `impl Default` can be inlined as field defaults (RFC 3681)
 
 	# Format mode
 	#[derive(Clone, Debug, Default)]
@@ -386,7 +389,8 @@ fn single_field() {
 		&opts(),
 	), @"
 	# Assert mode
-	[inline-default] /main.rs:1: `impl Default for Yak` can be inlined as field defaults (RFC 3681)
+	[inline-default] /main.rs:1: `Yak`
+	HINT: `impl Default` can be inlined as field defaults (RFC 3681)
 
 	# Format mode
 	#[derive(Default)]
@@ -417,7 +421,8 @@ fn multiple_const_fields() {
 		&opts(),
 	), @"
 	# Assert mode
-	[inline-default] /main.rs:1: `impl Default for Yak` can be inlined as field defaults (RFC 3681)
+	[inline-default] /main.rs:1: `Yak`
+	HINT: `impl Default` can be inlined as field defaults (RFC 3681)
 
 	# Format mode
 	#[derive(Default)]
@@ -445,7 +450,8 @@ fn feature_not_injected_when_only_other_rules_fixed_something() {
 		&opts,
 	), @r#"
 	# Assert mode
-	[pub-first] /src/lib.rs:2: public item should come before private items
+	[pub-first] /src/lib.rs:2
+	HINT: public item should come before private items
 
 	# Format mode
 	//- /Cargo.toml

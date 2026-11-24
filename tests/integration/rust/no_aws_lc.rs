@@ -3,6 +3,8 @@ use std::process::Command;
 use codestyle::rust_checks::no_aws_lc;
 use v_fixtures::Fixture;
 
+use crate::utils::render_violation;
+
 /// Fake `aws-lc-rs` / `rustls` / `tokio-rustls` / `tonic` under `/vendor`, wired like the real feature tables.
 const VENDOR: &str = r#"
 //- /vendor/aws-lc-rs/Cargo.toml
@@ -54,12 +56,7 @@ fn check(fixture_str: &str) -> String {
 	let temp = Fixture::parse(&format!("{}\n{vendor}", fixture_str.trim_end())).write_to_tempdir();
 	let status = Command::new("cargo").args(["generate-lockfile", "--offline"]).current_dir(&temp.root).status().unwrap();
 	assert!(status.success());
-	let root = temp.root.to_str().unwrap();
-	no_aws_lc::check(&temp.root)
-		.iter()
-		.map(|v| format!("[{}] {}:{}: {}", v.rule, v.file.strip_prefix(root).unwrap(), v.line, v.message))
-		.collect::<Vec<_>>()
-		.join("\n")
+	no_aws_lc::check(&temp.root).iter().map(|v| render_violation(v, &temp.root)).collect::<Vec<_>>().join("\n")
 }
 
 #[test]
@@ -102,7 +99,10 @@ fn inherited_declaration_points_at_workspace_root() {
 		tonic.workspace = true
 		//- /app/src/lib.rs
 	"#,
-	), @"[no-aws-lc] /Cargo.toml:6: `app` enables `tonic/tls-aws-lc`, which builds aws-lc-sys (bundled C); use `tls-ring` instead");
+	), @"
+	[no-aws-lc] /Cargo.toml:6: `app` enables `tonic/tls-aws-lc`
+	HINT: builds aws-lc-sys (bundled C); use `tls-ring` instead
+	");
 }
 
 /// `std` reaches rustls through a package node, not through aws-lc's feature chain.
@@ -134,5 +134,8 @@ fn crate_enabling_unrelated_rustls_feature_is_not_blamed() {
 		features = ["std"]
 		//- /verifier/src/lib.rs
 	"#,
-	), @"[no-aws-lc] /app/Cargo.toml:6: `app` enables `rustls/aws_lc_rs`, which builds aws-lc-sys (bundled C); set `default-features = false`, keep the defaults you need, and add `ring` (`rustls-webpki`: `ring`); keep exactly one provider enabled, or `ClientConfig::builder()` panics on ambiguity");
+	), @"
+	[no-aws-lc] /app/Cargo.toml:6: `app` enables `rustls/aws_lc_rs`
+	HINT: builds aws-lc-sys (bundled C); set `default-features = false`, keep the defaults you need, and add `ring` (`rustls-webpki`: `ring`); keep exactly one provider enabled, or `ClientConfig::builder()` panics on ambiguity
+	");
 }
