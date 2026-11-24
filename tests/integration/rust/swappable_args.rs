@@ -48,6 +48,36 @@ fn trait_impl_closures_and_tests_are_exempt() {
 }
 
 #[test]
+fn called_by_argument_name_is_exempt() {
+	assert_check_passing(
+		r#"
+		#[component]
+		pub fn Button(label: String, href: String) -> Element {}
+		#[dioxus::prelude::component]
+		fn Qualified(a: bool, b: bool) -> Element {}
+		#[component(transparent)]
+		fn WithArgs(a: bool, b: bool) -> impl IntoView {}
+		#[island]
+		fn Island(a: u32, b: u32) -> impl IntoView {}
+		#[autoprops]
+		#[function_component]
+		fn Yew(a: &str, b: &str) -> Html {}
+		#[poise::command(slash_command)]
+		async fn slash(ctx: Context<'_>, a: String, b: String) -> Result<(), Error> {}
+		#[builder]
+		fn built(a: f64, b: f64) {}
+		struct S;
+		#[bon]
+		impl S {
+			#[builder]
+			fn built(&self, a: f64, b: f64) {}
+		}
+		"#,
+		&opts(),
+	);
+}
+
+#[test]
 fn skip_marker_passes() {
 	assert_check_passing(
 		r#"
@@ -79,6 +109,10 @@ fn repeated_primitives() {
 		trait T {
 			fn decl(a: char, b: char);
 		}
+		#[component]
+		fn Button(label: String, href: String) -> Element {
+			fn helper(a: u8, b: u8) {}
+		}
 		"#,
 		&opts(),
 	), @"
@@ -91,6 +125,8 @@ fn repeated_primitives() {
 	[swappable-args] /main.rs:6: `method` (2 x `f64`)
 	HINT: fn takes interchangeable parameters; wrap them in newtypes, or pass an args struct
 	[swappable-args] /main.rs:9: `decl` (2 x `char`)
+	HINT: fn takes interchangeable parameters; wrap them in newtypes, or pass an args struct
+	[swappable-args] /main.rs:13: `helper` (2 x `u8`)
 	HINT: fn takes interchangeable parameters; wrap them in newtypes, or pass an args struct
 	");
 }

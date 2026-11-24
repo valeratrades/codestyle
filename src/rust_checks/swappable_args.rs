@@ -2,7 +2,7 @@
 
 use std::{collections::BTreeMap, path::Path};
 
-use syn::{FnArg, ImplItemFn, ItemFn, ItemImpl, ItemMod, Signature, TraitItemFn, Type, spanned::Spanned, visit::Visit};
+use syn::{Attribute, FnArg, ImplItemFn, ItemFn, ItemImpl, ItemMod, Signature, TraitItemFn, Type, spanned::Spanned, visit::Visit};
 
 use super::{
 	Violation,
@@ -13,6 +13,14 @@ use super::{
 const RULE: &str = "swappable-args";
 const PRIMITIVES: &[&str] = &[
 	"u8", "u16", "u32", "u64", "u128", "usize", "i8", "i16", "i32", "i64", "i128", "isize", "f32", "f64", "bool", "char", "str", "String",
+];
+/// Attributes whose fns are called with the argument names spelled out.
+const NAMED_ARGS_ATTRS: &[&str] = &[
+	"component", // dioxus, leptos, sycamore
+	"island",    // leptos
+	"autoprops", // yew
+	"builder",   // bon
+	"command",   // poise, tauri
 ];
 pub fn check(path: &Path, content: &str, file: &syn::File) -> Vec<Violation> {
 	let visitor = SwappableArgsVisitor {
@@ -36,8 +44,8 @@ struct SwappableArgsVisitor<'a> {
 }
 
 impl SwappableArgsVisitor<'_> {
-	fn check_sig(&mut self, sig: &Signature) {
-		if self.test_depth > 0 {
+	fn check_sig(&mut self, attrs: &[Attribute], sig: &Signature) {
+		if self.test_depth > 0 || attrs.iter().any(is_named_args_attr) {
 			return;
 		}
 		let mut by_type: BTreeMap<String, usize> = BTreeMap::default();
@@ -69,7 +77,7 @@ impl<'a> Visit<'a> for SwappableArgsVisitor<'_> {
 	fn visit_item_fn(&mut self, node: &'a ItemFn) {
 		let is_test = node.attrs.iter().any(is_test_attr);
 		self.test_depth += usize::from(is_test);
-		self.check_sig(&node.sig);
+		self.check_sig(&node.attrs, &node.sig);
 		syn::visit::visit_item_fn(self, node);
 		self.test_depth -= usize::from(is_test);
 	}
@@ -94,7 +102,7 @@ impl<'a> Visit<'a> for SwappableArgsVisitor<'_> {
 		let is_test = node.attrs.iter().any(is_test_attr);
 		self.test_depth += usize::from(is_test);
 		if !is_test && !self.in_trait_impl && !has_skip_marker_for_rule(self.content, node.span(), RULE) {
-			self.check_sig(&node.sig);
+			self.check_sig(&node.attrs, &node.sig);
 		}
 		syn::visit::visit_impl_item_fn(self, node);
 		self.test_depth -= usize::from(is_test);
@@ -102,10 +110,14 @@ impl<'a> Visit<'a> for SwappableArgsVisitor<'_> {
 
 	fn visit_trait_item_fn(&mut self, node: &'a TraitItemFn) {
 		if !has_skip_marker_for_rule(self.content, node.span(), RULE) {
-			self.check_sig(&node.sig);
+			self.check_sig(&node.attrs, &node.sig);
 		}
 		syn::visit::visit_trait_item_fn(self, node);
 	}
+}
+
+fn is_named_args_attr(attr: &Attribute) -> bool {
+	attr.path().segments.last().is_some_and(|s| NAMED_ARGS_ATTRS.iter().any(|name| s.ident == name))
 }
 
 /// `u64`, `&str`, `&mut f32`, ... as a comparable string; `None` for anything else
