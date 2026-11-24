@@ -48,16 +48,16 @@ fn workspace_groups_by_rule_then_crate() {
 	codestyle: found 4 violation(s):
 
 	- [loop-comment]
-		HINT: endless loop without `//LOOP` comment; try to rewrite the loop with `while let` or justify why a bound can't be enforced
-		- a/
-			- ./a/src/lib.rs:2:1
-		- b/
-			- ./b/src/lib.rs:2:1
-			- ./b/src/lib.rs:5:1
+	  HINT: endless loop without `//LOOP` comment; try to rewrite the loop with `while let` or justify why a bound can't be enforced
+	  - a/
+	    - ./a/src/lib.rs:2:1
+	  - b/
+	    - ./b/src/lib.rs:2:1
+	    - ./b/src/lib.rs:5:1
 	- [swappable-args]
-		HINT: fn takes interchangeable parameters; wrap them in newtypes, or pass an args struct
-		- a/
-			- ./a/src/lib.rs:4:3: `pair` (2 x `&str`)
+	  HINT: fn takes interchangeable parameters; wrap them in newtypes, or pass an args struct
+	  - a/
+	    - ./a/src/lib.rs:4:3: `pair` (2 x `&str`)
 	");
 }
 
@@ -79,11 +79,11 @@ fn single_crate_drops_crate_level() {
 	codestyle: found 2 violation(s):
 
 	- [loop-comment]
-		HINT: endless loop without `//LOOP` comment; try to rewrite the loop with `while let` or justify why a bound can't be enforced
-		- ./src/lib.rs:2:1
+	  HINT: endless loop without `//LOOP` comment; try to rewrite the loop with `while let` or justify why a bound can't be enforced
+	  - ./src/lib.rs:2:1
 	- [swappable-args]
-		HINT: fn takes interchangeable parameters; wrap them in newtypes, or pass an args struct
-		- ./src/lib.rs:4:3: `pair` (2 x `&str`)
+	  HINT: fn takes interchangeable parameters; wrap them in newtypes, or pass an args struct
+	  - ./src/lib.rs:4:3: `pair` (2 x `&str`)
 	");
 }
 
@@ -109,8 +109,8 @@ fn general_hint_is_printed_once_above_its_locations() {
 	codestyle: found 2 violation(s):
 
 	- [insta-sequential-snapshots]
-		HINT: multiple snapshot assertions in one test; join tested strings together or split into separate tests
-		- ./src/lib.rs:3:1: first at line 2
-		- ./src/lib.rs:7:1: first at line 6
+	  HINT: multiple snapshot assertions in one test; join tested strings together or split into separate tests
+	  - ./src/lib.rs:3:1: first at line 2
+	  - ./src/lib.rs:7:1: first at line 6
 	");
 }

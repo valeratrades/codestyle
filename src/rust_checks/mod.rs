@@ -565,13 +565,13 @@ fn render_violations(violations: &[Violation], target_dir: &Path) -> String {
 
 	let mut out = String::new();
 	for ((rule, hint), crates) in groups {
-		out.push_str(&format!("- [{rule}]\n\tHINT: {hint}\n"));
+		out.push_str(&format!("- [{rule}]\n  HINT: {hint}\n"));
 		for (crate_label, vs) in crates {
 			let indent = if members.is_empty() {
-				"\t"
+				"  "
 			} else {
-				out.push_str(&format!("\t- {crate_label}\n"));
-				"\t\t"
+				out.push_str(&format!("  - {crate_label}\n"));
+				"    "
 			};
 			for v in vs {
 				let detail = v.detail.as_ref().map(|d| format!(": {d}")).unwrap_or_default();
